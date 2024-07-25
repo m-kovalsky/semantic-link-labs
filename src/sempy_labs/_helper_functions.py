@@ -547,13 +547,18 @@ def is_default_semantic_model(dataset: str, workspace: Optional[str] = None) -> 
 
     workspace = fabric.resolve_workspace_name(workspace)
 
-    dfI = fabric.list_items(workspace=workspace)
-    dfI_filt = dfI[
-        (dfI["Display Name"] == dataset)
-        & (dfI["Type"].isin(["Lakehouse", "SemanticModel", "SQLEndpoint"]))
-    ]
+    df = fabric.list_items(workspace=workspace)
+    df_filt = df[df["Display Name"] == dataset]
 
-    return len(dfI_filt) == 3
+    filtered_df = df_filt.groupby("Display Name").filter(
+        lambda x: set(["Warehouse", "SemanticModel"]).issubset(set(x["Type"]))
+        or set(["Lakehouse", "SemanticModel"]).issubset(set(x["Type"]))
+    )
+
+    if not filtered_df.empty:
+        return True
+    else:
+        return False
 
 
 def resolve_item_type(item_id: UUID, workspace: Optional[str] = None) -> str:
