@@ -30,6 +30,7 @@ def vertipaq_analyzer(
     export: Optional[str] = None,
     lakehouse_workspace: Optional[str] = None,
     read_stats_from_data: Optional[bool] = False,
+    return_dataframe: Optional[bool] = False,
 ):
     """
     Displays an HTML visualization of the Vertipaq Analyzer statistics from a semantic model.
@@ -52,6 +53,8 @@ def vertipaq_analyzer(
         or if no lakehouse attached, resolves to the workspace of the notebook.
     read_stats_from_data : bool, default=False
         Setting this parameter to true has the function get Column Cardinality and Missing Rows using DAX (Direct Lake semantic models achieve this using a Spark query to the lakehouse).
+    return_dataframe : bool, default=False
+        If True, returns a pandas dataframe instead of the visualization.
 
     Returns
     -------
@@ -443,6 +446,9 @@ def vertipaq_analyzer(
     dfs = {}
     for fileName, df in dataFrames.items():
         dfs[fileName] = df
+
+    if return_dataframe:
+        return export_Model, export_Table, export_Col, export_Hier, export_Part, export_Rel
 
     visualize_vertipaq(dfs)
 

@@ -50,7 +50,7 @@ def run_model_bpa_bulk(
 
     if not lakehouse_attached():
         raise ValueError(
-            "No lakehouse is attached to this notebook. Must attach a lakehouse to the notebook."
+            f"{icons.red_dot} No lakehouse is attached to this notebook. Must attach a lakehouse to the notebook."
         )
 
     cols = [
