@@ -6,10 +6,8 @@ from sempy_labs._helper_functions import (
     resolve_lakehouse_name,
     save_as_delta_table,
     resolve_workspace_capacity,
-    retry,
 )
 from sempy_labs.lakehouse import get_lakehouse_tables, lakehouse_attached
-from sempy_labs._model_bpa import run_model_bpa
 from typing import Optional, List
 from sempy._utils._log import log
 import sempy_labs._icons as icons
@@ -78,7 +76,12 @@ def vertipaq_analyzer_bulk(
         wksp = r["Name"]
         wksp_id = r["Id"]
         capacity_id, capacity_name = resolve_workspace_capacity(workspace=wksp)
-        df = pd.DataFrame(columns=cols)
+        df_m = pd.DataFrame(columns=cols)
+        df_t = pd.DataFrame(columns=cols)
+        df_c = pd.DataFrame(columns=cols)
+        df_h = pd.DataFrame(columns=cols)
+        df_p = pd.DataFrame(columns=cols)
+        df_rel = pd.DataFrame(columns=cols)
         dfD = fabric.list_datasets(workspace=wksp, mode="rest")
 
         # Exclude default semantic models
@@ -119,11 +122,17 @@ def vertipaq_analyzer_bulk(
                             z["Configured By"] = config_by
                             z["Timestamp"] = now
                             z["RunId"] = runId
-                            z = z[cols]
+                            #z = z[cols]
 
                             z["RunId"] = z["RunId"].astype("int")
 
-                        df = pd.concat([df, bpa_df], ignore_index=True)
+                        df_m = pd.concat([df_m, m], ignore_index=True)
+                        df_t = pd.concat([df_t, t], ignore_index=True)
+                        df_c = pd.concat([df_c, c], ignore_index=True)
+                        df_h = pd.concat([df_h, h], ignore_index=True)
+                        df_p = pd.concat([df_p, p], ignore_index=True)
+                        df_rel = pd.concat([df_rel, rel], ignore_index=True)
+                        
                         print(
                             f"{icons.green_dot} Collected Vertipaq Analyzer stats for the '{dataset_name}' semantic model within the '{wksp}' workspace."
                         )
@@ -133,11 +142,9 @@ def vertipaq_analyzer_bulk(
                         )
                         print(e)
 
-                df["Severity"].replace(icons.severity_mapping, inplace=True)
-
                 # Append save results individually for each workspace (so as not to create a giant dataframe)
                 print(
-                    f"{icons.in_progress} Saving the Vertipaq Analyzer results of the '{wksp}' workspace to the '{output_table}' within the '{lakehouse}' lakehouse within the '{lakehouse_workspace}' workspace..."
+                    f"{icons.in_progress} Saving the Vertipaq Analyzer results of the '{wksp}' workspace within the '{lakehouse}' lakehouse within the '{lakehouse_workspace}' workspace..."
                 )
                 save_as_delta_table(
                     dataframe=df,
