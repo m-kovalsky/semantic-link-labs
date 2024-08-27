@@ -11,6 +11,7 @@ from typing import Optional, Tuple, List
 from uuid import UUID
 import sempy_labs._icons as icons
 from sempy.fabric.exceptions import FabricHTTPException
+from contextlib import contextmanager
 
 
 def create_abfss_path(
@@ -850,3 +851,44 @@ def pagination(client, response):
         continuation_uri = response_json.get("continuationUri")
 
     return responses
+
+
+def get_sql_endpoint_connection_string(workspace: Optional[str]) -> str:
+
+    from sempy_labs._list_functions import list_lakehouses
+
+    dfL = list_lakehouses(workspace=workspace)
+    if len(dfL) == 0:
+        raise ValueError()
+    sql_endpoint = dfL["SQL Endpoint Connection String"].iloc[0]
+    conn_string = f"Driver={{ODBC Driver 18 for SQL Server}};Server={sql_endpoint}"
+
+    return conn_string
+
+
+@contextmanager
+def connect_odbc(workspace: Optional[str] = None):
+
+    def create_engine(connection_string: str):
+
+        import sqlalchemy
+        import struct
+        import pyodbc
+        from notebookutils import mssparkutils
+
+        token = mssparkutils.credentials.getToken(
+            "https://analysis.windows.net/powerbi/api"
+        ).encode("UTF-16-LE")
+        token_struct = struct.pack(f"<I{len(token)}s", len(token), token)
+        SQL_COPT_SS_ACCESS_TOKEN = 1256
+        return sqlalchemy.create_engine(
+            "mssql+pyodbc://",
+            creator=lambda: pyodbc.connect(
+                connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+            ),
+        )
+
+    connection_string = get_sql_endpoint_connection_string(workspace=workspace)
+    engine = create_engine(connection_string)
+
+    yield engine.connect()

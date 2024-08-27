@@ -57,6 +57,8 @@ from sempy_labs._list_functions import (
 )
 
 from sempy_labs._helper_functions import (
+    connect_odbc,
+    get_sql_endpoint_connection_string,
     resolve_workspace_capacity,
     create_abfss_path,
     format_dax_object_name,
@@ -205,4 +207,6 @@ __all__ = [
     "resolve_capacity_name",
     "run_model_bpa_bulk",
     "create_model_bpa_semantic_model",
+    "get_sql_endpoint_connection_string",
+    "connect_odbc",
 ]
