@@ -850,3 +850,35 @@ def pagination(client, response):
         continuation_uri = response_json.get("continuationUri")
 
     return responses
+
+
+def resolve_environment_id(environment: str, workspace: Optional[str] = None) -> UUID:
+    """
+    Obtains the environment Id based on an environment and workspace.
+
+    Parameters
+    ----------
+    environment : str
+        The environment name.
+    workspace : str, default=None
+        The Fabric workspace name.
+        Defaults to None which resolves to the workspace of the attached lakehouse
+        or if no lakehouse attached, resolves to the workspace of the notebook.
+
+    Returns
+    -------
+    UUID
+        The environment Id.
+    """
+
+    from sempy_labs._list_functions import list_environments
+
+    dfE = list_environments(workspace=workspace)
+    dfE_filt = dfE[dfE["Environment Name"] == environment]
+
+    if len(dfE_filt) == 0:
+        raise ValueError(
+            f"{icons.red_dot} The '{environment}' does not exist within the '{workspace}' workspace."
+        )
+
+    return dfE_filt["Environment Id"].iloc[0]

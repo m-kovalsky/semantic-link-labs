@@ -12,8 +12,6 @@ from sempy_labs._helper_functions import (
 import pandas as pd
 import base64
 import requests
-import time
-import json
 from pyspark.sql import SparkSession
 from typing import Optional
 import sempy_labs._icons as icons
@@ -656,7 +654,6 @@ def list_sqlendpoints(workspace: Optional[str] = None) -> pd.DataFrame:
 
     for r in responses:
         for v in r.get("value", []):
-
             new_data = {
                 "SQL Endpoint ID": v.get("id"),
                 "SQL Endpoint Name": v.get("displayName"),
@@ -699,7 +696,6 @@ def list_mirroredwarehouses(workspace: Optional[str] = None) -> pd.DataFrame:
 
     for r in responses:
         for v in r.get("value", []):
-
             new_data = {
                 "Mirrored Warehouse": v.get("displayName"),
                 "Mirrored Warehouse ID": v.get("id"),
@@ -751,7 +747,6 @@ def list_kqldatabases(workspace: Optional[str] = None) -> pd.DataFrame:
     for r in responses:
         for v in r.get("value", []):
             prop = v.get("properties", {})
-
             new_data = {
                 "KQL Database Name": v.get("displayName"),
                 "KQL Database ID": v.get("id"),
@@ -796,7 +791,6 @@ def list_kqlquerysets(workspace: Optional[str] = None) -> pd.DataFrame:
 
     for r in responses:
         for v in r.get("value", []):
-
             new_data = {
                 "KQL Queryset Name": v.get("displayName"),
                 "KQL Queryset ID": v.get("id"),
@@ -837,14 +831,10 @@ def list_mlmodels(workspace: Optional[str] = None) -> pd.DataFrame:
 
     for r in responses:
         for v in r.get("value", []):
-            model_id = v.get("id")
-            modelName = v.get("displayName")
-            desc = v.get("description")
-
             new_data = {
-                "ML Model Name": modelName,
-                "ML Model ID": model_id,
-                "Description": desc,
+                "ML Model Name": v.get("displayName"),
+                "ML Model ID": v.get("id"),
+                "Description": v.get("description"),
             }
             df = pd.concat([df, pd.DataFrame(new_data, index=[0])], ignore_index=True)
 
@@ -881,14 +871,10 @@ def list_eventstreams(workspace: Optional[str] = None) -> pd.DataFrame:
 
     for r in responses:
         for v in r.get("value", []):
-            model_id = v.get("id")
-            modelName = v.get("displayName")
-            desc = v.get("description")
-
             new_data = {
-                "Eventstream Name": modelName,
-                "Eventstream ID": model_id,
-                "Description": desc,
+                "Eventstream Name": v.get("displayName"),
+                "Eventstream ID": v.get("id"),
+                "Description": v.get("description"),
             }
             df = pd.concat([df, pd.DataFrame(new_data, index=[0])], ignore_index=True)
 
@@ -2578,3 +2564,193 @@ def list_reports_using_semantic_model(
             df = pd.concat([df, pd.DataFrame(new_data, index=[0])], ignore_index=True)
 
     return df
+
+
+def list_environments(workspace: Optional[str] = None) -> pd.DataFrame:
+    """
+    Shows the environments within a workspace.
+
+    Parameters
+    ----------
+    workspace : str, default=None
+        The Fabric workspace name.
+        Defaults to None which resolves to the workspace of the attached lakehouse
+        or if no lakehouse attached, resolves to the workspace of the notebook.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A pandas dataframe showing the environments within a workspace.
+    """
+
+    df = pd.DataFrame(columns=["Environment Name", "Environmment Id", "Description"])
+
+    (workspace, workspace_id) = resolve_workspace_name_and_id(workspace)
+
+    client = fabric.FabricRestClient()
+    response = client.get(f"/v1/workspaces/{workspace_id}/environments")
+    if response.status_code != 200:
+        raise FabricHTTPException(response)
+
+    responses = pagination(client, response)
+
+    for r in responses:
+        for v in r.get("value", []):
+            new_data = {
+                "Environment Name": v.get("displayName"),
+                "Eventstream ID": v.get("id"),
+                "Description": v.get("description"),
+            }
+            df = pd.concat([df, pd.DataFrame(new_data, index=[0])], ignore_index=True)
+
+    return df
+
+
+def get_spark_compute_settings(
+    environment: str, type: Optional[str] = "Published", workspace: Optional[str] = None
+) -> pd.DataFrame:
+    """
+    Gets the environment's spark compute settings.
+
+    Parameters
+    ----------
+    environment : str
+        The environment name.
+    type : str
+        The type of settings to retrieve. Options: 'Published', 'Staging'
+    workspace : str, default=None
+        The Fabric workspace name.
+        Defaults to None which resolves to the workspace of the attached lakehouse
+        or if no lakehouse attached, resolves to the workspace of the notebook.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A pandas dataframe showing the environment's spark compute settings.
+    """
+
+    # https://learn.microsoft.com/en-us/rest/api/fabric/environment/spark-compute/get-published-settings?tabs=HTTP
+    # https://learn.microsoft.com/en-us/rest/api/fabric/environment/spark-compute/get-staging-settings?tabs=HTTP
+
+    from sempy_labs._helper_functions import resolve_environment_id
+
+    type = type.capitalize()
+    valid_types = ["Published", "Staging"]
+
+    if type not in valid_types:
+        raise ValueError(
+            f"{icons.red_dot} Invalid 'type' parameter. Valid options: {valid_types}."
+        )
+
+    (workspace, workspace_id) = resolve_workspace_name_and_id(workspace)
+    environment_id = resolve_environment_id(environment, workspace)
+
+    df = pd.DataFrame(
+        columns=[
+            "Instance Pool Name",
+            "Instance Pool Type",
+            "Driver Cores",
+            "Driver Memory",
+            "Executor Cores",
+            "Executor Memory",
+            "Dynamic Executor Allocation Enabled",
+            "Min Executors",
+            "Max Executors",
+            "Spark ACLS Enable",
+            "Runtime Version",
+        ]
+    )
+
+    client = fabric.FabricRestClient()
+    url = f"/v1/workspaces/{workspace_id}/environments/{environment_id}"
+    if type == "Staging":
+        url = f"{url}/staging"
+    url = f"{url}/sparkcompute"
+
+    response = client.get(url)
+    if response.status_code != 200:
+        raise FabricHTTPException(response)
+
+    for v in response.json().get("value", []):
+        instance_pool = v.get("instancePool", {})
+        dea = v.get("dynamicExecutorAllocation", {})
+        new_data = {
+            "Instance Pool Name": instance_pool.get("name"),
+            "Instance Pool Type": instance_pool.get("type"),
+            "Driver Cores": v.get("driverCores"),
+            "Driver Memory": v.get("driverMemory"),
+            "Executor Cores": v.get("executorCores"),
+            "Executor Memory": v.get("executorMemory"),
+            "Dynamic Executor Allocation Enabled": dea.get("enabled"),
+            "Min Executors": dea.get("minExecutors"),
+            "Max Executors": dea.get("maxExecutors"),
+            "Spark ACLS Enable": v.get("sparkProperties", {}).get("spark.acls.enable"),
+            "Runtime Version": v.get("runtimeVersion"),
+        }
+        df = pd.concat([df, pd.DataFrame(new_data, index=[0])], ignore_index=True)
+
+    bool_cols = ["Dynamic Executor Allocation Enabled", "Spark ACLS Enable"]
+    int_cols = ["Driver Cores", "Executor Cores", "Min Executors", "Max Executors"]
+
+    df[bool_cols] = df[bool_cols].astype(bool)
+    df[int_cols] = df[int_cols].astype(int)
+
+    return df
+
+
+def update_spark_compute_staging_settings(
+    environment: str,
+    instance_pool_name: str,
+    instance_pool_type: str,
+    driver_cores: Optional[int] = None,
+    driver_memory: Optional[int] = None,
+    executor_cores: Optional[int] = None,
+    executor_memory: Optional[int] = None,
+    dynamic_executor_allocation_enabled: Optional[bool] = None,
+    min_executors: Optional[int] = None,
+    max_executors: Optional[int] = None,
+    spark_acls_enable: Optional[bool] = None,
+    runtime_version: Optional[str] = None,
+    workspace: Optional[str] = None,
+):
+
+    # https://learn.microsoft.com/en-us/rest/api/fabric/environment/spark-compute/update-staging-settings?tabs=HTTP
+
+    from sempy_labs._helper_functions import resolve_environment_id
+
+    (workspace, workspace_id) = resolve_workspace_name_and_id(workspace)
+    environment_id = resolve_environment_id(environment, workspace)
+
+    client = fabric.FabricRestClient()
+    payload = {
+        'instancePool':
+        {
+            'name': instance_pool_name,
+            'type': instance_pool_type,
+        }
+    }
+    if driver_cores is not None:
+        payload['driverCores'] = driver_cores
+    if driver_memory is not None:
+        payload['driverMemory'] = driver_memory
+    if executor_cores is not None:
+        payload['executorCores'] = executor_cores
+    if executor_memory is not None:
+        payload['executorMemory'] = executor_memory
+    if dynamic_executor_allocation_enabled is not None:
+        payload['dynamicExecutorAllocation']['enabled'] = dynamic_executor_allocation_enabled
+    if min_executors is not None:
+        payload['dynamicExecutorAllocation']['minExecutors'] = min_executors
+    if max_executors is not None:
+        payload['dynamicExecutorAllocation']['maxExecutors'] = max_executors
+    if spark_acls_enable is not None:
+        payload['sparkProperties']['spark.acls.enable'] = spark_acls_enable
+    if runtime_version is not None:
+        payload['runtimeVersion'] = runtime_version
+
+    response = client.patch(f"/v1/workspaces/{workspace_id}/environments/{environment_id}/staging/sparkcompute", json=payload)
+
+    if response.status_code != 200:
+        raise FabricHTTPException(response)
+
+    print(f"{icons.green_dot} The spark compute settings for the '{environment}' environment within the '{workspace}' workspace have been updated accordingly.")

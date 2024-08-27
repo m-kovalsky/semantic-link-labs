@@ -13,6 +13,9 @@ from sempy_labs._generate_semantic_model import (
     get_semantic_model_bim,
 )
 from sempy_labs._list_functions import (
+    list_environments,
+    get_spark_compute_settings,
+    update_spark_compute_staging_settings,
     list_reports_using_semantic_model,
     delete_custom_pool,
     list_semantic_model_objects,
@@ -57,6 +60,7 @@ from sempy_labs._list_functions import (
 )
 
 from sempy_labs._helper_functions import (
+    resolve_environment_id,
     resolve_workspace_capacity,
     create_abfss_path,
     format_dax_object_name,
@@ -205,4 +209,8 @@ __all__ = [
     "resolve_capacity_name",
     "run_model_bpa_bulk",
     "create_model_bpa_semantic_model",
+    "resolve_environment_id",
+    "list_environments",
+    "get_spark_compute_settings",
+    "update_spark_compute_staging_settings",
 ]
