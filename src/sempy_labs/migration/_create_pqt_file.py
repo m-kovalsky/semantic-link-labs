@@ -1,6 +1,7 @@
 import sempy
 import sempy.fabric as fabric
 import json
+import re
 import os
 import shutil
 from sempy_labs.lakehouse._lakehouse import lakehouse_attached
@@ -60,6 +61,27 @@ def create_pqt_file(
             )
             return
 
+        # Fast copy
+        supported_connectors = [
+            "AzureStorage.DataLakeContents",
+            "AzureStorage.DataLake",
+            "AzureStorage.BlobContents",
+            "AzureStorage.Blobs",
+            "Sql.Database",
+            "Sql.Databases",
+            "Lakehouse.Contents",
+            "PostgreSQL.Database",
+        ]
+
+        allowed_functions = [
+            "Table.SelectColumns",
+            "Table.TransformColumnTypes",
+            "Table.RenameColumns",
+            "Table.RemoveColumns",
+        ] + supported_connectors
+
+        allowed_functions = [f"{func}(" for func in allowed_functions]
+
         table_map = {}
         expr_map = {}
 
@@ -68,7 +90,7 @@ def create_pqt_file(
             for char in icons.special_characters:
                 table_name = table_name.replace(char, "")
             if t.RefreshPolicy:
-                table_map[table_name] = t.RefreshPolicy.SourceExpression
+                expr = t.RefreshPolicy.SourceExpression
             elif any(p.SourceType == TOM.PartitionSourceType.M for p in t.Partitions):
                 part_name = next(
                     p.Name
@@ -76,7 +98,32 @@ def create_pqt_file(
                     if p.SourceType == TOM.PartitionSourceType.M
                 )
                 expr = t.Partitions[part_name].Source.Expression
-                table_map[table_name] = expr
+            if t.RefreshPolicy or any(
+                p.SourceType == TOM.PartitionSourceType.M for p in t.Partitions
+            ):
+                fast_copy = False
+                expr_no_spaces = (
+                    expr.replace(" ", "")
+                    .replace("\n", "")
+                    .replace("\r", "")
+                    .replace("\t", "")
+                )
+                for connector in supported_connectors:
+                    if f"Source={connector}(" in expr_no_spaces:
+                        fast_copy = True
+                        break
+
+                pattern = r"\b[A-Za-z]+\.[A-Za-z]+\b\("
+                found_functions = re.findall(pattern, expr)
+
+                unallowed_functions = [
+                    func for func in found_functions if func not in allowed_functions
+                ]
+
+                if len(unallowed_functions) > 0:
+                    fast_copy = False
+
+                table_map[table_name] = [expr, fast_copy]
 
         for e in tom.model.Expressions:
             expr_map[e.Name] = [str(e.Kind), e.Expression]
@@ -126,17 +173,19 @@ def create_pqt_file(
             mdfileName = "MashupDocument.pq"
             mdFilePath = os.path.join(subFolderPath, mdfileName)
             sb = "section Section1;"
-            for t_name, query in table_map.items():
+            for t_name, query_fc in table_map.items():
                 sb = f'{sb}\nshared #"{t_name}" = '
-                if query is not None:
-                    pQueryNoSpaces = (
-                        query.replace(" ", "")
-                        .replace("\n", "")
-                        .replace("\t", "")
-                        .replace("\r", "")
-                    )
-                    if pQueryNoSpaces.startswith('letSource=""'):
-                        query = 'let\n\tSource = ""\nin\n\tSource'
+                query = query_fc[0]
+                # fc = query_fc[1]
+
+                pQueryNoSpaces = (
+                    query.replace(" ", "")
+                    .replace("\n", "")
+                    .replace("\t", "")
+                    .replace("\r", "")
+                )
+                if pQueryNoSpaces.startswith('letSource=""'):
+                    query = 'let\n\tSource = ""\nin\n\tSource'
                 sb = f"{sb}{query};"
 
             for e_name, kind_expr in expr_map.items():
@@ -151,7 +200,7 @@ def create_pqt_file(
             mmFilePath = os.path.join(subFolderPath, mmfileName)
             queryMetadata = []
 
-            for t_name, query in table_map.items():
+            for t_name, query_fc in table_map.items():
                 queryMetadata.append(
                     QueryMetadata(t_name, None, None, None, True, False)
                 )
