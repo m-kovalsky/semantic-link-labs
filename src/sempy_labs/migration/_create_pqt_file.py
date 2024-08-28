@@ -6,7 +6,7 @@ import os
 import shutil
 from sempy_labs.lakehouse._lakehouse import lakehouse_attached
 from sempy._utils._log import log
-from typing import Optional
+from typing import Optional, List
 import sempy_labs._icons as icons
 
 
@@ -15,7 +15,7 @@ def create_pqt_file(
     dataset: str,
     workspace: Optional[str] = None,
     file_name: Optional[str] = "PowerQueryTemplate",
-):
+) -> List[str]:
     """
     Dynamically generates a `Power Query Template <https://learn.microsoft.com/power-query/power-query-template>`_ file based on the semantic model. The .pqt file is
      saved within the Files section of your lakehouse.
@@ -33,6 +33,11 @@ def create_pqt_file(
         or if no lakehouse attached, resolves to the workspace of the notebook.
     file_name : str, default='PowerQueryTemplate'
         The name of the Power Query Template file to be generated.
+
+    Returns
+    -------
+    List[str]
+        A list of mashup document(s) for each .pqt file which was created.
     """
 
     sempy.fabric._client._utils._init_analysis_services()
@@ -71,6 +76,8 @@ def create_pqt_file(
             "Sql.Databases",
             "Lakehouse.Contents",
             "PostgreSQL.Database",
+            "Fabric.Warehouse",
+            "Oracle.Database",
         ]
 
         allowed_functions = [
@@ -84,6 +91,7 @@ def create_pqt_file(
 
         table_map = {}
         expr_map = {}
+        mashup_documents = []
 
         for t in tom.model.Tables:
             table_name = t.Name
@@ -192,6 +200,8 @@ def create_pqt_file(
                 expr = kind_expr[1]
                 sb = f'{sb}\nshared #"{e_name}" = {expr};'
 
+            mashup_documents.append(sb)
+
             with open(mdFilePath, "w") as file:
                 file.write(sb)
 
@@ -275,3 +285,5 @@ def create_pqt_file(
                 file_name = f"{file_name}_{a}"
             a += 1
             create_pqt(t_map, expr_map, file_name=file_name)
+
+        return mashup_documents
