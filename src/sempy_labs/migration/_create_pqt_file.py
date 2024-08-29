@@ -15,6 +15,7 @@ def create_pqt_file(
     dataset: str,
     workspace: Optional[str] = None,
     file_name: Optional[str] = "PowerQueryTemplate",
+    split_fast_copy: Optional[bool] = False,
 ) -> List[str]:
     """
     Dynamically generates a `Power Query Template <https://learn.microsoft.com/power-query/power-query-template>`_ file based on the semantic model. The .pqt file is
@@ -33,7 +34,8 @@ def create_pqt_file(
         or if no lakehouse attached, resolves to the workspace of the notebook.
     file_name : str, default='PowerQueryTemplate'
         The name of the Power Query Template file to be generated.
-
+    split_fast_copy: bool, default=False
+        If True, breaks out `fast-copy <https://learn.microsoft.com/fabric/data-factory/dataflows-gen2-fast-copy>`_-eligible tables into a separate .pqt file.
     Returns
     -------
     List[str]
