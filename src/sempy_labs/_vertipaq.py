@@ -508,10 +508,76 @@ def vertipaq_analyzer(
             df.columns = df.columns.str.replace(" ", "_")
 
             delta_table_name = f"VertipaqAnalyzer_{obj}".lower()
+
+            column_mapping = {
+                "Capacity_Name": "string",
+                "Capacity_Id": "string",
+                "Workspace_Name": "string",
+                "Workspace_Id": "string",
+                "Dataset_Name": "string",
+                "Dataset_Id": "string",
+                "Configured_By": "string",
+                "RunId": "int",
+                "Timestamp": "date",
+            }
+            if key == 'export_Table':
+                column_mapping['Table_Name'] = 'string'
+                column_mapping['Type'] = 'string'
+                column_mapping['Row_Count'] = 'int'
+                column_mapping['Total_Size'] = 'int'
+                column_mapping['Data_Size'] = 'int'
+                column_mapping['Dictionary_Size'] = 'int'
+                column_mapping['Hierarchy_Size'] = 'int'
+                column_mapping['%_DB'] = 'float'
+                column_mapping['Partitions'] = 'int'
+                column_mapping['Columns'] = 'int'
+            elif key == 'export_Col':
+                column_mapping['Table_Name'] = 'string'
+                column_mapping['Column_Name'] = 'string'
+                column_mapping['Type'] = 'string'
+                column_mapping['Cardinality'] = 'int'
+                column_mapping['Total_Size'] = 'int'
+                column_mapping['Data_Size'] = 'int'
+                column_mapping['Dictionary_Size'] = 'int'
+                column_mapping['Hierarchy_Size'] = 'int'
+                column_mapping['%_Table'] = 'float'
+                column_mapping['%_DB'] = 'float'
+                column_mapping['Data_Type'] = 'string'
+                column_mapping['Encoding'] = 'string'
+                column_mapping['Is_Resident'] = 'bool'
+                column_mapping['Temperature'] = 'float'
+                column_mapping['Last_Accessed'] = 'date'
+            elif key == 'export_Hier':
+                column_mapping['Table_Name'] = 'string'
+                column_mapping['Hierarchy_Name'] = 'string'
+                column_mapping['Used_Size'] = 'int'
+            elif key == 'export_Model':
+                column_mapping['Total_Size'] = 'int'
+                column_mapping['Table_Count'] = 'int'
+                column_mapping['Column_Count'] = 'int'
+                column_mapping['Compatibility_Level'] = 'int'
+                column_mapping['Default_Mode'] = 'string'
+            elif key == 'export_Part':
+                column_mapping['Table_Name'] = 'string'
+                column_mapping['Partition_Name'] = 'string'
+                column_mapping['Mode'] = 'string'
+                column_mapping['Record_Count'] = 'int'
+                column_mapping['Segment_Count'] = 'int'
+                column_mapping['Records_per_Segment'] = 'float'
+            elif key == 'export_Rel':
+                column_mapping['From_Object'] = 'string'
+                column_mapping['To_Object'] = 'string'
+                column_mapping['Multiplicity'] = 'string'
+                column_mapping['Used_Size'] = 'int'
+                column_mapping['Max_From_Cardinality'] = 'int'
+                column_mapping['Max_To_Cardinality'] = 'int'
+                column_mapping['Missing_Rows'] = 'int'
+
             save_as_delta_table(
                 dataframe=df,
                 delta_table_name=delta_table_name,
                 write_mode="append",
+                schema=column_mapping,
                 merge_schema=True,
             )
 
