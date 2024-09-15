@@ -925,3 +925,15 @@ def get_language_codes(languages: str | List[str]):
                 break
 
     return languages
+
+
+def resolve_connection_id(connection_name: str) -> UUID:
+
+    from sempy_labs._connections import list_connections
+
+    dfL = list_connections()
+    dfL_filt = dfL[dfL['Connection Name'] == connection_name]
+    if len(dfL_filt) == 0:
+        raise ValueError(f"{icons.red_dot} The '{connection_name}' connection does not exist.")
+
+    return dfL_filt['Connection Id'].iloc[0]
