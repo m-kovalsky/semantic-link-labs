@@ -2032,8 +2032,48 @@ class ReportWrapper:
             setting_value=value,
         )
 
+    def _add_file(self, request_body, file_name, payload):
+
+        print('hi')
+
+    def add_page(self, name: str, type: str = "16:9", height: Optional[int] = None, width: Optional[int] = None, definition: Optional[str] = None):
+
+        if height is not None and width is None:
+            raise ValueError()
+        elif height is None and width is not None:
+            raise ValueError()
+        elif height is not None and width is not None:
+            pass
+        elif type not in list(helper.page_type_mapping.values()):
+            raise ValueError()
+        else:
+            width, height = next((key for key, value in helper.page_type_mapping.items() if value == type), None)
+
+        page_name = generate_short_guid()
+
+        file_path = f"/definition/pages/{page_name}/page.json"
+        json_payload = {
+            "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/1.2.0/schema.json",
+            "name": page_name,
+            "displayName": name,
+            "displayOption": "FitToPage",
+            "height": height,
+            "width": width
+        }
+        payload = _conv_b64(json_payload)
+
+        self._add_file(file_path, payload)
+
     # def close(self):
     # if not self._readonly and self._report is not None:
     #    print("saving...")
 
     #    self._report = None
+
+def generate_short_guid():
+
+        import uuid
+        full_uuid = uuid.uuid4()
+        short_guid = full_uuid.hex[:20]
+
+        return short_guid
