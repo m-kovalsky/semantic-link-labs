@@ -179,7 +179,9 @@ def update_report_from_reportjson(
     )
 
 
-def get_report_definition(report: str, workspace: Optional[str] = None, return_dataframe: bool = True) -> pd.DataFrame | dict:
+def get_report_definition(
+    report: str, workspace: Optional[str] = None, return_dataframe: bool = True
+) -> pd.DataFrame | dict:
     """
     Gets the collection of definition files of a report.
 

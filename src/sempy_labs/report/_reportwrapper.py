@@ -7,6 +7,7 @@ from sempy_labs._helper_functions import (
     _extract_json,
     _add_part,
     lro,
+    _generate_short_guid,
     # _make_clickable,
 )
 from typing import Optional, List
@@ -33,6 +34,7 @@ class ReportWrapper:
         self,
         report: str,
         workspace: Optional[str] = None,
+        readonly: bool = True,
     ):
 
         from sempy_labs.report import get_report_definition
@@ -41,11 +43,13 @@ class ReportWrapper:
 
         self._report = report
         self._workspace = workspace
+        self._readonly = readonly
         self._workspace_id = fabric.resolve_workspace_id(workspace)
         self._report_id = resolve_report_id(report, workspace)
-        self.rdef = get_report_definition(
-            report=self._report, workspace=self._workspace
+        self._request_body = get_report_definition(
+            report=self._report, workspace=self._workspace, return_dataframe=False
         )
+        self.rdef = pd.json_normalize(self._request_body["definition"]["parts"])
 
         if len(self.rdef[self.rdef["path"] == "definition/report.json"]) == 0:
             raise ValueError(
@@ -2032,11 +2036,20 @@ class ReportWrapper:
             setting_value=value,
         )
 
-    def _add_file(self, request_body, file_name, payload):
+    def _add_file(self, request_body, file_name, payload) -> dict:
 
-        print('hi')
+        new_request_body = _add_part(request_body, path=file_name, payload=payload)
 
-    def add_page(self, name: str, type: str = "16:9", height: Optional[int] = None, width: Optional[int] = None, definition: Optional[str] = None):
+        return new_request_body
+
+    def add_page(
+        self,
+        name: str,
+        type: str = "16:9",
+        height: Optional[int] = None,
+        width: Optional[int] = None,
+        definition: Optional[str] = None,
+    ):
 
         if height is not None and width is None:
             raise ValueError()
@@ -2047,9 +2060,16 @@ class ReportWrapper:
         elif type not in list(helper.page_type_mapping.values()):
             raise ValueError()
         else:
-            width, height = next((key for key, value in helper.page_type_mapping.items() if value == type), None)
+            width, height = next(
+                (
+                    key
+                    for key, value in helper.page_type_mapping.items()
+                    if value == type
+                ),
+                None,
+            )
 
-        page_name = generate_short_guid()
+        page_name = _generate_short_guid()
 
         file_path = f"/definition/pages/{page_name}/page.json"
         json_payload = {
@@ -2058,22 +2078,15 @@ class ReportWrapper:
             "displayName": name,
             "displayOption": "FitToPage",
             "height": height,
-            "width": width
+            "width": width,
         }
         payload = _conv_b64(json_payload)
 
-        self._add_file(file_path, payload)
+        self._request_body = self._add_file(file_path, payload)
 
-    # def close(self):
-    # if not self._readonly and self._report is not None:
-    #    print("saving...")
+    def close(self):
+        if not self._readonly and self._report is not None:
+            #print(f"{icons.in_progress} Saving...")
+            #self.update_report(request_body=self._request_body)
 
-    #    self._report = None
-
-def generate_short_guid():
-
-        import uuid
-        full_uuid = uuid.uuid4()
-        short_guid = full_uuid.hex[:20]
-
-        return short_guid
+            self._report = None

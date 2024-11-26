@@ -1341,3 +1341,9 @@ def _is_valid_uuid(
         return True
     except ValueError:
         return False
+
+
+def _generate_short_guid():
+
+    full_uuid = uuid.uuid4()
+    return full_uuid.hex[:20]
