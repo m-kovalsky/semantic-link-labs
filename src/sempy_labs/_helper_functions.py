@@ -695,11 +695,13 @@ def resolve_dataset_from_report(
     return dataset_id, dataset_name, dataset_workspace_id, dataset_workspace
 
 
-def _add_part(target_dict, path, payload):
+def _add_part(target_dict, path, payload) -> dict:
 
     part = {"path": path, "payload": payload, "payloadType": "InlineBase64"}
 
     target_dict["definition"]["parts"].append(part)
+
+    return target_dict
 
 
 def resolve_workspace_capacity(workspace: Optional[str] = None) -> Tuple[UUID, str]:

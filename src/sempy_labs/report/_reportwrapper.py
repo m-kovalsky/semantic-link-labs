@@ -1920,7 +1920,7 @@ class ReportWrapper:
         Don't allow end user to save filters on this file in the Power BI service.
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="settings",
             setting_name="isPersistentUserStateDisabled",
             setting_value=value,
@@ -1931,7 +1931,7 @@ class ReportWrapper:
         Hide the visual header in reading view.
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="settings",
             setting_name="hideVisualContainerHeader",
             setting_value=value,
@@ -1942,7 +1942,7 @@ class ReportWrapper:
         Change the default visual interaction from cross highlighting to cross filtering.
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="settings",
             setting_name="defaultFilterActionIsDataFilter",
             setting_value=value,
@@ -1953,7 +1953,7 @@ class ReportWrapper:
         Use the modern visual header with updated styling options.
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="settings",
             setting_name="useStylableVisualContainerHeader",
             setting_value=value,
@@ -1964,7 +1964,7 @@ class ReportWrapper:
         For aggregated fields, always show the default summarization type.
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="settings",
             setting_name="useDefaultAggregateDisplayName",
             setting_value=value,
@@ -1975,7 +1975,7 @@ class ReportWrapper:
         Use modern visual tooltips with drill actions and updated styling.
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="settings",
             setting_name="useEnhancedTooltips",
             setting_value=value,
@@ -1986,7 +1986,7 @@ class ReportWrapper:
         Allow users to change filter types.
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="settings",
             setting_name="allowChangeFilterTypes",
             setting_value=value,
@@ -1997,7 +1997,7 @@ class ReportWrapper:
         Enable search for the filter pane.
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="settings",
             setting_name="disableFilterPaneSearch",
             setting_value=value,
@@ -2008,7 +2008,7 @@ class ReportWrapper:
         Allow visuals in this report to use drillthrough targets from other reports.
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="settings",
             setting_name="useCrossReportDrillthrough",
             setting_value=value,
@@ -2019,7 +2019,7 @@ class ReportWrapper:
         Disable cross highlighting/filtering by default.
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="slowDataSourceSettings",
             setting_name="isCrossHighlightingDisabled",
             setting_value=value,
@@ -2030,17 +2030,15 @@ class ReportWrapper:
         Add an Apply button to each individual slicer (not recommended).
         """
 
-        self.adjust_settings(
+        self.__adjust_settings(
             setting_type="slowDataSourceSettings",
             setting_name="isSlicerSelectionsButtonEnabled",
             setting_value=value,
         )
 
-    def _add_file(self, request_body, file_name, payload) -> dict:
+    def _add_file(self, request_body, file_name, payload):
 
-        new_request_body = _add_part(request_body, path=file_name, payload=payload)
-
-        return new_request_body
+        self._request_body = _add_part(request_body, path=file_name, payload=payload)
 
     def add_page(
         self,
@@ -2048,8 +2046,9 @@ class ReportWrapper:
         type: str = "16:9",
         height: Optional[int] = None,
         width: Optional[int] = None,
-        definition: Optional[str] = None,
     ):
+        if any(r['Page Display Name'] == name for _, r in self.list_pages().iterrows()):
+            raise ValueError(f"{icons.red_dot} The '{name}' page already exists within the '{self._report}' report within the '{self._workspace}' workspace.")
 
         if height is not None and width is None:
             raise ValueError()
@@ -2082,11 +2081,12 @@ class ReportWrapper:
         }
         payload = _conv_b64(json_payload)
 
-        self._request_body = self._add_file(file_path, payload)
+        self._add_file(self._request_body, file_path, payload)
 
     def close(self):
         if not self._readonly and self._report is not None:
-            #print(f"{icons.in_progress} Saving...")
-            #self.update_report(request_body=self._request_body)
+            print(f"{icons.in_progress} Saving report...")
+            self.update_report(request_body=self._request_body)
+            print(f"{icons.green_dot} Completed...")
 
             self._report = None
