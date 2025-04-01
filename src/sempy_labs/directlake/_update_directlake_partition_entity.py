@@ -7,7 +7,10 @@ from sempy_labs._helper_functions import (
     resolve_dataset_name_and_id,
     resolve_workspace_name_and_id,
     resolve_workspace_name,
+    resolve_lakehouse_name_and_id,
+    resolve_item_name_and_id,
 )
+from sempy_labs.directlake._update_directlake_model_lakehouse_connection import _get_direct_lake_expressions
 from sempy._utils._log import log
 from typing import List, Optional, Union
 import sempy_labs._icons as icons
@@ -220,6 +223,103 @@ def add_table_to_direct_lake_semantic_model(
             print(
                 f"{icons.green_dot} The '{lakeCName}' column has been added to the '{table_name}' table as a '{dt}' data type in the '{dataset_name}' semantic model within the '{workspace_name}' workspace."
             )
+
+        if refresh:
+            refresh_semantic_model(
+                dataset=dataset_id, tables=table_name, workspace=workspace_id
+            )
+
+
+
+@log
+def add_direct_lake_table(
+    dataset: str | UUID,
+    table_name: str,
+    source_table_name: str,
+    workspace: Optional[str | UUID] = None,
+    source: Optional[str | UUID] = None,
+    source_type: Optional[str] = None,
+    source_workspace: Optional[str | UUID] = None,
+    schema: str = "dbo",
+    refresh: bool = True,
+):
+    """
+    Adds a table and all of its columns to a Direct Lake semantic model, based on a Fabric lakehouse table.
+
+    Parameters
+    ----------
+    dataset : str | uuid.UUID
+        Name or ID of the semantic model.
+    table_name : str, List[str]
+        Name of the table in the semantic model.
+    lakehouse_table_name : str
+        The name of the Fabric lakehouse table.
+    refresh : bool, default=True
+        Refreshes the table after it is added to the semantic model.
+    workspace : str | uuid.UUID, default=None
+        The name or ID of the Fabric workspace in which the semantic model resides.
+        Defaults to None which resolves to the workspace of the attached lakehouse
+        or if no lakehouse attached, resolves to the workspace of the notebook.
+    """
+
+    from sempy_labs.lakehouse._get_lakehouse_columns import get_lakehouse_columns
+    from sempy_labs._warehouses import get_warehouse_columns
+
+    (workspace_name, workspace_id) = resolve_workspace_name_and_id(workspace)
+    (dataset_name, dataset_id) = resolve_dataset_name_and_id(dataset, workspace_id)
+    if source_type not in ['Lakehouse', 'Workspace']:
+        raise ValueError(f"{icons.red_dot} The 'source_type' must be either 'Lakehouse' or 'Workspace'.")
+    (source_workspace_name, source_workspace_id) = resolve_workspace_name_and_id(source_workspace)
+    if source_type == 'Lakehouse':
+        (source_name, source_id) = resolve_lakehouse_name_and_id(
+            lakehouse=source, workspace=workspace_id
+        )
+    else:
+        (source_name, source_id) = resolve_item_name_and_id(item=source, type=source_type, workspace=source_workspace_id)
+
+    with connect_semantic_model(
+        dataset=dataset_id, readonly=False, workspace=workspace_id
+    ) as tom:
+
+        if not tom.is_direct_lake() and tom.model.Tables.Count > 0:
+            raise ValueError(
+                f"{icons.red_dot} This function is only valid for Direct Lake semantic models or semantic models with no tables."
+            )
+
+        if any(t.Name == table_name for t in tom.model.Tables):
+            raise ValueError(f"{icons.red_dot} The '{table_name}' table already exists in the '{dataset_name}' semantic model within the '{workspace_name}' workspace.")
+
+
+        expression_dict = _get_direct_lake_expressions(dataset=dataset, workspace=workspace)
+        expressions = list(expression_dict.keys())
+        if source_type == "Lakehouse":
+            dfC = get_lakehouse_columns(lakehouse=source, workspace=source_workspace)
+        else:
+            dfC = get_warehouse_columns(warehouse=source, workspace=source_workspace)
+
+        dfC_filt = dfC[dfC['Table Name'] == source_table_name]
+        if dfC_filt.empty:
+            raise ValueError(f"{icons.red_dot} The '{source_table_name}' table does not exist within the specified source.")
+
+        tom.add_table(name=table_name)
+        tom.add_entity_partition(table_name=table_name, entity_name=source_table_name, expression=expression, schema_name=schema)
+
+        for _, r in dfC_filt.iterrows():
+            source_column = r["Column Name"]
+            data_type = r["Data Type"]
+            dt = _convert_data_type(data_type)
+            tom.add_data_column(
+                table_name=table_name,
+                column_name=source_column,
+                source_column=source_column,
+                data_type=dt,
+            )
+            print(
+                f"{icons.green_dot} The '{source_column}' column has been added to the '{table_name}' table as a '{dt}' data type in the '{dataset_name}' semantic model within the '{workspace_name}' workspace."
+            )
+       
+
+        
 
         if refresh:
             refresh_semantic_model(
