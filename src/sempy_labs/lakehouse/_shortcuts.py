@@ -256,7 +256,7 @@ def delete_shortcut(
     )
 
     print(
-        f"{icons.green_dot} The '{shortcut_name}' shortcut in the '{lakehouse}' within the '{workspace_name}' workspace has been deleted."
+        f"{icons.green_dot} The '{shortcut_name}' shortcut in the '{lakehouse_name}' lakehouse within the '{workspace_name}' workspace has been deleted."
     )
 
 
@@ -418,3 +418,113 @@ def list_shortcuts(
             df = pd.concat([df, pd.DataFrame(new_data, index=[0])], ignore_index=True)
 
     return df
+
+
+def create_shortcut_adlsgen2(
+    shortcut_name: str,
+    location: str,
+    subpath: str,
+    connection_id: UUID,
+    shortcut_path: str = "Tables",
+    lakehouse: Optional[str] = None,
+    workspace: Optional[str] = None,
+    shortcut_conflict_policy: Optional[str] = None,
+):
+    """
+    Creates a shortcut to an ADLS Gen2 source.
+
+    Parameters
+    ----------
+    shortcut_name : str
+        The name of the shortcut.
+    location : str
+        Specifies the location of the target ADLS container. The URI must be in the format https://[account-name].dfs.core.windows.net where [account-name] is the name of the target ADLS account.
+    subpath : str
+        Specifies the container and subfolder within the ADLS account where the target folder is located. Must be of the format [container]/[subfolder] where [container] is the name of the container that holds the files and folders; [subfolder] is the name of the subfolder within the container (optional). For example: /mycontainer/mysubfolder
+    connection_id : uuid.UUID
+        A string representing the connection that is bound with the shortcut. The connectionId is a unique identifier used to establish a connection between the shortcut and the target datasource. To find this connection ID, first create a cloud connection to be used by the shortcut when connecting to the ADLS data location. Open the cloud connection's Settings view and copy the connection ID; this is a GUID.
+    shortcut_path: str, default="Tables"
+        A string representing the full path where the shortcut is created, including either "Files" or "Tables". Example: "Files/MyFolder/MySubFolder"; "Tables/MyFolder/MySubFolder".
+    lakehouse : str | uuid.UUID, default=None
+        The Fabric lakehouse name or ID in which the shortcut will reside.
+        Defaults to None which resolves to the lakehouse attached to the notebook.
+    workspace : str | uuid.UUID, default=None
+        The name or ID of the Fabric workspace in which lakehouse resides.
+        Defaults to None which resolves to the workspace of the attached lakehouse
+        or if no lakehouse attached, resolves to the workspace of the notebook.
+    shortcut_conflict_policy : str, default=None
+        When provided, it defines the action to take when a shortcut with the same name and path already exists. The default action is 'Abort'. Additional ShortcutConflictPolicy types may be added over time.
+    """
+
+    (workspace_name, workspace_id) = resolve_workspace_name_and_id(workspace)
+    (lakehouse_name, lakehouse_id) = resolve_lakehouse_name_and_id(
+        lakehouse=lakehouse, workspace=workspace_id
+    )
+
+    payload = {
+        "path": shortcut_path,
+        "name": shortcut_name,
+        "target": {
+            "adlsGen2": {
+                "location": location,
+                "subpath": subpath,
+                "connectionId": connection_id,
+            }
+        },
+    }
+
+    # Check if the shortcut already exists
+    _check_shortcut_exists(
+        item=lakehouse_id,
+        workspace=workspace_id,
+        shortcut_path=shortcut_path,
+        shortcut_name=shortcut_name,
+        payload=payload,
+    )
+
+    url = f"/v1/workspaces/{workspace_id}/items/{lakehouse_id}/shortcuts"
+    if shortcut_conflict_policy:
+        if shortcut_conflict_policy not in ["Abort", "GenerateUniqueName"]:
+            raise ValueError(
+                f"{icons.red_dot} The 'shortcut_conflict_policy' parameter must be either 'Abort' or 'GenerateUniqueName'."
+            )
+        url += f"?shortcutConflictPolicy={shortcut_conflict_policy}"
+
+    _base_api(
+        request=url,
+        client="fabric_sp",
+        method="post",
+        payload=payload,
+        status_codes=201,
+    )
+
+    print(
+        f"{icons.green_dot} The shortcut '{shortcut_name}' was created in the '{lakehouse_name}' lakehouse within the '{workspace_name}' workspace. It is based on the '{subpath}' table in ADLS Gen2."
+    )
+
+
+def _check_shortcut_exists(item, workspace, shortcut_path, shortcut_name, payload):
+
+    (workspace_name, workspace_id) = resolve_workspace_name_and_id(workspace)
+    (lakehouse_name, lakehouse_id) = resolve_lakehouse_name_and_id(
+        lakehouse=item, workspace=workspace_id
+    )
+
+    try:
+        response = _base_api(
+            request=f"/v1/workspaces/{workspace_id}/items/{lakehouse_id}/shortcuts/{shortcut_path}/{shortcut_name}",
+            client="fabric_sp",
+        )
+        response_json = response.json()
+        del response_json["target"]["type"]
+        if response_json.get("target") == payload.get("target"):
+            print(
+                f"{icons.info} The '{shortcut_name}' shortcut already exists in the '{lakehouse_name}' lakehouse within the '{workspace_name}' workspace."
+            )
+            return
+        else:
+            raise ValueError(
+                f"{icons.red_dot} The '{shortcut_name}' shortcut already exists in the '{lakehouse_name}' lakehouse within the '{workspace_name}' workspace but has a different source."
+            )
+    except FabricHTTPException:
+        pass
