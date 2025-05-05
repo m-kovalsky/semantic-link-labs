@@ -798,7 +798,11 @@ def save_as_delta_table(
         if merge_schema:
             writer = writer.option("mergeSchema", "true")
 
-        writer.save(file_path)
+        #writer.save(file_path)
+        workspace_name_saving = f"`{workspace_name}`" if ' ' in workspace_name else workspace_name
+        lakehouse_name_saving = f"`{lakehouse_name}`" if ' ' in lakehouse_name else lakehouse_name
+
+        writer.saveAsTable(f"{workspace_name_saving}.{lakehouse_name_saving}.dbo.{delta_table_name}")
 
     print(
         f"{icons.green_dot} The dataframe has been saved as the '{delta_table_name}' table in the '{lakehouse_name}' lakehouse within the '{workspace_name}' workspace."
