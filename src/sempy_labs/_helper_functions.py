@@ -534,52 +534,63 @@ def get_direct_lake_sql_endpoint(
         return sqlEndpointId
 
 
+def encode_unicode(text: str) -> str:
+    """Encodes non-ASCII characters to _0xXXXX_ format."""
+    return "".join(f"_0x{ord(c):04X}_" if ord(c) > 127 else c for c in text)
+
+
 @log
 def generate_embedded_filter(filter: str) -> str:
     """
-    Converts the filter expression to a filter expression which can be used by a Power BI embedded URL.
-
-    Parameters
-    ----------
-    filter : str
-        The filter expression for an embedded Power BI report.
-
-    Returns
-    -------
-    str
-        A filter expression usable by a Power BI embedded URL.
+    Converts the filter expression to a filter expression usable by a Power BI embedded URL,
+    including proper encoding of non-ASCII (Unicode) characters.
     """
 
-    pattern = r"'[^']+'\[[^\[]+\]"
-    matches = re.findall(pattern, filter)
+    # Match 'Table'[Column]
+    pattern1 = r"'[^']+'\[[^\]]+\]"
+    matches = re.findall(pattern1, filter)
     for match in matches:
-        matchReplace = (
-            match.replace("'", "")
-            .replace("[", "/")
-            .replace("]", "")
-            .replace(" ", "_x0020_")
+        table, column = re.match(r"'([^']+)'\[([^\]]+)\]", match).groups()
+        table_encoded = encode_unicode(
+            table.replace(" ", "_x0020_")
             .replace("@", "_00x40_")
             .replace("+", "_0x2B_")
             .replace("{", "_007B_")
             .replace("}", "_007D_")
         )
-        filter = filter.replace(match, matchReplace)
-
-    pattern = r"\[[^\[]+\]"
-    matches = re.findall(pattern, filter)
-    for match in matches:
-        matchReplace = (
-            match.replace("'", "")
-            .replace("[", "/")
-            .replace("]", "")
-            .replace(" ", "_x0020_")
+        column_encoded = encode_unicode(
+            column.replace(" ", "_x0020_")
             .replace("@", "_00x40_")
             .replace("+", "_0x2B_")
             .replace("{", "_007B_")
             .replace("}", "_007D_")
         )
-        filter = filter.replace(match, matchReplace)
+        replacement = f"{table_encoded}/{column_encoded}"
+        filter = filter.replace(match, replacement)
 
+    # Match [Column] (without table prefix)
+    pattern2 = r"\[[^\]]+\]"
+    matches = re.findall(pattern2, filter)
+    for match in matches:
+        column = match.strip("[]")
+        column_encoded = encode_unicode(
+            column.replace(" ", "_x0020_")
+            .replace("@", "_00x40_")
+            .replace("+", "_0x2B_")
+            .replace("{", "_007B_")
+            .replace("}", "_007D_")
+        )
+        replacement = f"/{column_encoded}"
+        filter = filter.replace(match, replacement)
+
+    # Match values inside single quotes (like 'A' or 'Ω')
+    value_pattern = r"'([^']*)'"
+    matches = re.findall(value_pattern, filter)
+    for val in matches:
+        encoded_val = encode_unicode(val)
+        filter = filter.replace(f"'{val}'", f"'{encoded_val}'")
+
+    # Replace comparison and logical operators
     revised_filter = (
         filter.replace("<=", "le")
         .replace(">=", "ge")

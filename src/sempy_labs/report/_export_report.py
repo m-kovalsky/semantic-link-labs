@@ -7,6 +7,7 @@ from .._helper_functions import (
     resolve_workspace_name_and_id,
     _base_api,
     _mount,
+    resolve_lakehouse_name_and_id,
 )
 from typing import Optional
 from sempy._utils._log import log
@@ -67,7 +68,12 @@ def export_report(
     """
 
     (workspace_name, workspace_id) = resolve_workspace_name_and_id(workspace)
-
+    (lakehouse_workspace_name, lakehouse_workspace_id) = resolve_workspace_name_and_id(
+        lakehouse_workspace
+    )
+    (lakehouse_name, lakehouse_id) = resolve_lakehouse_name_and_id(
+        lakehouse, lakehouse_workspace_id
+    )
     if isinstance(page_name, str):
         page_name = [page_name]
     if isinstance(visual_name, str):
@@ -242,16 +248,25 @@ def export_report(
         payload=request_body,
         status_codes=202,
     )
-    export_id = json.loads(response.content).get("id")
-
+    export_id = response.json().get("id")
     get_status_url = f"{base_url}/exports/{export_id}"
-    response = _base_api(request=get_status_url, status_codes=[200, 202])
-    response_body = json.loads(response.content)
-    while response_body["status"] not in ["Succeeded", "Failed"]:
-        time.sleep(3)
-        response = _base_api(request=get_status_url, status_codes=[200, 202])
-        response_body = json.loads(response.content)
-    if response_body["status"] == "Failed":
+
+    def wait_for_status(sleep_time=3, timeout=600):
+        start_time = time.time()
+        while True:
+            response = _base_api(request=get_status_url, status_codes=[200, 202])
+            status = response.json().get("status")
+            if status in {"Succeeded", "Failed"}:
+                return status
+            if time.time() - start_time > timeout:
+                raise TimeoutError(
+                    "Polling timed out waiting for status to reach a terminal state."
+                )
+
+            time.sleep(sleep_time)
+
+    status = wait_for_status()
+    if status == "Failed":
         raise ValueError(
             f"{icons.red_dot} The export for the '{report}' report within the '{workspace_name}' workspace in the '{export_format}' format has failed."
         )
@@ -268,5 +283,5 @@ def export_report(
         with open(file_path, "wb") as export_file:
             export_file.write(response.content)
         print(
-            f"{icons.green_dot} The '{export_format}' export for the '{report}' report within the '{workspace_name}' workspace has been saved '{file_name}' in the '{lakehouse}' within the '{lakehouse_workspace}' workspace."
+            f"{icons.green_dot} The '{export_format}' export for the '{report}' report within the '{workspace_name}' workspace has been saved '{file_name}' in the '{lakehouse_name}' within the '{lakehouse_workspace_name}' workspace."
         )
