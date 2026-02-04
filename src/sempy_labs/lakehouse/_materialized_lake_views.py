@@ -1,10 +1,12 @@
 from typing import Optional
 from sempy_labs._helper_functions import (
+    resolve_lakehouse_id,
     resolve_workspace_id,
     resolve_workspace_name_and_id,
     resolve_lakehouse_name_and_id,
     _base_api,
     _create_dataframe,
+    resolve_workspace_capacity,
 )
 from uuid import UUID
 from sempy._utils._log import log
@@ -155,3 +157,58 @@ def _delete_materialized_lake_view_schedule(
     print(
         f"{icons.green_dot} The materialized lake view schedule with ID '{schedule_id}' has been deleted from the '{lakehouse_name}' lakehouse within the '{workspace_id}' workspace."
     )
+
+
+@log
+def list_materialized_lake_views(lakehouse: Optional[str | UUID] = None, workspace: Optional[str | UUID] = None) -> pd.DataFrame:
+
+    workspace_id = resolve_workspace_id(workspace)
+    lakehouse_id = resolve_lakehouse_id(
+        lakehouse=lakehouse, workspace=workspace_id
+    )
+
+    (capacity_id, _ ) = resolve_workspace_capacity(workspace_id)
+
+    columns = {
+        "Materialized Lake View Name": "string",
+        "Materialized Lake View Path": "string",
+        "Is Shortcut": "bool",
+        "Parents": "list",
+        "Children": "list",
+
+    }
+
+    df = _create_dataframe(columns=columns)
+
+    response = _base_api(request=f"webapi/capacities/{capacity_id}/workloads/LiveTable/LiveTableService/automatic/v1/workspaces/{workspace_id}/lakehouses/{lakehouse_id}/liveTable/getLatestDag", client="internal")
+
+    nodes = []
+    for node in response.json().get("nodes", []):
+        nodes.append({
+            "nodeId": node.get("nodeId"),
+            "name": node.get("name"),
+        })
+
+    id_to_name = {n["nodeId"]: n["name"] for n in nodes}
+
+    rows = []
+    for node in response.json().get("nodes", []):
+        table_type = node.get("tableType")
+        parents = node.get("parents", [])
+        children = node.get("children", [])
+        if table_type == "materialized_lake_view":
+            rows.append({
+                "Materialized Lake View Name": node.get("name"),
+                "Materialized Lake View Path": node.get("abfsPath"),
+                "Is Shortcut": node.get("isShortcut"),
+                "Parents": [id_to_name[p] for p in parents if p in id_to_name],
+                "Children": [id_to_name[c] for c in children if c in id_to_name],
+            })
+
+    if rows:
+        df = pd.DataFrame(rows)
+
+    return df   
+
+
+    
