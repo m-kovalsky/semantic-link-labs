@@ -55,7 +55,7 @@ def import_osi(
 
     Parameters
     ----------
-    yaml_file : str | IO
+    yaml_file : str | typing.tyIO
         Either a YAML string or a file-like object containing an OSI semantic
         model definition.
     name : str, default=None
