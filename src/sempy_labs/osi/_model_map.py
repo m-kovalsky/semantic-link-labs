@@ -50,8 +50,11 @@ model_map = {
 }
 
 
-source_map = {
-    "sourceName": {
-        ""
+source_map = [
+    {
+        "sourceName": "database.schema.table",
+        "sourceItem": "",
+        "sourceItemType": "",
+        "sourceWorkspace": ""
     }
-}
+]

@@ -1,6 +1,12 @@
 import re
 import yaml
+from uuid import UUID
 from typing import List, Optional, Union, IO, Any, Dict
+#from sempy_labs.semantic_model._helper import convert_sql_to_dax
+from sempy_labs._helper_functions import (
+    resolve_item_id,
+    resolve_workspace_id,
+)
 
 
 def _get_ansi_expression(expression_obj: Optional[dict]) -> str:
@@ -37,9 +43,11 @@ def _resolve_metric_table(expression: str, table_names: List[str]) -> Optional[s
 
 
 def import_osi(
-    name: str,
     yaml_file: Union[str, IO],
-    sources: Optional[List[str]] = None,
+    name: Optional[str] = None,
+    sources: Optional[List[dict]] = None,
+    workspace: Optional[str | UUID] = None,
+    resolve_sources: bool = True,
 ) -> Dict[str, Any]:
     """
     Convert an Open Semantic Interchange (OSI) YAML model into the
@@ -47,16 +55,26 @@ def import_osi(
 
     Parameters
     ----------
-    name : str
-        The name to assign to the resulting model. If empty, falls back to the
-        name of the first ``semantic_model`` entry in the OSI document.
     yaml_file : str | IO
         Either a YAML string or a file-like object containing an OSI semantic
         model definition.
-    sources : list[str], default=None
-        Reserved for future use. Will eventually be used to map dataset
-        ``source`` strings to Fabric ``sourceItemId`` / ``sourceWorkspaceId``
-        values. Currently ignored.
+    name : str, default=None
+        The name to assign to the resulting model. If None, falls back to the
+        ``name`` of the first ``semantic_model`` entry in the OSI document.
+    sources : list[dict], default=None
+        A list of dictionaries (matching ``sempy_labs._osi._model_map.source_map``)
+        used to resolve each dataset's ``source`` string to a Fabric
+        ``sourceItemId`` / ``sourceWorkspaceId``. Each entry must include
+        ``sourceName``, ``sourceItem``, ``sourceItemType``, and ``sourceWorkspace``.
+    workspace : str| uuid.UUID, default=None
+        The workspace name or ID.
+        Defaults to None which resolves to the workspace of the attached lakehouse
+        or if no lakehouse attached, resolves to the workspace of the notebook.
+    resolve_sources : bool, default=True
+        When True, validate that each dataset's ``source`` is present in
+        ``sources`` and resolve the workspace/item to Fabric IDs. When False,
+        skip validation and resolution and leave ``sourceitemId`` /
+        ``sourceworkspaceId`` as empty strings.
 
     Returns
     -------
@@ -70,6 +88,27 @@ def import_osi(
     else:
         data = yaml.safe_load(yaml_file)
 
+    # Resolve the ``sources`` list into a lookup keyed by source name.
+    resolved_sources: Dict[str, Dict[str, str]] = {}
+    if resolve_sources:
+        for entry in sources or []:
+            source_name = entry.get("sourceName")
+            if not source_name:
+                continue
+            workspace = entry.get("sourceWorkspace") or None
+            item = entry.get("sourceItem") or None
+            item_type = entry.get("sourceItemType") or None
+
+            workspace_id = resolve_workspace_id(workspace)
+            item_id = resolve_item_id(
+                item=item, type=item_type, workspace=workspace_id
+            )
+
+            resolved_sources[source_name] = {
+                "sourceItemId": item_id,
+                "sourceWorkspaceId": workspace_id,
+            }
+
     semantic_models = (data or {}).get("semantic_model") or []
     if not semantic_models:
         raise ValueError("OSI document does not contain a 'semantic_model' entry.")
@@ -81,6 +120,31 @@ def import_osi(
 
     datasets = osi_model.get("datasets") or []
     table_names = [d.get("name", "") for d in datasets if d.get("name")]
+
+    # Validate that every dataset's source is present in the ``sources`` list.
+    if resolve_sources:
+        dataset_sources = [
+            ds.get("source", "") for ds in datasets if ds.get("source")
+        ]
+        missing_sources = [s for s in dataset_sources if s not in resolved_sources]
+        if missing_sources:
+            raise ValueError(
+                "The following dataset 'source' values are not present in the "
+                f"'sources' parameter: {sorted(set(missing_sources))}"
+            )
+
+    # Build a column map of `table.column` -> `'table'[column]` (and bare
+    # `column` -> `'table'[column]`) for use by ``convert_sql_to_dax``.
+    column_map: Dict[str, str] = {}
+    for ds in datasets:
+        tbl = ds.get("name", "") or ""
+        for field in ds.get("fields", []) or []:
+            col = field.get("name", "") or ""
+            if not tbl or not col:
+                continue
+            dax_ref = f"'{tbl}'[{col}]"
+            column_map[f"{tbl}.{col}"] = dax_ref
+            column_map.setdefault(col, dax_ref)
 
     tables: List[Dict[str, Any]] = []
     for ds in datasets:
@@ -116,8 +180,12 @@ def import_osi(
                 "tableName": table_name,
                 "description": ds.get("description", "") or "",
                 "sourceName": source_name,
-                "sourceitemId": "",
-                "sourceworkspaceId": "",
+                "sourceitemId": resolved_sources.get(source_name, {}).get(
+                    "sourceItemId", ""
+                ),
+                "sourceworkspaceId": resolved_sources.get(source_name, {}).get(
+                    "sourceWorkspaceId", ""
+                ),
                 "columns": columns,
                 "measures": [],
             }
@@ -138,7 +206,15 @@ def import_osi(
             {
                 "name": metric_name,
                 "expression_original": expression,
-                "expression_dax": "",
+                "expression_dax": (
+                    convert_sql_to_dax(
+                        expression,
+                        column_map=column_map,
+                        default_table=target_table,
+                    )
+                    if expression
+                    else ""
+                ),
                 "format_original": None,
                 "format_pbi": None,
                 "description": metric.get("description", "") or "",
