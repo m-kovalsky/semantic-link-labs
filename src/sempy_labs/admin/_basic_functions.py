@@ -101,16 +101,17 @@ def list_workspaces(
     rows = []
     for r in responses:
         for w in r.get("workspaces", []):
-            rows.append({
-                "Id": w.get("id"),
-                "Name": w.get("name"),
-                "State": w.get("state"),
-                "Type": w.get("type"),
-                "Capacity Id": w.get("capacityId"),
-                "Tags": w.get("tags"),
-                "Domain Id": w.get("domainId"),
-
-            })
+            rows.append(
+                {
+                    "Id": w.get("id"),
+                    "Name": w.get("name"),
+                    "State": w.get("state"),
+                    "Type": w.get("type"),
+                    "Capacity Id": w.get("capacityId"),
+                    "Tags": w.get("tags"),
+                    "Domain Id": w.get("domainId"),
+                }
+            )
 
     if rows:
         df = pd.DataFrame(rows, columns=list(columns.keys()))

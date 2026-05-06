@@ -47,9 +47,7 @@ def get_report_datasources(
     df = _create_dataframe(columns=columns)
 
     workspace_id = resolve_workspace_id(workspace)
-    report_id = resolve_item_id(
-        item=report, type="Report", workspace=workspace_id
-    )
+    report_id = resolve_item_id(item=report, type="Report", workspace=workspace_id)
 
     response = _base_api(
         request=f"v1.0/myorg/groups/{workspace_id}/reports/{report_id}/datasources",
