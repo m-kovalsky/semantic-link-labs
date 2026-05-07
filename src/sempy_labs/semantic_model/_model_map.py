@@ -7,15 +7,16 @@ model_map = {
                 "tableName": "Segment",
                 "description": "This is a segment table.",
                 "sourceName": "database.schema.table",
-                "sourceitemId": "", # Map to a fabric item
-                "sourceworkspaceId": "", # Map to a fabric workspace
+                "sourceitemId": "",  # Map to a fabric item
+                "sourceworkspaceId": "",  # Map to a fabric workspace
                 "columns": [
                     {
                         "name": "Summary Segment",
                         "sourceColumn": "Segment",
-                        "dataType": "String",
-                        "format_original": "",
-                        "format_pbi": "General",
+                        "sourceDataType": "VARCHAR",
+                        "pbiDataType": "String",
+                        "sourceFormat": "",
+                        "pbiFormat": "General",
                         "description": "This is a description.",
                         "expression": "",
                         "synonyms": [],
@@ -26,10 +27,10 @@ model_map = {
                 "measures": [
                     {
                         "name": "",
-                        "expression_original": "",
-                        "expression_dax": "",
-                        "format_original": "",
-                        "format_pbi": "",
+                        "sourceExpression": "",
+                        "daxExpression": "",
+                        "sourceFormat": "",
+                        "pbiFormat": "",
                         "description": "",
                         "synonyms": [],
                     }
@@ -38,6 +39,7 @@ model_map = {
         ],
         "relationships": [
             {
+                "name": "",
                 "fromTable": "",
                 "fromColumn": "",
                 "toTable": "",
@@ -55,6 +57,6 @@ source_map = [
         "sourceName": "database.schema.table",
         "sourceItem": "",
         "sourceItemType": "",
-        "sourceWorkspace": ""
+        "sourceWorkspace": "",
     }
 ]

@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 
 def convert_column_data_type(str_type: str) -> str:
@@ -199,6 +200,194 @@ def convert_sql_to_dax(
         return text
 
     dax = replace_columns(dax)
+
+    # =========================================================
+    # 13. AGGREGATIONS WITH EXPRESSIONS → ITERATOR FORM
+    # =========================================================
+    # DAX SUM/AVERAGE/MIN/MAX accept only a single column reference. If the
+    # argument contains an arithmetic expression (or multiple column refs),
+    # rewrite as follows:
+    #   * If the argument decomposes (recursively) into a top-level additive
+    #     combination of single column references, distribute the
+    #     aggregation: ``SUM(a - b) -> (SUM(a) - SUM(b))``.
+    #   * Otherwise convert to the iterator form
+    #     ``SUMX/AVERAGEX/MINX/MAXX`` over the table containing the
+    #     referenced columns.
+    def _rewrite_agg_iterators(text: str) -> str:
+        agg_iter_map = {
+            "SUM": "SUMX",
+            "AVERAGE": "AVERAGEX",
+            "MIN": "MINX",
+            "MAX": "MAXX",
+        }
+        col_ref_re = re.compile(r"'([^']+)'\[[^\]]+\]")
+        single_col_re = re.compile(r"^'[^']+'\[[^\]]+\]$")
+        agg_re = re.compile(
+            r"\b(SUM|AVERAGE|MIN|MAX)\s*\(", flags=re.IGNORECASE
+        )
+
+        def _strip_outer_parens(expr: str) -> str:
+            expr = expr.strip()
+            while expr.startswith("(") and expr.endswith(")"):
+                inner = expr[1:-1]
+                d = 0
+                balanced = True
+                for ch in inner:
+                    if ch == "(":
+                        d += 1
+                    elif ch == ")":
+                        d -= 1
+                        if d < 0:
+                            balanced = False
+                            break
+                if balanced and d == 0:
+                    expr = inner.strip()
+                else:
+                    break
+            return expr
+
+        def _split_top_level_additive(arg: str):
+            """Split ``arg`` on top-level ``+``/``-`` operators. Returns a
+            list of ``(sign, term)`` tuples where ``sign`` is ``"+"`` or
+            ``"-"``. Returns None if the expression contains any other
+            top-level operator (e.g. ``*`` or ``/``)."""
+            terms = []
+            depth = 0
+            start = 0
+            sign = "+"
+            i = 0
+            while i < len(arg):
+                ch = arg[i]
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                elif depth == 0 and ch in "+-":
+                    # Skip unary +/- at the very start or right after another
+                    # operator.
+                    prev = arg[:i].rstrip()
+                    if not prev or prev[-1] in "+-*/(":
+                        i += 1
+                        continue
+                    term = arg[start:i].strip()
+                    if term:
+                        terms.append((sign, term))
+                    sign = ch
+                    start = i + 1
+                elif depth == 0 and ch in "*/":
+                    return None
+                i += 1
+            tail = arg[start:].strip()
+            if tail:
+                terms.append((sign, tail))
+            return terms
+
+        def _try_distribute(func: str, arg: str) -> Optional[str]:
+            """Return the distributed aggregation form if ``arg`` decomposes
+            (recursively) into a top-level additive combination of single
+            column references; else None."""
+            arg = _strip_outer_parens(arg)
+            if single_col_re.match(arg):
+                return f"{func}({arg})"
+            terms = _split_top_level_additive(arg)
+            if not terms or len(terms) <= 1:
+                return None
+            distributed_terms = []
+            for sign, term in terms:
+                term = _strip_outer_parens(term)
+                if single_col_re.match(term):
+                    distributed_terms.append((sign, f"{func}({term})"))
+                else:
+                    nested = _try_distribute(func, term)
+                    if nested is None:
+                        return None
+                    distributed_terms.append((sign, nested))
+            pieces = []
+            for idx, (s, t) in enumerate(distributed_terms):
+                if idx == 0:
+                    pieces.append("" if s == "+" else "-")
+                    pieces.append(t)
+                else:
+                    pieces.append(f" {s} ")
+                    pieces.append(t)
+            return "(" + "".join(pieces) + ")"
+
+        i = 0
+        out_parts = []
+        while i < len(text):
+            m = agg_re.search(text, i)
+            if not m:
+                out_parts.append(text[i:])
+                break
+            out_parts.append(text[i:m.start()])
+            func = m.group(1).upper()
+            # Find the matching closing paren.
+            depth = 1
+            j = m.end()
+            while j < len(text) and depth > 0:
+                ch = text[j]
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                j += 1
+            if depth != 0:
+                # Unbalanced parens; bail out.
+                out_parts.append(text[m.start():])
+                break
+            arg = _strip_outer_parens(text[m.end():j - 1])
+
+            # Case 1: single column reference -> leave as-is.
+            if single_col_re.match(arg):
+                out_parts.append(f"{func}({arg})")
+                i = j
+                continue
+
+            # Case 2: recursive additive decomposition -> distribute.
+            distributed = _try_distribute(func, arg)
+            if distributed is not None:
+                out_parts.append(distributed)
+                i = j
+                continue
+
+            # Case 3: fall back to iterator form. Prefer ``default_table`` as
+            # the iterator when it appears among the referenced tables (the
+            # measure's own table is typically the fact); columns from other
+            # tables are wrapped in ``RELATED(...)`` to traverse the
+            # relationship from the iterated row context.
+            referenced_tables = []
+            for c in col_ref_re.finditer(arg):
+                t = c.group(1)
+                if t not in referenced_tables:
+                    referenced_tables.append(t)
+
+            if default_table and default_table in referenced_tables:
+                iter_table = default_table
+            elif referenced_tables:
+                iter_table = referenced_tables[0]
+            else:
+                iter_table = default_table
+
+            if iter_table and len(referenced_tables) > 1:
+                # Wrap column refs from non-iterator tables in RELATED().
+                def _wrap_related(match: "re.Match[str]") -> str:
+                    ref = match.group(0)
+                    tbl = match.group(1)
+                    if tbl == iter_table:
+                        return ref
+                    return f"RELATED({ref})"
+
+                arg_rewritten = col_ref_re.sub(_wrap_related, arg)
+            else:
+                arg_rewritten = arg
+
+            out_parts.append(
+                f"{agg_iter_map[func]}('{iter_table}', {arg_rewritten})"
+            )
+            i = j
+        return "".join(out_parts)
+
+    dax = _rewrite_agg_iterators(dax)
 
     return dax
 

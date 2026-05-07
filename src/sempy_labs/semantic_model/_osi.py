@@ -42,7 +42,7 @@ def _resolve_metric_table(expression: str, table_names: List[str]) -> Optional[s
     return None
 
 
-def import_osi(
+def convert_from_osi(
     yaml_file: Union[str, IO],
     name: Optional[str] = None,
     sources: Optional[List[dict]] = None,
@@ -50,8 +50,7 @@ def import_osi(
     resolve_sources: bool = True,
 ) -> Dict[str, Any]:
     """
-    Convert an Open Semantic Interchange (OSI) YAML model into the
-    ``sempy_labs._osi._model_map`` ``model_map`` dictionary structure.
+    Convert an Open Semantic Interchange (OSI) YAML model into the model_map format.
 
     Parameters
     ----------
@@ -79,8 +78,7 @@ def import_osi(
     Returns
     -------
     dict
-        A dictionary matching the structure of
-        ``sempy_labs._osi._model_map.model_map``.
+        A dictionary structure of a Power BI semantic model.
     """
 
     if hasattr(yaml_file, "read"):
@@ -100,9 +98,7 @@ def import_osi(
             item_type = entry.get("sourceItemType") or None
 
             workspace_id = resolve_workspace_id(workspace)
-            item_id = resolve_item_id(
-                item=item, type=item_type, workspace=workspace_id
-            )
+            item_id = resolve_item_id(item=item, type=item_type, workspace=workspace_id)
 
             resolved_sources[source_name] = {
                 "sourceItemId": item_id,
@@ -123,9 +119,7 @@ def import_osi(
 
     # Validate that every dataset's source is present in the ``sources`` list.
     if resolve_sources:
-        dataset_sources = [
-            ds.get("source", "") for ds in datasets if ds.get("source")
-        ]
+        dataset_sources = [ds.get("source", "") for ds in datasets if ds.get("source")]
         missing_sources = [s for s in dataset_sources if s not in resolved_sources]
         if missing_sources:
             raise ValueError(
@@ -164,9 +158,10 @@ def import_osi(
                 {
                     "name": col_name,
                     "sourceColumn": source_column,
-                    "dataType": "",
-                    "format_original": None,
-                    "format_pbi": None,
+                    "sourceDataType": "",
+                    "pbiDataType": "",
+                    "sourceFormat": None,
+                    "pbiFormat": None,
                     "description": field.get("description", "") or "",
                     "expression": expression if is_calculated else "",
                     "synonyms": _get_synonyms(field),
@@ -205,8 +200,8 @@ def import_osi(
         table_lookup[target_table]["measures"].append(
             {
                 "name": metric_name,
-                "expression_original": expression,
-                "expression_dax": (
+                "sourceExpression": expression,
+                "daxExpression": (
                     convert_sql_to_dax(
                         expression,
                         column_map=column_map,
@@ -215,8 +210,8 @@ def import_osi(
                     if expression
                     else ""
                 ),
-                "format_original": None,
-                "format_pbi": None,
+                "sourceFormat": None,
+                "pbiFormat": None,
                 "description": metric.get("description", "") or "",
                 "synonyms": _get_synonyms(metric),
             }
@@ -237,6 +232,7 @@ def import_osi(
 
         relationships.append(
             {
+                "name": None,
                 "fromTable": rel.get("from", "") or "",
                 "fromColumn": from_column,
                 "toTable": rel.get("to", "") or "",
