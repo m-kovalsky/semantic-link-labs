@@ -1,0 +1,348 @@
+name: SALES_STORE
+description: Store sales and returns semantic view
+tables:
+  - name: CUSTOMER
+    description: Customer master
+    base_table:
+      database: DEMO
+      schema: STORE
+      table: CUSTOMER
+    dimensions:
+      - name: C_BIRTH_COUNTRY
+        description: Country of birth
+        expr: C_BIRTH_COUNTRY
+        data_type: VARCHAR(16777216)
+      - name: C_BIRTH_YEAR
+        description: Year of birth
+        expr: C_BIRTH_YEAR
+        data_type: NUMBER(38,0)
+      - name: C_CUSTOMER_SK
+        synonyms:
+          - customer id
+        description: Unique customer identifier
+        expr: C_CUSTOMER_SK
+        data_type: NUMBER(38,0)
+      - name: C_PREFERRED_CUST_FLAG
+        description: Y/N preferred customer flag
+        expr: C_PREFERRED_CUST_FLAG
+        data_type: VARCHAR(16777216)
+    primary_key:
+      columns:
+        - C_CUSTOMER_SK
+  - name: DATE_DIM
+    description: Date dimension
+    base_table:
+      database: DEMO
+      schema: STORE
+      table: DATE_DIM
+    dimensions:
+      - name: D_DATE
+        description: Calendar date
+        expr: D_DATE
+        data_type: DATE
+      - name: D_DATE_SK
+        description: Date surrogate key
+        expr: D_DATE_SK
+        data_type: NUMBER(38,0)
+      - name: D_DOM
+        description: Day of month (1-31)
+        expr: D_DOM
+        data_type: NUMBER(38,0)
+      - name: D_DOW
+        description: Day of week (1=Mon..7=Sun)
+        expr: D_DOW
+        data_type: NUMBER(38,0)
+      - name: D_HOLIDAY
+        description: Y/N holiday flag
+        expr: D_HOLIDAY
+        data_type: VARCHAR(16777216)
+      - name: D_MOY
+        description: Month of year (1-12)
+        expr: D_MOY
+        data_type: NUMBER(38,0)
+      - name: D_QOY
+        description: Quarter of year (1-4)
+        expr: D_QOY
+        data_type: NUMBER(38,0)
+      - name: D_QUARTER_NAME
+        description: Quarter name e.g. 2000Q1
+        expr: D_QUARTER_NAME
+        data_type: VARCHAR(16777216)
+      - name: D_WEEKEND
+        description: Y/N weekend flag
+        expr: D_WEEKEND
+        data_type: VARCHAR(16777216)
+      - name: D_YEAR
+        description: Calendar year
+        expr: D_YEAR
+        data_type: NUMBER(38,0)
+    primary_key:
+      columns:
+        - D_DATE_SK
+  - name: ITEM
+    description: Item master
+    base_table:
+      database: DEMO
+      schema: STORE
+      table: ITEM
+    dimensions:
+      - name: I_BRAND
+        description: Brand name
+        expr: I_BRAND
+        data_type: VARCHAR(16777216)
+      - name: I_CATEGORY
+        synonyms:
+          - product category
+        description: Item category
+        expr: I_CATEGORY
+        data_type: VARCHAR(16777216)
+      - name: I_CLASS
+        description: Item class
+        expr: I_CLASS
+        data_type: VARCHAR(16777216)
+      - name: I_COLOR
+        description: Item color
+        expr: I_COLOR
+        data_type: VARCHAR(16777216)
+      - name: I_CONTAINER
+        description: Container/packaging unit
+        expr: I_CONTAINER
+        data_type: VARCHAR(16777216)
+      - name: I_ITEM_DESC
+        description: Item description
+        expr: I_ITEM_DESC
+        data_type: VARCHAR(16777216)
+      - name: I_ITEM_SK
+        description: Item surrogate key
+        expr: I_ITEM_SK
+        data_type: NUMBER(38,0)
+      - name: I_MANUFACT
+        description: Manufacturer
+        expr: I_MANUFACT
+        data_type: VARCHAR(16777216)
+      - name: I_PRODUCT_NAME
+        description: Product name
+        expr: I_PRODUCT_NAME
+        data_type: VARCHAR(16777216)
+      - name: I_UNITS
+        description: Unit of measure
+        expr: I_UNITS
+        data_type: VARCHAR(16777216)
+    primary_key:
+      columns:
+        - I_ITEM_SK
+  - name: STORE
+    description: Store master
+    base_table:
+      database: DEMO
+      schema: STORE
+      table: STORE
+    dimensions:
+      - name: S_CITY
+        description: City
+        expr: S_CITY
+        data_type: VARCHAR(16777216)
+      - name: S_COUNTRY
+        description: Country
+        expr: S_COUNTRY
+        data_type: VARCHAR(16777216)
+      - name: S_COUNTY
+        description: County
+        expr: S_COUNTY
+        data_type: VARCHAR(16777216)
+      - name: S_FLOOR_SPACE
+        description: Store floor space (sq ft)
+        expr: S_FLOOR_SPACE
+        data_type: NUMBER(38,0)
+      - name: S_NUMBER_EMPLOYEES
+        description: Number of employees
+        expr: S_NUMBER_EMPLOYEES
+        data_type: NUMBER(38,0)
+      - name: S_STATE
+        description: State code
+        expr: S_STATE
+        data_type: VARCHAR(16777216)
+      - name: S_STORE_NAME
+        description: Store name
+        expr: S_STORE_NAME
+        data_type: VARCHAR(16777216)
+      - name: S_STORE_SK
+        description: Store surrogate key
+        expr: S_STORE_SK
+        data_type: NUMBER(38,0)
+      - name: S_STREET_NUMBER
+        description: Street number
+        expr: S_STREET_NUMBER
+        data_type: VARCHAR(16777216)
+      - name: S_ZIP
+        description: ZIP code
+        expr: S_ZIP
+        data_type: VARCHAR(16777216)
+    primary_key:
+      columns:
+        - S_STORE_SK
+  - name: STORE_RETURNS
+    description: Store returns fact
+    base_table:
+      database: DEMO
+      schema: STORE
+      table: STORE_RETURNS
+    metrics:
+      - name: RETURN_SALES
+        synonyms:
+          - refund_amount
+          - refunded_sales
+          - returned_revenue
+          - sales_refund
+          - sales_return_amount
+          - sales_returned
+        description: Total returned sales amount
+        expr: SUM(store_returns.sr_return_amt)
+        access_modifier: public_access
+    primary_key:
+      columns:
+        - SR_RETURNED_DATE_SK
+        - SR_ITEM_SK
+        - SR_CUSTOMER_SK
+        - SR_STORE_SK
+  - name: STORE_SALES
+    description: Store sales fact
+    base_table:
+      database: DEMO
+      schema: STORE
+      table: STORE_SALES
+    metrics:
+      - name: TOTAL_SALES
+        synonyms:
+          - gross_sales
+          - overall_sales
+          - sales_total
+          - total_revenue
+          - total_revenue_generated
+          - total_sales_amount
+          - total_sales_figure
+          - total_sales_value
+        description: Total sales generated
+        expr: SUM(store_sales.ss_sales_price * store_sales.ss_quantity)
+        access_modifier: public_access
+    primary_key:
+      columns:
+        - SS_SOLD_DATE_SK
+        - SS_ITEM_SK
+        - SS_CUSTOMER_SK
+        - SS_STORE_SK
+metrics:
+  - name: RETURN_RATE
+    description: Return rate as a percentage
+    synonyms: []
+    expr: |-
+      ROUND(
+                  DIV0(store_returns.return_sales, store_sales.total_sales) * 100,
+                  2
+               )
+    access_modifier: public_access
+relationships:
+  - name: CUSTOMER_SALES_RETURN
+    left_table: STORE_RETURNS
+    right_table: CUSTOMER
+    relationship_columns:
+      - left_column: SR_CUSTOMER_SK
+        right_column: C_CUSTOMER_SK
+  - name: DATE_SALES_RETURN
+    left_table: STORE_RETURNS
+    right_table: DATE_DIM
+    relationship_columns:
+      - left_column: SR_RETURNED_DATE_SK
+        right_column: D_DATE_SK
+  - name: ITEM_SALES_RETURN
+    left_table: STORE_RETURNS
+    right_table: ITEM
+    relationship_columns:
+      - left_column: SR_ITEM_SK
+        right_column: I_ITEM_SK
+  - name: STORE_SALES_RETURN
+    left_table: STORE_RETURNS
+    right_table: STORE
+    relationship_columns:
+      - left_column: SR_STORE_SK
+        right_column: S_STORE_SK
+  - name: CUSTOMER_SALES
+    left_table: STORE_SALES
+    right_table: CUSTOMER
+    relationship_columns:
+      - left_column: SS_CUSTOMER_SK
+        right_column: C_CUSTOMER_SK
+  - name: DATE_SALES_STORE
+    left_table: STORE_SALES
+    right_table: DATE_DIM
+    relationship_columns:
+      - left_column: SS_SOLD_DATE_SK
+        right_column: D_DATE_SK
+  - name: ITEM_SALES
+    left_table: STORE_SALES
+    right_table: ITEM
+    relationship_columns:
+      - left_column: SS_ITEM_SK
+        right_column: I_ITEM_SK
+  - name: STORE_SALES_STORE
+    left_table: STORE_SALES
+    right_table: STORE
+    relationship_columns:
+      - left_column: SS_STORE_SK
+        right_column: S_STORE_SK
+verified_queries:
+  - name: TOP_5_RETURN_RATE_BY_CATEGORY
+    sql: |2-
+
+              WITH category_returns AS (
+                SELECT i.i_category, SUM(sr.sr_return_amt) AS return_sales
+                FROM store_returns sr
+                JOIN item i ON sr.sr_item_sk = i.i_item_sk
+                GROUP BY i.i_category
+              ),
+              category_sales AS (
+                SELECT i.i_category, SUM(ss.ss_sales_price * ss.ss_quantity) AS total_sales
+                FROM store_sales ss
+                JOIN item i ON ss.ss_item_sk = i.i_item_sk
+                GROUP BY i.i_category
+              )
+              SELECT cr.i_category,
+                     (cr.return_sales / NULLIF(cs.total_sales, 0)) * 100 AS return_rate
+              FROM category_returns cr
+              JOIN category_sales cs ON cr.i_category = cs.i_category
+              ORDER BY return_rate DESC NULLS LAST
+              LIMIT 5
+            
+    question: show top 5 return rate by category
+    use_as_onboarding_question: true
+  - name: SALES_RETURNS_RATE_BY_BIRTH_COUNTRY_2000
+    sql: |2-
+
+              WITH sales_data AS (
+                SELECT c.c_birth_country, SUM(ss.ss_quantity * ss.ss_sales_price) AS total_sales
+                FROM store_sales ss
+                JOIN date_dim d ON ss.ss_sold_date_sk = d.d_date_sk
+                JOIN customer c ON ss.ss_customer_sk = c.c_customer_sk
+                WHERE d.d_year = 2000
+                GROUP BY c.c_birth_country
+              ),
+              return_data AS (
+                SELECT c.c_birth_country, SUM(sr.sr_return_amt) AS total_return
+                FROM store_returns sr
+                JOIN date_dim d ON sr.sr_returned_date_sk = d.d_date_sk
+                JOIN customer c ON sr.sr_customer_sk = c.c_customer_sk
+                WHERE d.d_year = 2000
+                GROUP BY c.c_birth_country
+              )
+              SELECT sd.c_birth_country,
+                     sd.total_sales,
+                     rd.total_return,
+                     (rd.total_return / NULLIF(sd.total_sales, 0)) * 100 AS return_rate
+              FROM sales_data sd
+              LEFT JOIN return_data rd ON sd.c_birth_country = rd.c_birth_country
+              ORDER BY sd.c_birth_country
+            
+    question: total sales, return and return rate by customer country of birth for year 2000
+    use_as_onboarding_question: true
+module_custom_instructions:
+  sql_generation: For any percentage or rate calculation, multiply the result by 100. Return rate is already expressed as a percent.

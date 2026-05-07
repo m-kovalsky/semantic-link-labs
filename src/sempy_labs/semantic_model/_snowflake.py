@@ -2,7 +2,7 @@ import re
 import yaml
 from uuid import UUID
 from typing import List, Optional, Union, IO, Any, Dict
-#from sempy_labs.semantic_model._helper import convert_sql_to_dax
+from sempy_labs.semantic_model._helper import convert_sql_to_dax
 from sempy_labs._helper_functions import (
     resolve_item_id,
     resolve_workspace_id,
@@ -176,9 +176,7 @@ def convert_from_snowflake(
 
     sf_tables = data.get("tables") or []
     if not sf_tables:
-        raise ValueError(
-            "Snowflake semantic view does not contain a 'tables' entry."
-        )
+        raise ValueError("Snowflake semantic view does not contain a 'tables' entry.")
 
     table_names = [t.get("name", "") for t in sf_tables if t.get("name")]
 
@@ -247,16 +245,20 @@ def convert_from_snowflake(
             return column_map
         return {**column_map, **per_table_bare[table_name]}
 
-    def _build_column(field: dict, table_name: str) -> Dict[str, Any]:
+    def _build_column(field: dict, table_name: str, pk_columns: set) -> Dict[str, Any]:
         col_name = field.get("name", "") or ""
         expression = field.get("expr", "") or ""
         # If the expression is just a bare column name (an identifier,
         # optionally quoted with double quotes or backticks), treat it as a
         # plain source column rather than a calculated column.
         expr_stripped = expression.strip()
-        is_bare_identifier = bool(
-            expr_stripped
-        ) and re.fullmatch(r'(?:"[^"]+"|`[^`]+`|[A-Za-z_][A-Za-z0-9_]*)', expr_stripped) is not None
+        is_bare_identifier = (
+            bool(expr_stripped)
+            and re.fullmatch(
+                r'(?:"[^"]+"|`[^`]+`|[A-Za-z_][A-Za-z0-9_]*)', expr_stripped
+            )
+            is not None
+        )
         is_calculated = bool(expression) and not is_bare_identifier
         if is_calculated:
             source_column = ""
@@ -265,6 +267,9 @@ def convert_from_snowflake(
             source_column = expr_stripped.strip('"').strip("`")
         else:
             source_column = col_name
+        is_key = (col_name in pk_columns) or (
+            bool(source_column) and source_column in pk_columns
+        )
         return {
             "name": col_name,
             "sourceColumn": source_column,
@@ -277,6 +282,7 @@ def convert_from_snowflake(
             "synonyms": _get_synonyms(field),
             "fullDAXObjectName": f"'{table_name}'[{col_name}]",
             "isCalculated": is_calculated,
+            "isKey": is_key,
         }
 
     tables: List[Dict[str, Any]] = []
@@ -284,10 +290,16 @@ def convert_from_snowflake(
         table_name = t.get("name", "") or ""
         source_name = _build_source_name(t.get("base_table"))
 
+        # Collect the set of primary key column names for this table. The
+        # Snowflake semantic view schema declares them under
+        # ``primary_key.columns``.
+        pk_block = t.get("primary_key") or {}
+        pk_columns = set(pk_block.get("columns") or [])
+
         columns: List[Dict[str, Any]] = []
         for kind in ("dimensions", "time_dimensions", "facts"):
             for field in t.get(kind, []) or []:
-                columns.append(_build_column(field, table_name))
+                columns.append(_build_column(field, table_name, pk_columns))
 
         measures: List[Dict[str, Any]] = []
         for metric in t.get("metrics", []) or []:
@@ -383,6 +395,20 @@ def convert_from_snowflake(
                 "fromCardinality": "Many",
                 "toCardinality": "One",
             }
+        )
+
+    # Composite primary keys (multiple columns flagged with isKey=True on the
+    # same table) are not supported by the model_map format.
+    composite_keys = {
+        t["tableName"]: [c["name"] for c in t["columns"] if c.get("isKey")]
+        for t in tables
+        if sum(1 for c in t["columns"] if c.get("isKey")) > 1
+    }
+    if composite_keys:
+        details = ", ".join(f"{tbl}: {cols}" for tbl, cols in composite_keys.items())
+        raise ValueError(
+            "Composite primary keys (multiple key columns on a single table) "
+            f"are not supported. Offending tables: {details}."
         )
 
     return {

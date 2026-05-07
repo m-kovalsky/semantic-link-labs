@@ -222,9 +222,7 @@ def convert_sql_to_dax(
         }
         col_ref_re = re.compile(r"'([^']+)'\[[^\]]+\]")
         single_col_re = re.compile(r"^'[^']+'\[[^\]]+\]$")
-        agg_re = re.compile(
-            r"\b(SUM|AVERAGE|MIN|MAX)\s*\(", flags=re.IGNORECASE
-        )
+        agg_re = re.compile(r"\b(SUM|AVERAGE|MIN|MAX)\s*\(", flags=re.IGNORECASE)
 
         def _strip_outer_parens(expr: str) -> str:
             expr = expr.strip()
@@ -319,7 +317,7 @@ def convert_sql_to_dax(
             if not m:
                 out_parts.append(text[i:])
                 break
-            out_parts.append(text[i:m.start()])
+            out_parts.append(text[i : m.start()])
             func = m.group(1).upper()
             # Find the matching closing paren.
             depth = 1
@@ -333,9 +331,9 @@ def convert_sql_to_dax(
                 j += 1
             if depth != 0:
                 # Unbalanced parens; bail out.
-                out_parts.append(text[m.start():])
+                out_parts.append(text[m.start() :])
                 break
-            arg = _strip_outer_parens(text[m.end():j - 1])
+            arg = _strip_outer_parens(text[m.end() : j - 1])
 
             # Case 1: single column reference -> leave as-is.
             if single_col_re.match(arg):
@@ -381,9 +379,7 @@ def convert_sql_to_dax(
             else:
                 arg_rewritten = arg
 
-            out_parts.append(
-                f"{agg_iter_map[func]}('{iter_table}', {arg_rewritten})"
-            )
+            out_parts.append(f"{agg_iter_map[func]}('{iter_table}', {arg_rewritten})")
             i = j
         return "".join(out_parts)
 

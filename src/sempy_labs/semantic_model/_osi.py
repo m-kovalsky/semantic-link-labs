@@ -145,6 +145,15 @@ def convert_from_osi(
         table_name = ds.get("name", "") or ""
         source_name = ds.get("source", "") or ""
 
+        # Collect the table's primary key column names. In OSI, the
+        # ``primary_key`` attribute on a dataset is a list of column names
+        # (which may be a composite/multi-column key).
+        pk = ds.get("primary_key") or []
+        if isinstance(pk, str):
+            pk_columns = {pk}
+        else:
+            pk_columns = set(pk)
+
         columns: List[Dict[str, Any]] = []
         for field in ds.get("fields", []) or []:
             col_name = field.get("name", "") or ""
@@ -153,6 +162,9 @@ def convert_from_osi(
             # plain source column rather than a calculated column.
             is_calculated = bool(expression) and expression.strip() != col_name
             source_column = "" if is_calculated else (expression or col_name)
+            is_key = (col_name in pk_columns) or (
+                bool(source_column) and source_column in pk_columns
+            )
 
             columns.append(
                 {
@@ -167,6 +179,7 @@ def convert_from_osi(
                     "synonyms": _get_synonyms(field),
                     "fullDAXObjectName": f"'{table_name}'[{col_name}]",
                     "isCalculated": is_calculated,
+                    "isKey": is_key,
                 }
             )
 
@@ -240,6 +253,20 @@ def convert_from_osi(
                 "fromCardinality": "Many",
                 "toCardinality": "One",
             }
+        )
+
+    # Composite primary keys (multiple columns flagged with isKey=True on the
+    # same table) are not supported by the model_map format.
+    composite_keys = {
+        t["tableName"]: [c["name"] for c in t["columns"] if c.get("isKey")]
+        for t in tables
+        if sum(1 for c in t["columns"] if c.get("isKey")) > 1
+    }
+    if composite_keys:
+        details = ", ".join(f"{tbl}: {cols}" for tbl, cols in composite_keys.items())
+        raise ValueError(
+            "Composite primary keys (multiple key columns on a single table) "
+            f"are not supported. Offending tables: {details}."
         )
 
     return {

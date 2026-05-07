@@ -22,6 +22,7 @@ model_map = {
                         "synonyms": [],
                         "fullDAXObjectName": "'Segment'[Summary Segment]",
                         "isCalculated": False,
+                        "isKey": False,
                     }
                 ],
                 "measures": [
