@@ -2,7 +2,7 @@ import re
 import yaml
 from uuid import UUID
 from typing import List, Optional, Union, IO, Any, Dict
-#from sempy_labs.semantic_model._helper import convert_sql_to_dax
+from sempy_labs.semantic_model._helper import convert_sql_to_dax
 from sempy_labs._helper_functions import (
     resolve_item_id,
     resolve_workspace_id,
@@ -226,6 +226,12 @@ def import_osi(
     for rel in osi_model.get("relationships", []) or []:
         from_columns = rel.get("from_columns") or []
         to_columns = rel.get("to_columns") or []
+        if len(from_columns) > 1 or len(to_columns) > 1:
+            raise ValueError(
+                "Multi-column relationships are not supported. The relationship "
+                f"from '{rel.get('from', '')}' to '{rel.get('to', '')}' has "
+                f"from_columns={from_columns} and to_columns={to_columns}."
+            )
         from_column = from_columns[0] if from_columns else ""
         to_column = to_columns[0] if to_columns else ""
 
