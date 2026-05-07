@@ -237,7 +237,64 @@ def convert_from_snowflake(
                     column_map[f"{tbl}.{src_id}"] = dax_ref
                     column_map.setdefault(src_id, dax_ref)
                     bare_for_table[src_id] = dax_ref
+        # Pre-register table-scoped metrics so that other measure expressions
+        # (including view-level derived metrics) can reference them as
+        # ``table.metric`` or bare ``metric`` and have them resolve to a DAX
+        # measure reference ``[MetricName]``.
+        for metric in t.get("metrics", []) or []:
+            mname = metric.get("name", "") or ""
+            if not mname:
+                continue
+            measure_ref = f"[{mname}]"
+            column_map[f"{tbl}.{mname}"] = measure_ref
+            column_map.setdefault(mname, measure_ref)
+            bare_for_table[mname] = measure_ref
         per_table_bare[tbl] = bare_for_table
+
+    # View-level (derived) metrics — also register them as measure references.
+    for metric in data.get("metrics", []) or []:
+        mname = metric.get("name", "") or ""
+        if not mname:
+            continue
+        column_map.setdefault(mname, f"[{mname}]")
+
+    # Pre-register columns referenced via ``table.column`` in metric
+    # expressions but not declared as dimensions/facts. The Snowflake
+    # semantic view often references the underlying base-table column names
+    # directly (e.g. ``SUM(store_sales.ss_sales_price * store_sales.ss_quantity)``).
+    # Resolving these to DAX column references makes the resulting metric
+    # expression valid; the columns themselves still need to exist in the
+    # final Power BI model.
+    qualified_ref_re = re.compile(
+        r"\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b"
+    )
+    table_names_lower = {tn.lower(): tn for tn in table_names}
+
+    def _scan_expr(expr: str, owning_table: Optional[str]) -> None:
+        if not expr:
+            return
+        for m in qualified_ref_re.finditer(expr):
+            tbl_ref, col_ref = m.group(1), m.group(2)
+            tbl = table_names_lower.get(tbl_ref.lower())
+            if not tbl:
+                continue
+            key = f"{tbl_ref}.{col_ref}"
+            if key in column_map:
+                continue
+            dax_ref = f"'{tbl}'[{col_ref}]"
+            column_map[key] = dax_ref
+            column_map.setdefault(col_ref, dax_ref)
+            if owning_table and owning_table == tbl:
+                per_table_bare.setdefault(owning_table, {}).setdefault(
+                    col_ref, dax_ref
+                )
+
+    for t in sf_tables:
+        tbl_name = t.get("name", "") or ""
+        for metric in t.get("metrics", []) or []:
+            _scan_expr(metric.get("expr", "") or "", tbl_name)
+    for metric in data.get("metrics", []) or []:
+        _scan_expr(metric.get("expr", "") or "", None)
 
     def _column_map_for_table(table_name: str) -> Dict[str, str]:
         """Return a column map biased toward ``table_name`` for bare refs."""

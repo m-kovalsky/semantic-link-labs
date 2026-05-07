@@ -129,6 +129,8 @@ def convert_from_osi(
 
     # Build a column map of `table.column` -> `'table'[column]` (and bare
     # `column` -> `'table'[column]`) for use by ``convert_sql_to_dax``.
+    # Model-level metrics are also registered so cross-measure references
+    # (e.g. ``[OtherMeasure]``) resolve correctly.
     column_map: Dict[str, str] = {}
     for ds in datasets:
         tbl = ds.get("name", "") or ""
@@ -139,6 +141,35 @@ def convert_from_osi(
             dax_ref = f"'{tbl}'[{col}]"
             column_map[f"{tbl}.{col}"] = dax_ref
             column_map.setdefault(col, dax_ref)
+
+    for metric in osi_model.get("metrics", []) or []:
+        mname = metric.get("name", "") or ""
+        if not mname:
+            continue
+        column_map.setdefault(mname, f"[{mname}]")
+
+    # Pre-register columns referenced via ``table.column`` in metric
+    # expressions but not declared as fields. This avoids leaving
+    # unresolved qualified identifiers in the generated DAX.
+    qualified_ref_re = re.compile(
+        r"\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b"
+    )
+    table_names_lower = {tn.lower(): tn for tn in table_names}
+    for metric in osi_model.get("metrics", []) or []:
+        expr = _get_ansi_expression(metric.get("expression"))
+        if not expr:
+            continue
+        for m in qualified_ref_re.finditer(expr):
+            tbl_ref, col_ref = m.group(1), m.group(2)
+            tbl = table_names_lower.get(tbl_ref.lower())
+            if not tbl:
+                continue
+            key = f"{tbl_ref}.{col_ref}"
+            if key in column_map:
+                continue
+            dax_ref = f"'{tbl}'[{col_ref}]"
+            column_map[key] = dax_ref
+            column_map.setdefault(col_ref, dax_ref)
 
     tables: List[Dict[str, Any]] = []
     for ds in datasets:
