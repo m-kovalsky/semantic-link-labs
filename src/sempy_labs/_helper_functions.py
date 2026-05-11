@@ -2282,6 +2282,7 @@ def _base_api(
         "kusto",
         "blob",
         "keyvault",
+        "snowflake",
     ]:
         raise NotImplementedError(
             f"{icons.red_dot} The '{client}' client is not supported."
@@ -2323,6 +2324,8 @@ def _base_api(
         headers = get_pbi_token_headers()
         prefix = _get_url_prefix()
         url = f"{prefix}/{request}"
+    elif client == "snowflake":
+        url = request
     else:
         raise NotImplementedError
 

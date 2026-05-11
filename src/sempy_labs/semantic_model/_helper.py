@@ -140,14 +140,14 @@ def convert_sql_to_dax(
             if not m:
                 out.append(text[i:])
                 break
-            out.append(text[i:m.start()])
+            out.append(text[i : m.start()])
             # Find the matching close paren of the COUNT call.
             open_paren = text.rfind("(", m.start(), m.end())
             close = _find_matching_paren(text, open_paren)
             if close == -1:
-                out.append(text[m.start():])
+                out.append(text[m.start() :])
                 break
-            arg = text[m.end():close].strip()
+            arg = text[m.end() : close].strip()
             case_match = re.fullmatch(
                 r"CASE\s+WHEN\s+(.+?)\s+THEN\s+(.+?)\s+END",
                 arg,
@@ -178,13 +178,13 @@ def convert_sql_to_dax(
             if not m:
                 out.append(text[i:])
                 break
-            out.append(text[i:m.start()])
+            out.append(text[i : m.start()])
             open_paren = m.end() - 1
             close = _find_matching_paren(text, open_paren)
             if close == -1:
-                out.append(text[m.start():])
+                out.append(text[m.start() :])
                 break
-            inner = text[open_paren + 1:close]
+            inner = text[open_paren + 1 : close]
             out.append(f"AVERAGE({inner})")
             i = close + 1
         return "".join(out)
@@ -234,7 +234,7 @@ def convert_sql_to_dax(
                 if close == -1:
                     rebuilt.append(text[i:])
                     break
-                inner = text[i + 1:close]
+                inner = text[i + 1 : close]
                 rebuilt.append("(" + _rewrite_division(inner) + ")")
                 i = close + 1
             else:
@@ -353,9 +353,7 @@ def convert_sql_to_dax(
         }
         col_ref_re = re.compile(r"'([^']+)'\[[^\]]+\]")
         single_col_re = re.compile(r"^'[^']+'\[[^\]]+\]$")
-        agg_re = re.compile(
-            r"\b(SUM|AVERAGE|MIN|MAX)\s*\(", flags=re.IGNORECASE
-        )
+        agg_re = re.compile(r"\b(SUM|AVERAGE|MIN|MAX)\s*\(", flags=re.IGNORECASE)
 
         def _strip_outer_parens(expr: str) -> str:
             expr = expr.strip()
@@ -441,7 +439,7 @@ def convert_sql_to_dax(
             if not m:
                 out_parts.append(text[i:])
                 break
-            out_parts.append(text[i:m.start()])
+            out_parts.append(text[i : m.start()])
             func = m.group(1).upper()
             depth = 1
             j = m.end()
@@ -453,9 +451,9 @@ def convert_sql_to_dax(
                     depth -= 1
                 j += 1
             if depth != 0:
-                out_parts.append(text[m.start():])
+                out_parts.append(text[m.start() :])
                 break
-            arg = _strip_outer_parens(text[m.end():j - 1])
+            arg = _strip_outer_parens(text[m.end() : j - 1])
 
             if single_col_re.match(arg):
                 out_parts.append(f"{func}({arg})")
@@ -482,6 +480,7 @@ def convert_sql_to_dax(
                 iter_table = default_table
 
             if iter_table and len(referenced_tables) > 1:
+
                 def _wrap_related(match: "re.Match[str]") -> str:
                     ref = match.group(0)
                     tbl = match.group(1)
@@ -493,9 +492,7 @@ def convert_sql_to_dax(
             else:
                 arg_rewritten = arg
 
-            out_parts.append(
-                f"{agg_iter_map[func]}('{iter_table}', {arg_rewritten})"
-            )
+            out_parts.append(f"{agg_iter_map[func]}('{iter_table}', {arg_rewritten})")
             i = j
         return "".join(out_parts)
 

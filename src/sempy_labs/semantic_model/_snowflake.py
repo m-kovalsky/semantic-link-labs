@@ -7,6 +7,10 @@ from sempy_labs._helper_functions import (
     resolve_item_id,
     resolve_workspace_id,
 )
+from sempy_labs._snowflake import (
+    list_snowflake_columns,
+    list_snowflake_tables,
+)
 
 
 def _get_synonyms(node: Optional[dict]) -> List[str]:
@@ -107,6 +111,8 @@ def _convert_snowflake_data_type(data_type: Optional[str]) -> str:
 
 def convert_from_snowflake(
     yaml_file: Union[str, IO],
+    account: str,
+    token: str,
     name: Optional[str] = None,
     sources: Optional[List[dict]] = None,
     workspace: Optional[str | UUID] = None,
@@ -285,9 +291,7 @@ def convert_from_snowflake(
             column_map[key] = dax_ref
             column_map.setdefault(col_ref, dax_ref)
             if owning_table and owning_table == tbl:
-                per_table_bare.setdefault(owning_table, {}).setdefault(
-                    col_ref, dax_ref
-                )
+                per_table_bare.setdefault(owning_table, {}).setdefault(col_ref, dax_ref)
 
     for t in sf_tables:
         tbl_name = t.get("name", "") or ""
@@ -340,6 +344,7 @@ def convert_from_snowflake(
             "fullDAXObjectName": f"'{table_name}'[{col_name}]",
             "isCalculated": is_calculated,
             "isKey": is_key,
+            "isHidden": False,
         }
 
     tables: List[Dict[str, Any]] = []
@@ -357,6 +362,49 @@ def convert_from_snowflake(
         for kind in ("dimensions", "time_dimensions", "facts"):
             for field in t.get(kind, []) or []:
                 columns.append(_build_column(field, table_name, pk_columns))
+
+        # Augment with all base-table columns from Snowflake. Columns already
+        # declared in the YAML keep ``isHidden=False``; columns added solely
+        # from the Snowflake base table are marked ``isHidden=True``.
+        base_table = t.get("base_table") or {}
+        bt_database = base_table.get("database") or ""
+        bt_schema = base_table.get("schema") or ""
+        bt_table = base_table.get("table") or ""
+        if bt_database and bt_schema and bt_table:
+            existing_source_cols = {
+                (c.get("sourceColumn") or "").upper()
+                for c in columns
+                if c.get("sourceColumn")
+            }
+            sf_cols_df = list_snowflake_columns(
+                account=account,
+                token=token,
+                database=bt_database,
+                schema=bt_schema,
+                table=bt_table,
+            )
+            for _, row in sf_cols_df.iterrows():
+                sf_col_name = row["Column Name"] or ""
+                if not sf_col_name or sf_col_name.upper() in existing_source_cols:
+                    continue
+                sf_data_type = row["Data Type"] or ""
+                columns.append(
+                    {
+                        "name": sf_col_name,
+                        "sourceColumn": sf_col_name,
+                        "sourceDataType": sf_data_type,
+                        "pbiDataType": _convert_snowflake_data_type(sf_data_type),
+                        "sourceFormat": None,
+                        "pbiFormat": None,
+                        "description": "",
+                        "expression": "",
+                        "synonyms": [],
+                        "fullDAXObjectName": f"'{table_name}'[{sf_col_name}]",
+                        "isCalculated": False,
+                        "isKey": sf_col_name in pk_columns,
+                        "isHidden": True,
+                    }
+                )
 
         measures: List[Dict[str, Any]] = []
         for metric in t.get("metrics", []) or []:
@@ -455,18 +503,12 @@ def convert_from_snowflake(
         )
 
     # Composite primary keys (multiple columns flagged with isKey=True on the
-    # same table) are not supported by the model_map format.
-    composite_keys = {
-        t["tableName"]: [c["name"] for c in t["columns"] if c.get("isKey")]
-        for t in tables
-        if sum(1 for c in t["columns"] if c.get("isKey")) > 1
-    }
-    if composite_keys:
-        details = ", ".join(f"{tbl}: {cols}" for tbl, cols in composite_keys.items())
-        raise ValueError(
-            "Composite primary keys (multiple key columns on a single table) "
-            f"are not supported. Offending tables: {details}."
-        )
+    # same table) are not supported by the model_map format. When detected,
+    # clear the isKey flag on all columns of the affected table.
+    for t in tables:
+        if sum(1 for c in t["columns"] if c.get("isKey")) > 1:
+            for c in t["columns"]:
+                c["isKey"] = False
 
     return {
         "model": {

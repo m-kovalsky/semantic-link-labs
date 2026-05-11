@@ -23,6 +23,7 @@ model_map = {
                         "fullDAXObjectName": "'Segment'[Summary Segment]",
                         "isCalculated": False,
                         "isKey": False,
+                        "isHidden": False,
                     }
                 ],
                 "measures": [
