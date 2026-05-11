@@ -6,7 +6,6 @@
         "Name": "Do not use floating point data types",
         "Expression": "obj.DataType == TOM.DataType.Double",
         "Description": "The \"Double\" floating point data type should be avoided, as it can result in unpredictable roundoff errors and decreased performance in certain scenarios. Use \"Int64\" or \"Decimal\" where appropriate (but note that \"Decimal\" is limited to 4 digits after the decimal sign).",
-        "URL": null
     },
     {
         "Category": "Performance",
@@ -22,7 +21,7 @@
         "Scope": "Relationship",
         "Severity": "Warning",
         "Name": "Check if bi-directional and many-to-many relationships are valid",
-        "Expression": " (\n            obj.FromCardinality == TOM.RelationshipEndCardinality.Many\n            and obj.ToCardinality == TOM.RelationshipEndCardinality.Many\n        )\n        or str(obj.CrossFilteringBehavior) == \"BothDirections\" ",
+        "Expression": " (obj.FromCardinality == TOM.RelationshipEndCardinality.Many\n            and obj.ToCardinality == TOM.RelationshipEndCardinality.Many\n        )\n        or str(obj.CrossFilteringBehavior) == \"BothDirections\" ",
         "Description": "Bi-directional and many-to-many relationships may cause performance degradation or even have unintended consequences. Make sure to check these specific relationships to ensure they are working as designed and are actually necessary.",
         "URL": "https://www.sqlbi.com/articles/bidirectional-relationships-and-ambiguity-in-dax"
     },
@@ -31,7 +30,7 @@
         "Scope": "Row Level Security",
         "Severity": "Info",
         "Name": "Check if dynamic row level security (RLS) is necessary",
-        "Expression": " any(\n            re.search(pattern, obj.FilterExpression, flags=re.IGNORECASE)\n            for pattern in [\"USERPRINCIPALNAME()\", \"USERNAME()\"]\n        )",
+        "Expression": " any( re.search(pattern, obj.FilterExpression, flags=re.IGNORECASE)\n            for pattern in [\"USERPRINCIPALNAME()\", \"USERNAME()\"]\n        )",
         "Description": "Usage of dynamic row level security (RLS) can add memory and performance overhead. Please research the pros/cons of using it.",
         "URL": "https://docs.microsoft.com/power-bi/admin/service-admin-rls"
     },
@@ -40,7 +39,7 @@
         "Scope": "Table",
         "Severity": "Warning",
         "Name": "Avoid using many-to-many relationships on tables used for dynamic row level security",
-        "Expression": " any(\n            r.FromCardinality == TOM.RelationshipEndCardinality.Many\n            and r.ToCardinality == TOM.RelationshipEndCardinality.Many\n            for r in tom.used_in_relationships(object=obj)\n        )\n        and any(t.Name == obj.Name for t in tom.all_rls())",
+        "Expression": " any( r.FromCardinality == TOM.RelationshipEndCardinality.Many\n            and r.ToCardinality == TOM.RelationshipEndCardinality.Many\n            for r in tom.used_in_relationships(object=obj)\n        )\n        and any(t.Name == obj.Name for t in tom.all_rls())",
         "Description": "Using many-to-many relationships on tables which use dynamic row level security can cause serious query performance degradation. This pattern's performance problems compound when snowflaking multiple many-to-many relationships against a table which contains row level security. Instead, use one of the patterns shown in the article below where a single dimension table relates many-to-one to a security table.",
         "URL": "https://www.elegantbi.com/post/dynamicrlspatterns"
     },
@@ -49,7 +48,7 @@
         "Scope": "Relationship",
         "Severity": "Warning",
         "Name": "Many-to-many relationships should be single-direction",
-        "Expression": " (\n            obj.FromCardinality == TOM.RelationshipEndCardinality.Many\n            and obj.ToCardinality == TOM.RelationshipEndCardinality.Many\n        )\n        and obj.CrossFilteringBehavior == TOM.CrossFilteringBehavior.BothDirections"
+        "Expression": " ( obj.FromCardinality == TOM.RelationshipEndCardinality.Many\n            and obj.ToCardinality == TOM.RelationshipEndCardinality.Many\n        )\n        and obj.CrossFilteringBehavior == TOM.CrossFilteringBehavior.BothDirections"
     },
     {
         "Category": "Performance",
