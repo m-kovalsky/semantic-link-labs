@@ -27,6 +27,7 @@ dependencies = [
     "anytree",
     "polib",
     "jsonpath_ng",
+    "sqlglot",
 ]
 
 [tool.setuptools.packages.find]
