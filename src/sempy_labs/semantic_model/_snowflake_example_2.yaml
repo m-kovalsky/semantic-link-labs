@@ -90,6 +90,14 @@ tables:
         unique: true
         is_enum: false
 
+      - name: cust_order_count
+        synonyms: ["customer order count"]
+        description: null
+        expr: CUSTOMER_ORDER_COUNT
+        data_type: NUMBER
+        unique: false
+        is_enum: false
+
       - name: customer_name
         synonyms: ["client", "buyer"]
         description: Customer full name
