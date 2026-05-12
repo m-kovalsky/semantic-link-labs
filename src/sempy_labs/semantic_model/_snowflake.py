@@ -186,6 +186,17 @@ def convert_from_snowflake(
 
     table_names = [t.get("name", "") for t in sf_tables if t.get("name")]
 
+    # Pre-build a minimal relationships list (fromTable / toTable only) so it
+    # can be passed to ``convert_sql_to_dax`` while generating measure DAX.
+    # The full relationships list (with column info) is built later for the
+    # output payload.
+    rel_hints: List[Dict[str, str]] = []
+    for rel in data.get("relationships", []) or []:
+        ft = rel.get("left_table", "") or ""
+        tt = rel.get("right_table", "") or ""
+        if ft and tt:
+            rel_hints.append({"fromTable": ft, "toTable": tt})
+
     # Validate that every table's source is present in the ``sources`` list.
     if resolve_sources:
         table_sources = [
@@ -419,6 +430,7 @@ def convert_from_snowflake(
                             expression,
                             column_map=_column_map_for_table(table_name),
                             default_table=table_name,
+                            relationships=rel_hints,
                         )
                         if expression
                         else ""
@@ -466,6 +478,7 @@ def convert_from_snowflake(
                         expression,
                         column_map=_column_map_for_table(target_table),
                         default_table=target_table,
+                        relationships=rel_hints,
                     )
                     if expression
                     else ""

@@ -88,6 +88,27 @@ The translator should:
 SUM('fact_sales'[SALES_AMOUNT])
 ```
 
+> **Important — bare identifiers inside scalar aggregates must NOT become iterators.**
+>
+> When a SQL aggregate wraps a single bare identifier (e.g. `SUM(ORIGINAL_SALES_AMOUNT)`,
+> `SUM(COST_OF_GOODS_SOLD)`) and that identifier is not declared as a
+> column in the model metadata, the translator must still emit the
+> scalar aggregation form against the default/owning table:
+>
+> ```dax
+> SUM('fact_returns'[ORIGINAL_SALES_AMOUNT])
+> ```
+>
+> It must **not** fall through to the iterator form:
+>
+> ```dax
+> SUMX('fact_returns', ORIGINAL_SALES_AMOUNT)   -- INVALID
+> ```
+>
+> Iterators (`SUMX`, `AVERAGEX`, etc.) are reserved for cases where the
+> aggregate argument contains arithmetic or references multiple
+> columns. A single bare token is always a scalar aggregation.
+
 ---
 
 ## Mixed Identifier Formats
@@ -313,6 +334,27 @@ DIVIDE(a, b)
 
 ## Rolling Window SUM
 
+Translate `<agg>(<inner>) OVER (ORDER BY <col> ROWS BETWEEN N PRECEDING AND CURRENT ROW)`
+into a `CALCULATE` wrapping the inner aggregation with a `DATESINPERIOD`
+filter over the ORDER BY column.
+
+Rules:
+
+- The window's ORDER BY column becomes the date column passed to
+  `DATESINPERIOD`. It is resolved through the column map and fully
+  qualified as `'table'[column]`.
+- `MAX(<order_col>)` is used as the anchor date.
+- `ROWS BETWEEN N PRECEDING AND CURRENT ROW` becomes `-N, DAY`. The skill
+  preserves the literal `N` from the SQL (e.g. `89 PRECEDING` → `-89, DAY`)
+  rather than rounding up to the inclusive day count.
+- When the inner expression is itself an aggregate (a non-standard but
+  common Snowflake/BigQuery pattern such as `SUM(SUM(...)) OVER (...)`),
+  the redundant outer aggregate is stripped and only the inner
+  aggregation body is preserved.
+- The inner aggregation body is translated using the normal aggregation
+  rules (including the additive distribution rule that turns
+  `SUM(a - b)` into `(SUM(a) - SUM(b))`).
+
 ### SQL
 ```sql
 SUM(metric)
@@ -327,11 +369,76 @@ OVER (
 CALCULATE(
     [metric],
     DATESINPERIOD(
-        'Date'[Date],
-        MAX('Date'[Date]),
-        -90,
+        'dim_date'[date_key],
+        MAX('dim_date'[date_key]),
+        -89,
         DAY
     )
+)
+```
+
+---
+
+## Rolling Window over a Nested Aggregate
+
+### SQL
+```sql
+SUM(
+    SUM(EXTENDED_AMOUNT - DISCOUNT_AMOUNT)
+) OVER (
+    ORDER BY DATE_KEY
+    ROWS BETWEEN 89 PRECEDING AND CURRENT ROW
+)
+```
+
+### DAX
+```dax
+CALCULATE(
+    (
+        SUM('fact_sales'[sales_amount])
+        - SUM('fact_sales'[discount_amount])
+    ),
+    DATESINPERIOD(
+        'dim_date'[date_key],
+        MAX('dim_date'[date_key]),
+        -89,
+        DAY
+    )
+)
+```
+
+Equivalently (when distribution is not applied), the inner body may be
+emitted in iterator form:
+
+```dax
+CALCULATE(
+    SUMX(
+        'fact_sales',
+        'fact_sales'[sales_amount] - 'fact_sales'[discount_amount]
+    ),
+    DATESINPERIOD(
+        'dim_date'[date_key],
+        MAX('dim_date'[date_key]),
+        -89,
+        DAY
+    )
+)
+```
+
+---
+
+## Unbounded Window
+
+### SQL
+```sql
+MAX(metric) OVER ()
+```
+
+### DAX
+```dax
+CALCULATE(
+    MAX('table'[metric]),
+    ALL('table')
 )
 ```
 
@@ -368,6 +475,42 @@ When expressions reference multiple tables:
 - Preserve table qualification
 - Use iterator functions
 - Choose the fact table as the iterator table when possible
+
+---
+
+## Iterator Table Selection from Relationships
+
+When an X-function (`SUMX`, `AVERAGEX`, `COUNTX`, `MINX`, `MAXX`) is needed and
+the inner expression references two tables that participate in a relationship,
+choose the iterator table as the **"from" side** of that relationship
+(typically the many / fact side). Wrap any column reference to the
+**"to" side** (typically the one / dimension side) in `RELATED(...)`.
+
+This rule is independent of the table that the measure is *defined on* — what
+matters is which table is on the many side of the relationship linking the
+two referenced tables.
+
+### Example
+
+Given a relationship: `fact_sales (Many) → dim_product (One)`
+
+### SQL
+```sql
+SUM(dim_product.standard_cost * fact_sales.quantity_sold)
+```
+
+### DAX
+```dax
+SUMX(
+    'fact_sales',
+    RELATED('dim_product'[standard_cost]) *
+    'fact_sales'[quantity_sold]
+)
+```
+
+Even when this measure is authored on the `dim_product` table, the iterator
+table is still `fact_sales` because `fact_sales` is the "from" side of the
+relationship.
 
 ---
 
@@ -525,20 +668,28 @@ Use X-iterators when:
 
 ## Detect Measure References
 
-Nested aggregates may indicate reusable measures.
+Nested aggregates inside a window function are flattened — the redundant
+outer aggregate is dropped and only the inner aggregate body is wrapped
+in `CALCULATE`.
 
 ### SQL
 ```sql
-SUM(SUM(revenue)) OVER (...)
+SUM(SUM(revenue)) OVER (
+    ORDER BY DATE_KEY
+    ROWS BETWEEN 89 PRECEDING AND CURRENT ROW
+)
 ```
-
-Should become:
 
 ### DAX
 ```dax
 CALCULATE(
-    [Revenue],
-    ...
+    SUM('fact_sales'[revenue]),
+    DATESINPERIOD(
+        'dim_date'[date_key],
+        MAX('dim_date'[date_key]),
+        -89,
+        DAY
+    )
 )
 ```
 

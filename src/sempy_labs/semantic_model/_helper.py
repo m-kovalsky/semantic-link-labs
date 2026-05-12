@@ -41,9 +41,26 @@ def convert_column_data_type(str_type: str) -> str:
 
 
 def convert_sql_to_dax(
-    sql: str, column_map: dict[str, str], default_table: str = "summary"
+    sql: str,
+    column_map: dict[str, str],
+    default_table: str = "summary",
+    relationships: Optional[list[dict]] = None,
 ) -> str:
     dax = sql.strip()
+
+    # Build a map of (from_table, to_table) -> True for both orientations
+    # so iterator selection can prefer the "from" (many) side of the
+    # relationship and wrap the "to" (one) side in ``RELATED(...)``.
+    #
+    # ``relationships`` is expected to be a list of dicts with at least
+    # ``fromTable`` and ``toTable`` keys (as produced by
+    # ``convert_from_snowflake``). Other keys are ignored.
+    _rel_from_to: set = set()
+    for _r in relationships or []:
+        _ft = _r.get("fromTable") if isinstance(_r, dict) else None
+        _tt = _r.get("toTable") if isinstance(_r, dict) else None
+        if _ft and _tt:
+            _rel_from_to.add((_ft, _tt))
 
     # =========================================================
     # 1. STRING PROTECTION (CRITICAL - MUST BE FIRST)
@@ -265,12 +282,121 @@ def convert_sql_to_dax(
     # =========================================================
     # 9. WINDOW FUNCTIONS
     # =========================================================
+    # ``<agg>() OVER ()`` — unbounded window over the default table.
     dax = re.sub(
         r"(MAX\([^)]+\))\s+OVER\(\)",
         lambda m: f"CALCULATE({m.group(1)}, ALL('{default_table}'))",
         dax,
         flags=re.IGNORECASE,
     )
+
+    # ``<outer_agg>(<inner>) OVER (ORDER BY <col> ROWS BETWEEN N PRECEDING
+    # AND CURRENT ROW)`` — translate to a CALCULATE with a DATESINPERIOD
+    # filter. When ``<inner>`` is itself an aggregate (a non-standard but
+    # common Snowflake/BigQuery pattern), the redundant outer aggregate is
+    # stripped and only the inner aggregate body is preserved.
+    def _find_open_paren(text: str, close_idx: int) -> int:
+        depth = 0
+        for k in range(close_idx, -1, -1):
+            ch = text[k]
+            if ch == ")":
+                depth += 1
+            elif ch == "(":
+                depth -= 1
+                if depth == 0:
+                    return k
+        return -1
+
+    def _rewrite_over_rolling(text: str) -> str:
+        agg_token_re = re.compile(
+            r"\b(SUM|AVERAGE|AVG|MIN|MAX|COUNT)\s*\(", flags=re.IGNORECASE
+        )
+        # Window ORDER BY column: bare identifier, ``table.column``, or
+        # backtick-quoted forms.
+        order_re = re.compile(
+            r"ORDER\s+BY\s+"
+            r"("
+            r"`[^`]+`(?:\.(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_]*))?"
+            r"|[A-Za-z_][A-Za-z0-9_]*(?:\.(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_]*))?"
+            r")",
+            flags=re.IGNORECASE,
+        )
+        rows_re = re.compile(
+            r"ROWS\s+BETWEEN\s+(\d+)\s+PRECEDING\s+AND\s+CURRENT\s+ROW",
+            flags=re.IGNORECASE,
+        )
+
+        over_re = re.compile(r"\bOVER\s*\(", flags=re.IGNORECASE)
+        # Iterate until no more OVER patterns are found. Each successful
+        # rewrite shortens the string at known positions, so we restart
+        # the scan from the beginning each iteration to avoid index drift.
+        guard = 0
+        while True:
+            guard += 1
+            if guard > 50:
+                break
+            m = over_re.search(text)
+            if not m:
+                break
+            over_open = m.end() - 1
+            over_close = _find_matching_paren(text, over_open)
+            if over_close == -1:
+                break
+
+            # Locate the aggregate call immediately preceding OVER.
+            k = m.start() - 1
+            while k >= 0 and text[k].isspace():
+                k -= 1
+            if k < 0 or text[k] != ")":
+                # No aggregate call before OVER — give up on this OVER.
+                break
+            agg_close = k
+            agg_open = _find_open_paren(text, agg_close)
+            if agg_open == -1:
+                break
+            # Walk back to capture the function name.
+            fn_end = agg_open
+            fn_start = fn_end
+            while fn_start > 0 and (
+                text[fn_start - 1].isalnum() or text[fn_start - 1] == "_"
+            ):
+                fn_start -= 1
+            if fn_start == fn_end:
+                break
+            outer_agg = text[fn_start:fn_end]
+            if not agg_token_re.match(outer_agg + "("):
+                # Not a recognized aggregate — bail to avoid corrupting text.
+                break
+            agg_inner = text[agg_open + 1 : agg_close]
+            window_spec = text[over_open + 1 : over_close]
+
+            order_match = order_re.search(window_spec)
+            rows_match = rows_re.search(window_spec)
+            if not order_match or not rows_match:
+                # Unsupported window shape — leave as-is and stop scanning
+                # to avoid infinite loops.
+                break
+
+            order_col = order_match.group(1)
+            n_preceding = int(rows_match.group(1))
+
+            # If the inner expression is itself an aggregate, strip the
+            # redundant outer aggregate.
+            inner_stripped = agg_inner.strip()
+            inner_is_agg = bool(
+                agg_token_re.match(inner_stripped)
+            )
+            body_sql = inner_stripped if inner_is_agg else f"{outer_agg}({agg_inner})"
+
+            replacement = (
+                f"CALCULATE({body_sql}, "
+                f"DATESINPERIOD({order_col}, MAX({order_col}), "
+                f"-{n_preceding}, DAY))"
+            )
+            text = text[:fn_start] + replacement + text[over_close + 1 :]
+        return text
+
+    dax = _rewrite_over_rolling(dax)
 
     # =========================================================
     # 10. RESTORE STRINGS (AFTER ALL LOGIC)
@@ -376,6 +502,12 @@ def convert_sql_to_dax(
             return expr
 
         def _split_top_level_additive(arg: str):
+            """Split ``arg`` on top-level ``+``/``-`` operators.
+
+            Returns a list of ``(sign, term)`` tuples. Top-level ``*``/``/``
+            do not split; if the whole expression is a single multiplicative
+            term, returns a single-element list.
+            """
             terms = []
             depth = 0
             start = 0
@@ -397,13 +529,87 @@ def convert_sql_to_dax(
                         terms.append((sign, term))
                     sign = ch
                     start = i + 1
-                elif depth == 0 and ch in "*/":
-                    return None
                 i += 1
             tail = arg[start:].strip()
             if tail:
                 terms.append((sign, tail))
             return terms
+
+        def _emit_iterator(func: str, term: str) -> str:
+            """Emit the iterator form (SUMX/AVERAGEX/etc.) for ``term``.
+
+            Iterator table selection (in order of preference):
+
+            1. **Relationship-driven**: if ``relationships`` was supplied
+               and one of the referenced tables is on the "from" (many)
+               side of a relationship to another referenced table, use
+               that "from" table. Columns belonging to the "to" (one)
+               side are wrapped in ``RELATED(...)``.
+            2. ``default_table`` if it is one of the referenced tables.
+            3. The first referenced table.
+
+            Wrapping rule: any column reference whose table is NOT the
+            chosen iterator table is wrapped in ``RELATED(...)``.
+            """
+            referenced_tables = []
+            for c in col_ref_re.finditer(term):
+                t = c.group(1)
+                if t not in referenced_tables:
+                    referenced_tables.append(t)
+
+            iter_table = None
+            # 1. Relationship-driven choice — pick the table that is on the
+            #    "from" (many) side of a relationship to another
+            #    referenced table.
+            if _rel_from_to and len(referenced_tables) > 1:
+                for cand in referenced_tables:
+                    for other in referenced_tables:
+                        if cand == other:
+                            continue
+                        if (cand, other) in _rel_from_to:
+                            iter_table = cand
+                            break
+                    if iter_table:
+                        break
+
+            # 2. Fall back to default_table if it's one of the refs.
+            if iter_table is None:
+                if default_table and default_table in referenced_tables:
+                    iter_table = default_table
+                elif referenced_tables:
+                    iter_table = referenced_tables[0]
+                else:
+                    iter_table = default_table
+
+            if iter_table and len(referenced_tables) > 1:
+                def _wrap_related(match: "re.Match[str]") -> str:
+                    ref = match.group(0)
+                    tbl = match.group(1)
+                    if tbl == iter_table:
+                        return ref
+                    return f"RELATED({ref})"
+                term_rewritten = col_ref_re.sub(_wrap_related, term)
+            else:
+                term_rewritten = term
+            return f"{agg_iter_map[func]}('{iter_table}', {term_rewritten})"
+
+        def _emit_term(func: str, term: str) -> Optional[str]:
+            """Convert a single additive term into an aggregation.
+
+            * Single column reference → scalar ``func(col)``.
+            * Recursively splittable additive expression → distributed form.
+            * Multiplicative / arbitrary expression → iterator form.
+            """
+            term = _strip_outer_parens(term)
+            if single_col_re.match(term):
+                return f"{func}({term})"
+            nested = _try_distribute(func, term)
+            if nested is not None:
+                return nested
+            # Multiplicative or otherwise non-additive term — emit iterator.
+            if not col_ref_re.search(term):
+                return None
+            return _emit_iterator(func, term)
 
         def _try_distribute(func: str, arg: str) -> Optional[str]:
             arg = _strip_outer_parens(arg)
@@ -414,14 +620,10 @@ def convert_sql_to_dax(
                 return None
             distributed_terms = []
             for sign, term in terms:
-                term = _strip_outer_parens(term)
-                if single_col_re.match(term):
-                    distributed_terms.append((sign, f"{func}({term})"))
-                else:
-                    nested = _try_distribute(func, term)
-                    if nested is None:
-                        return None
-                    distributed_terms.append((sign, nested))
+                emitted = _emit_term(func, term)
+                if emitted is None:
+                    return None
+                distributed_terms.append((sign, emitted))
             pieces = []
             for idx, (s, t) in enumerate(distributed_terms):
                 if idx == 0:
@@ -460,39 +662,31 @@ def convert_sql_to_dax(
                 i = j
                 continue
 
+            # If the argument is a bare unqualified identifier (a column
+            # name that wasn't resolved via column_map because it wasn't
+            # declared in the YAML), qualify it against ``default_table``
+            # and emit the scalar aggregation form. Without this, the
+            # iterator branch below would emit e.g.
+            # ``SUMX('fact_returns', ORIGINAL_SALES_AMOUNT)`` which is
+            # invalid DAX. Backticks are stripped to match the rest of
+            # the translator.
+            bare_ident = re.fullmatch(
+                r"`?([A-Za-z_][A-Za-z0-9_ ]*)`?", arg
+            )
+            if bare_ident and default_table:
+                out_parts.append(
+                    f"{func}('{default_table}'[{bare_ident.group(1)}])"
+                )
+                i = j
+                continue
+
             distributed = _try_distribute(func, arg)
             if distributed is not None:
                 out_parts.append(distributed)
                 i = j
                 continue
 
-            referenced_tables = []
-            for c in col_ref_re.finditer(arg):
-                t = c.group(1)
-                if t not in referenced_tables:
-                    referenced_tables.append(t)
-
-            if default_table and default_table in referenced_tables:
-                iter_table = default_table
-            elif referenced_tables:
-                iter_table = referenced_tables[0]
-            else:
-                iter_table = default_table
-
-            if iter_table and len(referenced_tables) > 1:
-
-                def _wrap_related(match: "re.Match[str]") -> str:
-                    ref = match.group(0)
-                    tbl = match.group(1)
-                    if tbl == iter_table:
-                        return ref
-                    return f"RELATED({ref})"
-
-                arg_rewritten = col_ref_re.sub(_wrap_related, arg)
-            else:
-                arg_rewritten = arg
-
-            out_parts.append(f"{agg_iter_map[func]}('{iter_table}', {arg_rewritten})")
+            out_parts.append(_emit_iterator(func, arg))
             i = j
         return "".join(out_parts)
 

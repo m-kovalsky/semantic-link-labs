@@ -1,0 +1,683 @@
+name: global_retail_semantic_view
+description: >
+  Enterprise retail semantic view spanning sales, inventory,
+  returns, fulfillment, and marketing performance across global regions.
+
+tables:
+
+  # ============================================================
+  # DATE DIMENSION
+  # ============================================================
+
+  - name: dim_date
+    description: Calendar and fiscal date dimension
+
+    base_table:
+      database: ANALYTICS
+      schema: MART
+      table: DIM_DATE
+
+    dimensions:
+
+      - name: date_key
+        synonyms: ["date id", "date surrogate key"]
+        description: Surrogate key for the date
+        expr: DATE_KEY
+        data_type: NUMBER
+        unique: true
+        is_enum: false
+
+      - name: day_name
+        synonyms: ["weekday", "day of week"]
+        description: Name of the weekday
+        expr: DAY_NAME
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+      - name: month_name
+        synonyms: ["month"]
+        description: Calendar month name
+        expr: MONTH_NAME
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+      - name: quarter_name
+        synonyms: ["quarter"]
+        description: Fiscal quarter
+        expr: QUARTER_NAME
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+      - name: fiscal_year
+        synonyms: ["fy"]
+        description: Fiscal year
+        expr: FISCAL_YEAR
+        data_type: NUMBER
+        unique: false
+        is_enum: false
+
+    time_dimensions:
+
+      - name: calendar_date
+        synonyms: ["date", "order date"]
+        description: Calendar date
+        expr: CALENDAR_DATE
+        data_type: DATE
+        unique: true
+
+  # ============================================================
+  # CUSTOMER DIMENSION
+  # ============================================================
+
+  - name: dim_customer
+    description: Customer master data
+
+    base_table:
+      database: ANALYTICS
+      schema: MART
+      table: DIM_CUSTOMER
+
+    dimensions:
+
+      - name: customer_key
+        synonyms: ["customer id"]
+        description: Surrogate customer key
+        expr: CUSTOMER_KEY
+        data_type: NUMBER
+        unique: true
+        is_enum: false
+
+      - name: customer_name
+        synonyms: ["client", "buyer"]
+        description: Customer full name
+        expr: CUSTOMER_NAME
+        data_type: VARCHAR
+        unique: false
+        is_enum: false
+
+      - name: customer_segment
+        synonyms: ["segment"]
+        description: Customer segmentation bucket
+        expr: CUSTOMER_SEGMENT
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+      - name: acquisition_channel
+        synonyms: ["signup source", "marketing source"]
+        description: Original acquisition channel
+        expr: ACQUISITION_CHANNEL
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+      - name: country
+        synonyms: ["nation"]
+        description: Customer country
+        expr: COUNTRY
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+      - name: region
+        synonyms: ["territory"]
+        description: Geographic region
+        expr: REGION
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+    time_dimensions:
+
+      - name: signup_date
+        synonyms: ["registration date"]
+        description: Customer signup date
+        expr: SIGNUP_DATE
+        data_type: DATE
+        unique: false
+
+  # ============================================================
+  # PRODUCT DIMENSION
+  # ============================================================
+
+  - name: dim_product
+    description: Product catalog dimension
+
+    base_table:
+      database: ANALYTICS
+      schema: MART
+      table: DIM_PRODUCT
+
+    dimensions:
+
+      - name: product_key
+        synonyms: ["product id"]
+        description: Product surrogate key
+        expr: PRODUCT_KEY
+        data_type: NUMBER
+        unique: true
+        is_enum: false
+
+      - name: sku
+        synonyms: ["stock keeping unit"]
+        description: Product SKU
+        expr: SKU
+        data_type: VARCHAR
+        unique: true
+        is_enum: false
+
+      - name: product_name
+        synonyms: ["item", "product"]
+        description: Product display name
+        expr: PRODUCT_NAME
+        data_type: VARCHAR
+        unique: false
+        is_enum: false
+
+      - name: category
+        synonyms: ["department"]
+        description: Product category
+        expr: CATEGORY
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+      - name: subcategory
+        synonyms: ["subcategory"]
+        description: Product subcategory
+        expr: SUBCATEGORY
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+      - name: brand
+        synonyms: ["manufacturer"]
+        description: Product brand
+        expr: BRAND
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+    facts:
+
+      - name: standard_cost
+        synonyms: ["unit cost", "cost"]
+        description: Standard unit cost
+        access_modifier: public_access
+        expr: STANDARD_COST
+        data_type: NUMBER(18,2)
+
+  # ============================================================
+  # SALES FACT TABLE
+  # ============================================================
+
+  - name: fact_sales
+    description: Sales transactions
+
+    base_table:
+      database: ANALYTICS
+      schema: MART
+      table: FACT_SALES
+
+    dimensions:
+
+      - name: sales_channel
+        synonyms: ["channel"]
+        description: Sales channel
+        expr: SALES_CHANNEL
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+      - name: promotion_code
+        synonyms: ["promo code", "coupon"]
+        description: Applied promotion code
+        expr: PROMOTION_CODE
+        data_type: VARCHAR
+        unique: false
+        is_enum: false
+
+    facts:
+
+      - name: sales_amount
+        synonyms: ["gross sales", "revenue before discount"]
+        description: Gross sales amount
+        access_modifier: public_access
+        expr: EXTENDED_AMOUNT
+        data_type: NUMBER(18,2)
+
+      - name: discount_amount
+        synonyms: ["discounts"]
+        description: Discount amount
+        access_modifier: public_access
+        expr: DISCOUNT_AMOUNT
+        data_type: NUMBER(18,2)
+
+      - name: quantity_sold
+        synonyms: ["units sold", "qty sold"]
+        description: Quantity sold
+        access_modifier: public_access
+        expr: QUANTITY
+        data_type: NUMBER(18,2)
+
+    metrics:
+
+      - name: net_sales
+        synonyms: ["net revenue"]
+        description: Sales after discounts
+        access_modifier: public_access
+        expr: |
+          SUM(EXTENDED_AMOUNT - DISCOUNT_AMOUNT)
+
+      - name: average_order_value
+        synonyms: ["aov"]
+        description: Average revenue per order
+        access_modifier: public_access
+        expr: |
+          SUM(EXTENDED_AMOUNT - DISCOUNT_AMOUNT)
+          /
+          NULLIF(COUNT(DISTINCT SALES_ORDER_ID), 0)
+
+      - name: gross_margin
+        synonyms: ["margin dollars"]
+        description: Gross margin dollars
+        access_modifier: public_access
+        expr: |
+          SUM(
+            (EXTENDED_AMOUNT - DISCOUNT_AMOUNT)
+            - (STANDARD_COST * QUANTITY)
+          )
+        using_relationships:
+          - sales_product_relationship
+
+      - name: gross_margin_pct
+        synonyms: ["margin percent"]
+        description: Gross margin percentage
+        access_modifier: public_access
+        expr: |
+          (
+            SUM(
+              (EXTENDED_AMOUNT - DISCOUNT_AMOUNT)
+              - (STANDARD_COST * QUANTITY)
+            )
+            /
+            NULLIF(
+              SUM(EXTENDED_AMOUNT - DISCOUNT_AMOUNT),
+              0
+            )
+          ) * 100
+        using_relationships:
+          - sales_product_relationship
+
+      - name: rolling_90_day_sales
+        synonyms: ["90 day revenue"]
+        description: Rolling 90 day sales
+        access_modifier: public_access
+        expr: |
+          SUM(
+            SUM(EXTENDED_AMOUNT - DISCOUNT_AMOUNT)
+          ) OVER (
+            ORDER BY DATE_KEY
+            ROWS BETWEEN 89 PRECEDING AND CURRENT ROW
+          )
+
+      - name: customer_repeat_rate
+        synonyms: ["repeat purchase rate"]
+        description: Percentage of repeat customers
+        access_modifier: public_access
+        expr: |
+          (
+            COUNT(DISTINCT CASE
+              WHEN CUSTOMER_ORDER_COUNT > 1
+              THEN CUSTOMER_KEY
+            END)
+            /
+            NULLIF(COUNT(DISTINCT CUSTOMER_KEY), 0)
+          ) * 100
+
+    filters:
+
+      - name: online_sales_filter
+        synonyms: ["ecommerce sales"]
+        description: Online channel sales only
+        expr: SALES_CHANNEL = 'ONLINE'
+
+      - name: current_year_filter
+        synonyms: ["this year"]
+        description: Current fiscal year filter
+        expr: FISCAL_YEAR = YEAR(CURRENT_DATE())
+
+  # ============================================================
+  # INVENTORY FACT TABLE
+  # ============================================================
+
+  - name: fact_inventory
+    description: Daily inventory snapshots
+
+    base_table:
+      database: ANALYTICS
+      schema: MART
+      table: FACT_INVENTORY
+
+    facts:
+
+      - name: on_hand_quantity
+        synonyms: ["inventory qty"]
+        description: Quantity currently on hand
+        access_modifier: public_access
+        expr: ON_HAND_QUANTITY
+        data_type: NUMBER(18,2)
+
+      - name: inventory_cost
+        synonyms: ["inventory valuation"]
+        description: Inventory carrying value
+        access_modifier: public_access
+        expr: ON_HAND_QUANTITY * STANDARD_COST
+        data_type: NUMBER(18,2)
+
+    metrics:
+
+      - name: inventory_turnover_ratio
+        synonyms: ["inventory turns"]
+        description: Inventory turnover
+        access_modifier: public_access
+        expr: |
+          SUM(COST_OF_GOODS_SOLD)
+          /
+          NULLIF(
+            AVG(ON_HAND_QUANTITY * STANDARD_COST),
+            0
+          )
+        using_relationships:
+          - inventory_product_relationship
+
+      - name: days_inventory_outstanding
+        synonyms: ["dio"]
+        description: Days inventory remains on hand
+        access_modifier: public_access
+        expr: |
+          365 /
+          NULLIF(
+            (
+              SUM(COST_OF_GOODS_SOLD)
+              /
+              NULLIF(
+                AVG(ON_HAND_QUANTITY * STANDARD_COST),
+                0
+              )
+            ),
+            0
+          )
+        using_relationships:
+          - inventory_product_relationship
+
+  # ============================================================
+  # RETURNS FACT TABLE
+  # ============================================================
+
+  - name: fact_returns
+    description: Product return transactions
+
+    base_table:
+      database: ANALYTICS
+      schema: MART
+      table: FACT_RETURNS
+
+    dimensions:
+
+      - name: return_reason
+        synonyms: ["reason code"]
+        description: Reason for return
+        expr: RETURN_REASON
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+    facts:
+
+      - name: return_amount
+        synonyms: ["refund amount"]
+        description: Returned sales value
+        access_modifier: public_access
+        expr: RETURN_AMOUNT
+        data_type: NUMBER(18,2)
+
+      - name: return_quantity
+        synonyms: ["returned units"]
+        description: Quantity returned
+        access_modifier: public_access
+        expr: RETURN_QUANTITY
+        data_type: NUMBER(18,2)
+
+    metrics:
+
+      - name: return_rate_pct
+        synonyms: ["return percentage"]
+        description: Percent of sales returned
+        access_modifier: public_access
+        expr: |
+          (
+            SUM(RETURN_AMOUNT)
+            /
+            NULLIF(
+              SUM(ORIGINAL_SALES_AMOUNT),
+              0
+            )
+          ) * 100
+
+  # ============================================================
+  # MARKETING FACT TABLE
+  # ============================================================
+
+  - name: fact_marketing
+    description: Marketing spend and attribution
+
+    base_table:
+      database: ANALYTICS
+      schema: MART
+      table: FACT_MARKETING_SPEND
+
+    dimensions:
+
+      - name: campaign_name
+        synonyms: ["campaign"]
+        description: Marketing campaign name
+        expr: CAMPAIGN_NAME
+        data_type: VARCHAR
+        unique: false
+        is_enum: false
+
+      - name: marketing_channel
+        synonyms: ["ad channel"]
+        description: Marketing channel
+        expr: MARKETING_CHANNEL
+        data_type: VARCHAR
+        unique: false
+        is_enum: true
+
+    facts:
+
+      - name: spend_amount
+        synonyms: ["marketing spend", "ad spend"]
+        description: Campaign spend amount
+        access_modifier: public_access
+        expr: SPEND_AMOUNT
+        data_type: NUMBER(18,2)
+
+      - name: attributed_revenue
+        synonyms: ["campaign revenue"]
+        description: Revenue attributed to campaign
+        access_modifier: public_access
+        expr: ATTRIBUTED_REVENUE
+        data_type: NUMBER(18,2)
+
+    metrics:
+
+      - name: roas
+        synonyms: ["return on ad spend"]
+        description: Revenue generated per advertising dollar
+        access_modifier: public_access
+        expr: |
+          SUM(ATTRIBUTED_REVENUE)
+          /
+          NULLIF(SUM(SPEND_AMOUNT), 0)
+
+      - name: customer_acquisition_cost
+        synonyms: ["cac"]
+        description: Cost to acquire a customer
+        access_modifier: public_access
+        expr: |
+          SUM(SPEND_AMOUNT)
+          /
+          NULLIF(
+            COUNT(DISTINCT ACQUIRED_CUSTOMER_ID),
+            0
+          )
+
+# ============================================================
+# RELATIONSHIPS
+# ============================================================
+
+relationships:
+
+  - name: sales_customer_relationship
+    left_table: fact_sales
+    right_table: dim_customer
+    relationship_columns:
+      - left_column: CUSTOMER_KEY
+        right_column: CUSTOMER_KEY
+
+  - name: sales_product_relationship
+    left_table: fact_sales
+    right_table: dim_product
+    relationship_columns:
+      - left_column: PRODUCT_KEY
+        right_column: PRODUCT_KEY
+
+  - name: sales_date_relationship
+    left_table: fact_sales
+    right_table: dim_date
+    relationship_columns:
+      - left_column: DATE_KEY
+        right_column: DATE_KEY
+
+  - name: inventory_product_relationship
+    left_table: fact_inventory
+    right_table: dim_product
+    relationship_columns:
+      - left_column: PRODUCT_KEY
+        right_column: PRODUCT_KEY
+
+  - name: returns_product_relationship
+    left_table: fact_returns
+    right_table: dim_product
+    relationship_columns:
+      - left_column: PRODUCT_KEY
+        right_column: PRODUCT_KEY
+
+  - name: marketing_customer_relationship
+    left_table: fact_marketing
+    right_table: dim_customer
+    relationship_columns:
+      - left_column: CUSTOMER_KEY
+        right_column: CUSTOMER_KEY
+
+# ============================================================
+# VIEW LEVEL METRICS
+# ============================================================
+
+metrics:
+
+  - name: enterprise_profit
+    synonyms: ["total profit"]
+    description: Profit after returns and marketing costs
+    access_modifier: public_access
+    expr: |
+      (
+        SUM(fact_sales.EXTENDED_AMOUNT - fact_sales.DISCOUNT_AMOUNT)
+        -
+        SUM(fact_returns.RETURN_AMOUNT)
+        -
+        SUM(fact_marketing.SPEND_AMOUNT)
+        -
+        SUM(dim_product.STANDARD_COST * fact_sales.QUANTITY)
+      )
+
+  - name: blended_conversion_efficiency
+    synonyms: ["marketing efficiency"]
+    description: Revenue generated per acquired customer
+    access_modifier: public_access
+    expr: |
+      SUM(fact_marketing.ATTRIBUTED_REVENUE)
+      /
+      NULLIF(
+        COUNT(DISTINCT fact_sales.CUSTOMER_KEY),
+        0
+      )
+
+# ============================================================
+# VERIFIED QUERIES
+# ============================================================
+
+verified_queries:
+
+  - name: top_products_by_margin
+    question: What are the most profitable products?
+    verified_at: 1778112000
+    verified_by: Michael Kovalsky
+    use_as_onboarding_question: true
+    sql: |
+      SELECT
+          p.PRODUCT_NAME,
+          SUM(
+            (s.EXTENDED_AMOUNT - s.DISCOUNT_AMOUNT)
+            - (p.STANDARD_COST * s.QUANTITY)
+          ) AS GROSS_MARGIN
+      FROM FACT_SALES s
+      JOIN DIM_PRODUCT p
+        ON s.PRODUCT_KEY = p.PRODUCT_KEY
+      GROUP BY p.PRODUCT_NAME
+      ORDER BY GROSS_MARGIN DESC
+      LIMIT 25
+
+  - name: inventory_risk_analysis
+    question: Which products are overstocked?
+    verified_at: 1778112000
+    verified_by: Michael Kovalsky
+    use_as_onboarding_question: false
+    sql: |
+      SELECT
+          p.PRODUCT_NAME,
+          SUM(i.ON_HAND_QUANTITY) AS INVENTORY_QTY,
+          AVG(s.QUANTITY) AS AVG_DAILY_SALES,
+          CASE
+              WHEN AVG(s.QUANTITY) = 0 THEN NULL
+              ELSE
+                  SUM(i.ON_HAND_QUANTITY)
+                  / AVG(s.QUANTITY)
+          END AS DAYS_OF_SUPPLY
+      FROM FACT_INVENTORY i
+      JOIN DIM_PRODUCT p
+        ON i.PRODUCT_KEY = p.PRODUCT_KEY
+      LEFT JOIN FACT_SALES s
+        ON i.PRODUCT_KEY = s.PRODUCT_KEY
+      GROUP BY p.PRODUCT_NAME
+      HAVING DAYS_OF_SUPPLY > 90
+      ORDER BY DAYS_OF_SUPPLY DESC
+
+tags:
+
+  - name:
+      database: GOVERNANCE
+      schema: TAGS
+      tag: DOMAIN
+    value: RETAIL
+
+  - name:
+      database: GOVERNANCE
+      schema: TAGS
+      tag: SENSITIVITY
+    value: CONFIDENTIAL
