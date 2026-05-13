@@ -72,8 +72,8 @@ def convert_from_osi(
     resolve_sources : bool, default=True
         When True, validate that each dataset's ``source`` is present in
         ``sources`` and resolve the workspace/item to Fabric IDs. When False,
-        skip validation and resolution and leave ``sourceitemId`` /
-        ``sourceworkspaceId`` as empty strings.
+        skip validation and resolution and leave ``sourceItemId`` /
+        ``sourceWorkspaceId`` as empty strings.
 
     Returns
     -------
@@ -219,10 +219,10 @@ def convert_from_osi(
                 "tableName": table_name,
                 "description": ds.get("description", "") or "",
                 "sourceName": source_name,
-                "sourceitemId": resolved_sources.get(source_name, {}).get(
+                "sourceItemId": resolved_sources.get(source_name, {}).get(
                     "sourceItemId", ""
                 ),
-                "sourceworkspaceId": resolved_sources.get(source_name, {}).get(
+                "sourceWorkspaceId": resolved_sources.get(source_name, {}).get(
                     "sourceWorkspaceId", ""
                 ),
                 "columns": columns,
