@@ -400,6 +400,7 @@ ICONS: dict[str, str] = {
         '<path d="M15 3 v4 a2 2 0 0 0 2 2 h4"/>'
         '<path d="M9 21 v-4 a2 2 0 0 0 -2 -2 H3"/>'
         '<path d="M15 21 v-4 a2 2 0 0 1 2 -2 h4"/></svg>'
+    ),
     "back": (
         '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" '
         'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
@@ -1044,9 +1045,9 @@ SEARCH_SELECT_CSS: str = """\
 .slls-ss-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .slls-ss-value { flex: 1 1 auto; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slls-ss-value.slls-ss-placeholder { color: var(--ui-text-tertiary); }
-.slls-ss-caret { display: inline-flex; flex-shrink: 0; color: var(--ui-text-tertiary); transform: rotate(90deg); transition: transform 140ms ease; }
-.slls-ss-caret svg { display: block; width: 15px; height: 15px; }
-.slls-ss.slls-ss-open .slls-ss-caret { transform: rotate(-90deg); }
+.slls-ss-caret { display: inline-flex; flex-shrink: 0; color: var(--ui-text-tertiary); transition: transform 140ms ease; }
+.slls-ss-caret svg { display: block; width: 16px; height: 16px; }
+.slls-ss.slls-ss-open .slls-ss-caret { transform: rotate(180deg); }
 .slls-ss-panel {
     display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 70;
     min-width: 240px; padding: 6px; background: var(--ui-bg-solid);
@@ -1261,7 +1262,7 @@ function createSearchSelect(config) {
 """
 
 SEARCH_SELECT_JS = SEARCH_SELECT_JS.replace(
-    "__SLLS_SS_CARET__", ICONS["caret_right"]
+    "__SLLS_SS_CARET__", ICONS["chevron_down"]
 ).replace("__SLLS_SS_SEARCH__", ICONS["search"])
 
 
@@ -1296,6 +1297,12 @@ HEADER_CSS: str = """\
 .sl-titlewrap {
     display: flex;
     flex-direction: column;
+    min-width: 0;
+}
+.sl-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     min-width: 0;
 }
 .sl-title {
@@ -1343,26 +1350,56 @@ HEADER_CSS: str = """\
     border-color: var(--ui-text-tertiary);
 }
 .sl-theme-btn:active { transform: scale(0.95); }
+.sl-theme-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .sl-theme-btn svg { display: block; width: 18px; height: 18px; }
 .sl-change-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 32px;
+    height: 32px;
     padding: 0;
-    margin-top: 6px;
     flex: 0 0 auto;
-    align-self: flex-start;
-    border-radius: 6px;
-    border: 1px solid var(--ui-border);
-    background: transparent;
-    color: var(--ui-text-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--ui-border-strong);
+    background: var(--ui-surface);
+    color: var(--ui-text);
     cursor: pointer;
-    transition: border-color 120ms ease, color 120ms ease;
+    font-family: inherit;
+    transition: border-color 120ms ease, color 120ms ease,
+        background 120ms ease, transform 80ms ease;
 }
-.sl-change-btn svg { display: block; width: 15px; height: 15px; }
+.sl-change-btn svg { display: block; width: 18px; height: 18px; }
 .sl-change-btn:hover { border-color: var(--ui-accent); color: var(--ui-accent); }
+.sl-change-btn:active { transform: scale(0.95); }
+.sl-change-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.sl-reload-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--ui-border-strong);
+    border-radius: 50%;
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease,
+        transform 80ms ease;
+}
+.sl-reload-btn svg { display: block; width: 14px; height: 14px; }
+.sl-reload-btn:hover:not(:disabled) {
+    border-color: var(--ui-text-tertiary);
+    background: var(--ui-surface-2);
+}
+.sl-reload-btn:active:not(:disabled) { transform: scale(0.95); }
+.sl-reload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Add sl-spinning while a reload is in flight. */
+.sl-reload-btn.sl-spinning svg { animation: sl-spin 0.8s linear infinite; }
+@keyframes sl-spin { to { transform: rotate(360deg); } }
 """
 
 
@@ -1487,7 +1524,7 @@ def render_header_html(
         Controls the initial icon shown on the theme toggle button.
     fullscreen_btn_id : str, default=None
         If provided, includes a full-screen toggle button with this DOM id
-        (placed after the theme toggle). Pair with
+        (placed immediately before the theme toggle). Pair with
         :func:`fullscreen_toggle_script` to wire up behavior.
     picker_btn_id : str, default=None
         If provided, includes a small "change" (swap) button with this DOM id
@@ -1500,8 +1537,10 @@ def render_header_html(
         accent-colored badge to the left of the title.
     extra_buttons : list[dict[str, str]], default=None
         Optional extra icon buttons rendered immediately to the right of the
-        title. Each dict accepts ``id``, ``icon`` (SVG markup), ``title`` and an
-        optional ``cls`` appended to the button's classes.
+        title. Each dict accepts ``id``, ``icon`` (SVG markup), ``title``, an
+        optional ``cls`` appended to the button's classes and an optional
+        ``base`` class (defaults to ``"sl-theme-btn"``; use
+        ``"sl-change-btn"`` for a change model/workspace control).
 
     Returns
     -------
@@ -1514,7 +1553,16 @@ def render_header_html(
     if title_icon:
         parts.append(f'<span class="sl-title-icon">{title_icon}</span>')
     parts.append('<div class="sl-titlewrap">')
+    parts.append('<div class="sl-title-row">')
     parts.append(f'<div class="sl-title">{_escape_html(title)}</div>')
+
+    if picker_btn_id:
+        parts.append(
+            f'<button type="button" class="sl-change-btn" id="{picker_btn_id}" '
+            f'title="Change table / workspace" aria-label="Change table / workspace">{ICONS["swap"]}</button>'
+        )
+
+    parts.append("</div>")  # title row
 
     if dataset_name or workspace_name:
         ds = _escape_html(dataset_name) if dataset_name else ""
@@ -1525,16 +1573,11 @@ def render_header_html(
             sub = f"<b>{ds}</b>" if ds else ws
         parts.append(f'<div class="sl-subtitle">{sub}</div>')
 
-    if picker_btn_id:
-        parts.append(
-            f'<button type="button" class="sl-change-btn" id="{picker_btn_id}" '
-            f'title="Change table" aria-label="Change table">{ICONS["swap"]}</button>'
-        )
-
     parts.append("</div>")  # titlewrap
 
     for btn in extra_buttons or []:
-        cls = f"sl-theme-btn {btn.get('cls', '')}".strip()
+        base = btn.get("base", "sl-theme-btn")
+        cls = f"{base} {btn.get('cls', '')}".strip()
         label = btn.get("title", "")
         parts.append(
             f'<button type="button" class="{cls}" id="{btn.get("id", "")}" '
@@ -1559,13 +1602,6 @@ def render_header_html(
         parts.append(
             f'<button type="button" class="sl-theme-btn" id="{theme_btn_id}" '
             f'title="{label}" aria-label="{label}">{icon}</button>'
-        )
-
-    if fullscreen_btn_id:
-        parts.append(
-            f'<button type="button" class="sl-theme-btn" id="{fullscreen_btn_id}" '
-            f'title="Full screen" aria-label="Full screen">'
-            f'{ICONS["fullscreen"]}</button>'
         )
 
     parts.append("</div>")
@@ -1793,17 +1829,20 @@ _FULLSCREEN_BODY: str = r"""
         root.classList.toggle(fullscreenClass, cssFullscreen);
     }
     function enterFullscreen() {
+        cssFullscreen = true;
+        renderFullscreenBtn();
         if (root.requestFullscreen) {
-            root.requestFullscreen().then(function () {
-                cssFullscreen = false;
-                renderFullscreenBtn();
-            }).catch(function () {
-                cssFullscreen = true;
-                renderFullscreenBtn();
-            });
-        } else {
-            cssFullscreen = true;
-            renderFullscreenBtn();
+            try {
+                var request = root.requestFullscreen();
+                if (request && typeof request.then === "function") {
+                    request.then(function () {
+                        cssFullscreen = false;
+                        renderFullscreenBtn();
+                    }).catch(function () {});
+                }
+            } catch (error) {
+                // The CSS fallback is already active.
+            }
         }
     }
     function exitFullscreen() {

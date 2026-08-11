@@ -137,9 +137,9 @@ def dax_perf_optimizer(
                 effective_user_name=effective_user_name,
                 role=role,
             )
-    elif workspace is not None:
-        # No dataset chosen yet, but a workspace was provided: resolve it so
-        # the widget's model picker can pre-select that workspace.
+    else:
+        # No dataset chosen yet: resolve the workspace anyway so the widget's
+        # model picker pre-selects the current workspace.
         workspace_name, workspace_id = resolve_workspace_name_and_id(workspace)
 
     if visualize:
@@ -706,7 +706,7 @@ def _run_dax_trace(
     from sempy_labs._clear_cache import clear_cache as _clear_cache_fn
 
     if clear_cache:
-        _clear_cache_fn(dataset=dataset_id, workspace=workspace_id)
+        _clear_cache_fn(dataset=dataset_id, workspace=workspace_id, verbose=False)
 
     result_df: pd.DataFrame = pd.DataFrame()
     df = pd.DataFrame()
@@ -963,6 +963,21 @@ def _collect_model_tree(dataset_id: str, workspace_id: str) -> list:
         return []
 
 
+def _model_tree_table_kind(tom, table) -> str:
+    if getattr(table, "CalculationGroup", None) is not None:
+        return "calculation_group"
+    if tom.is_field_parameter(table_name=str(table.Name)):
+        return "field_parameter"
+    # Marked as a date table: DataCategory "Time" plus an integer or date key column.
+    if str(getattr(table, "DataCategory", "")) == "Time":
+        for column in table.Columns:
+            if column.IsKey and str(column.DataType) in ("Int64", "DateTime"):
+                return "date_table"
+    if tom.is_calculated_table(table_name=str(table.Name)):
+        return "calculated_table"
+    return "table"
+
+
 def _build_model_tree(tom) -> list:
     """Build the sidebar metadata tree from an already-open TOM connection."""
 
@@ -1037,6 +1052,7 @@ def _build_model_tree(tom) -> list:
             tree.append(
                 {
                     "name": tname,
+                    "kind": _model_tree_table_kind(tom, table),
                     "hidden": bool(getattr(table, "IsHidden", False)),
                     "description": str(getattr(table, "Description", "") or ""),
                     "calculation_group": bool(is_calc_group),
@@ -1124,11 +1140,12 @@ def _build_dependency_tree(
     """Organize flat ``INFO.CALCDEPENDENCY`` rows into a hierarchical tree.
 
     The tree has a single ``Model`` root whose children are a ``Tables`` group
-    (each referenced table, with its referenced columns / measures /
-    hierarchies grouped beneath it) and a ``Relationships`` group (each
-    referenced relationship, labeled with the columns it joins, looked up via
-    TOM in ``rel_lookup``). Columns whose TOM ``ColumnType`` is ``RowNumber``
-    (provided in ``rownumber_cols`` as ``(table, column)`` tuples) are omitted.
+    (each referenced table, with measures followed directly by columns and
+    any referenced hierarchies grouped beneath it) and a ``Relationships``
+    group (each referenced relationship, labeled with the columns it joins,
+    looked up via TOM in ``rel_lookup``). Columns whose TOM ``ColumnType`` is
+    ``RowNumber`` (provided in ``rownumber_cols`` as ``(table, column)`` tuples)
+    are omitted.
     """
 
     rownumber_cols = rownumber_cols or set()
@@ -1202,11 +1219,14 @@ def _build_dependency_tree(
     table_nodes = []
     for tname in sorted(tables, key=str.lower):
         tdata = tables[tname]
-        tchildren = []
-        if tdata["columns"]:
-            tchildren.append(_leaf_group("Columns", "column", tdata["columns"]))
-        if tdata["measures"]:
-            tchildren.append(_leaf_group("Measures", "measure", tdata["measures"]))
+        tchildren = [
+            {"label": name, "kind": "measure"}
+            for name in sorted(tdata["measures"], key=str.lower)
+        ]
+        tchildren.extend(
+            {"label": name, "kind": "column"}
+            for name in sorted(tdata["columns"], key=str.lower)
+        )
         if tdata["hierarchies"]:
             tchildren.append(
                 _leaf_group("Hierarchies", "hierarchy", tdata["hierarchies"])
@@ -2055,6 +2075,13 @@ def _visualize_dax_test(
     padding: 22px 24px 18px 24px;
     background: var(--ui-bg);
 }}
+.dtx .dtx-header-view-actions {{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    margin-left: auto;
+}}
 .dtx .dtx-tool-icon {{
     display: inline-flex;
     align-items: center;
@@ -2390,28 +2417,6 @@ def _visualize_dax_test(
     gap: 8px;
     min-width: 0;
 }}
-.dtx .dtx-change-btn {{
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    flex: 0 0 auto;
-    border-radius: 8px;
-    border: 1px solid var(--ui-border-strong);
-    background: var(--ui-surface);
-    color: var(--ui-text);
-    cursor: pointer;
-}}
-.dtx .dtx-change-btn svg {{
-    width: 18px;
-    height: 18px;
-}}
-.dtx .dtx-change-btn:hover {{
-    border-color: var(--ui-accent);
-    color: var(--ui-accent);
-}}
 .dtx .dtx-builder-show-btn {{
     display: inline-flex;
     align-items: center;
@@ -2419,7 +2424,6 @@ def _visualize_dax_test(
     width: 34px;
     height: 34px;
     padding: 0;
-    margin-right: 6px;
     flex: 0 0 auto;
     border-radius: 8px;
     border: 1px solid var(--ui-border);
@@ -2765,53 +2769,32 @@ def _visualize_dax_test(
 }}
 .dtx .dtx-picker {{
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;
+    justify-content: stretch;
     min-height: 430px;
-    padding: 32px;
+    padding: 0 24px 24px;
     background: var(--ui-bg);
     overflow: auto;
 }}
 .dtx .dtx-picker-panel {{
     width: 100%;
-    max-width: 900px;
     box-sizing: border-box;
-    padding: 24px 28px;
+    padding: 16px;
     border: 1px solid var(--ui-border);
-    border-radius: 8px;
+    border-radius: 14px;
     background: var(--ui-surface);
-    box-shadow: var(--ui-shadow-md);
 }}
 .dtx .dtx-picker-top {{
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 20px;
+    margin-bottom: 14px;
 }}
 .dtx .dtx-picker-head {{ min-width: 0; }}
-.dtx .dtx-picker-reload {{
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    flex: 0 0 auto;
-    padding: 6px 10px;
-    border: 1px solid var(--ui-border);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--ui-text-secondary);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-}}
-.dtx .dtx-picker-reload:hover {{ border-color: var(--ui-accent); color: var(--ui-accent); }}
-.dtx .dtx-picker-reload:disabled {{ opacity: 0.5; cursor: not-allowed; }}
-.dtx .dtx-picker-reload svg {{ width: 14px; height: 14px; }}
-.dtx .dtx-picker-reload.dtx-loading svg {{ animation: dtx-spin 0.8s linear infinite; }}
-@keyframes dtx-spin {{ to {{ transform: rotate(360deg); }} }}
 .dtx .dtx-picker-title {{
     margin: 0;
-    font-size: 17px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--ui-text);
 }}
@@ -2822,36 +2805,38 @@ def _visualize_dax_test(
 }}
 .dtx .dtx-picker-fields {{
     display: flex;
-    gap: 20px;
+    align-items: flex-end;
+    gap: 10px;
     flex-wrap: wrap;
 }}
 .dtx .dtx-picker-field {{
     display: flex;
-    flex: 1 1 260px;
+    flex: 1 1 240px;
     flex-direction: column;
-    gap: 4px;
+    gap: 5px;
     min-width: 0;
 }}
 .dtx .dtx-picker-label {{
     display: block;
-    font-size: 12px;
-    color: var(--ui-text-secondary);
-    padding-left: 8px;
+    padding-left: 4px;
+    color: var(--ui-text-tertiary);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
 }}
 .dtx .dtx-picker-field .slls-ss-btn {{
-    min-height: 40px;
-    border-radius: 10px;
-    padding: 10px 12px;
+    border-radius: 999px;
+    padding: 7px 12px 7px 15px;
     background: var(--ui-surface);
-    font-size: 14px;
+    font-size: 13.5px;
 }}
 .dtx .dtx-picker-field .slls-ss-panel {{ z-index: 30; }}
 .dtx .dtx-picker-actions {{
     display: flex;
     align-items: center;
-    justify-content: flex-end;
     gap: 10px;
-    margin-top: 24px;
+    flex: 0 0 auto;
 }}
 .dtx .dtx-picker-spin {{ font-size: 12px; color: var(--ui-text-tertiary); }}
 .dtx .dtx-picker-btn {{
@@ -2860,21 +2845,34 @@ def _visualize_dax_test(
     border: 1px solid var(--ui-accent);
     background: var(--ui-accent);
     color: var(--ui-on-accent);
-    padding: 6px 14px;
-    border-radius: 6px;
+    padding: 7px 16px;
+    border-radius: 999px;
     font-family: inherit;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 13.5px;
+    font-weight: 500;
     cursor: pointer;
     transition: background 120ms ease, opacity 120ms ease;
 }}
 .dtx .dtx-picker-btn:hover {{ background: var(--ui-accent-hover); }}
 .dtx .dtx-picker-btn:disabled {{ opacity: 0.5; cursor: not-allowed; }}
+.dtx .dtx-picker-actions .dtx-picker-cancel {{
+    padding: 7px 16px;
+    border-color: var(--ui-border-strong);
+    border-radius: 999px;
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    font-size: 13.5px;
+    font-weight: 500;
+}}
+.dtx .dtx-picker-actions .dtx-picker-cancel:hover {{
+    border-color: var(--ui-text-tertiary);
+    background: var(--ui-surface-2);
+    color: var(--ui-text);
+}}
 @media (max-width: 640px) {{
-    .dtx .dtx-picker {{ min-height: 360px; padding: 20px 16px; }}
-    .dtx .dtx-picker-panel {{ padding: 20px; }}
-    .dtx .dtx-picker-top {{ align-items: stretch; flex-direction: column; }}
-    .dtx .dtx-picker-reload {{ align-self: flex-start; }}
+    .dtx .dtx-picker {{ min-height: 360px; padding: 0 16px 16px; }}
+    .dtx .dtx-picker-fields {{ align-items: stretch; flex-direction: column; }}
+    .dtx .dtx-picker-actions {{ justify-content: flex-end; }}
 }}
 .dtx .dtx-icon-btn {{
     appearance: none;
@@ -3734,6 +3732,7 @@ def _visualize_dax_test(
     color: var(--ui-text-secondary);
 }}
 .dtx .dtx-object-deps-icon svg {{ width: 16px; height: 16px; }}
+.dtx .dtx-object-deps-head .dtx-object-deps-icon {{ color: var(--ui-accent); }}
 .dtx .dtx-object-deps-label {{
     min-width: 0;
     overflow: hidden;
@@ -4444,9 +4443,11 @@ def _visualize_dax_test(
 .dtx .dtx-tree-node {{
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 3px 6px;
-    border-radius: 4px;
+    gap: 8px;
+    min-height: 24px;
+    padding: 2px 8px;
+    border-radius: 7px;
+    line-height: 1.2;
     cursor: pointer;
     user-select: none;
     color: var(--ui-text);
@@ -4488,9 +4489,11 @@ def _visualize_dax_test(
 .dtx .dtx-tree-leaf {{
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 2px 6px 2px 6px;
-    border-radius: 4px;
+    gap: 8px;
+    min-height: 22px;
+    padding: 1px 8px;
+    border-radius: 7px;
+    line-height: 1.2;
     color: var(--ui-text-secondary);
     white-space: nowrap;
     overflow: hidden;
@@ -4537,7 +4540,7 @@ def _visualize_dax_test(
     white-space: nowrap;
 }}
 .dtx .dtx-tree-node > .dtx-tree-label {{
-    font-size: 14px;
+    font-size: 12.5px;
     font-weight: 600;
 }}
 .dtx .dtx-tree-counts {{
@@ -4551,7 +4554,7 @@ def _visualize_dax_test(
     white-space: nowrap;
 }}
 .dtx .dtx-tree-leaf .dtx-tree-label {{
-    font-size: 14px;
+    font-size: 12.5px;
     font-weight: 600;
 }}
 .dtx .dtx-tree-label.dtx-hidden {{
@@ -4572,9 +4575,9 @@ def _visualize_dax_test(
     color: var(--ui-text);
 }}
 .dtx .dtx-tree-type {{
-    margin-left: 6px;
+    margin-left: 8px;
     flex: 0 0 auto;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 500;
     color: var(--ui-text-tertiary);
     text-transform: lowercase;
@@ -4588,9 +4591,11 @@ def _visualize_dax_test(
 .dtx .dtx-tree-folder-header {{
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 2px 6px;
-    border-radius: 4px;
+    gap: 8px;
+    min-height: 22px;
+    padding: 1px 8px;
+    border-radius: 7px;
+    line-height: 1.2;
     cursor: pointer;
     user-select: none;
     color: var(--ui-text-secondary);
@@ -4600,7 +4605,7 @@ def _visualize_dax_test(
 }}
 .dtx .dtx-tree-folder-header:hover {{ background: var(--ui-surface-2); color: var(--ui-text); }}
 .dtx .dtx-tree-folder-header .dtx-tree-icon {{ color: var(--ui-text-tertiary); }}
-.dtx .dtx-tree-folder-header .dtx-tree-label {{ font-size: 14px; font-weight: 600; }}
+.dtx .dtx-tree-folder-header .dtx-tree-label {{ font-size: 12.5px; font-weight: 600; }}
 .dtx .dtx-tree-level {{ color: var(--ui-text-tertiary); cursor: default; }}
 .dtx .dtx-tree-level:hover {{ background: var(--ui-surface-2); color: var(--ui-text-secondary); }}
 .dtx .dtx-tree-group {{
@@ -4993,7 +4998,10 @@ def _visualize_dax_test(
     moon_icon = _UI_ICONS["moon"].replace("`", "\\`")
     info_icon = _UI_ICONS["info"].replace("`", "\\`")
     table_icon = _UI_ICONS["table"].replace("`", "\\`")
+    calculated_table_icon = _UI_ICONS["calculated_table"].replace("`", "\\`")
     calc_group_icon = _UI_ICONS["calculation_group"].replace("`", "\\`")
+    field_parameter_icon = _UI_ICONS["field_parameter"].replace("`", "\\`")
+    date_table_icon = _UI_ICONS["date_table"].replace("`", "\\`")
     calc_item_icon = _UI_ICONS["calculation_item"].replace("`", "\\`")
     column_icon = _UI_ICONS["column"].replace("`", "\\`")
     measure_icon = _UI_ICONS["measure"].replace("`", "\\`")
@@ -5274,7 +5282,10 @@ function render({ model, el }) {
     const STOP_SVG = `__DTX_STOP__`;
     const ERASER_SVG = `__DTX_ERASER__`;
     const TABLE_SVG = `__DTX_TABLE__`;
+    const CALCULATED_TABLE_SVG = `__DTX_CALCULATED_TABLE__`;
     const CALC_GROUP_SVG = `__DTX_CALC_GROUP__`;
+    const FIELD_PARAMETER_SVG = `__DTX_FIELD_PARAMETER__`;
+    const DATE_TABLE_SVG = `__DTX_DATE_TABLE__`;
     const CALC_ITEM_SVG = `__DTX_CALC_ITEM__`;
     const COLUMN_SVG = `__DTX_COLUMN__`;
     const MEASURE_SVG = `__DTX_MEASURE__`;
@@ -5441,7 +5452,7 @@ function render({ model, el }) {
 
     const changeModelBtn = document.createElement("button");
     changeModelBtn.type = "button";
-    changeModelBtn.className = "dtx-change-btn";
+    changeModelBtn.className = "sl-change-btn";
     changeModelBtn.innerHTML = SWAP_SVG;
     changeModelBtn.title = "Change model / workspace";
     changeModelBtn.setAttribute("aria-label", "Change model / workspace");
@@ -5623,12 +5634,15 @@ function render({ model, el }) {
         monitoringVisible = !monitoringVisible;
         renderMonitoringChrome();
     });
-    header.appendChild(modelViewShowBtn);
-    header.appendChild(builderShowBtn);
-    header.appendChild(monitoringShowBtn);
-    header.appendChild(infoBtn);
-    header.appendChild(themeBtn);
-    header.appendChild(fullscreenBtn);
+    const headerViewActions = document.createElement("div");
+    headerViewActions.className = "dtx-header-view-actions";
+    headerViewActions.appendChild(modelViewShowBtn);
+    headerViewActions.appendChild(builderShowBtn);
+    headerViewActions.appendChild(monitoringShowBtn);
+    headerViewActions.appendChild(infoBtn);
+    headerViewActions.appendChild(fullscreenBtn);
+    headerViewActions.appendChild(themeBtn);
+    header.appendChild(headerViewActions);
     renderFullscreenBtn();
 
     // ---------- Body: sidebar + main ----------
@@ -6626,19 +6640,27 @@ function render({ model, el }) {
         for (const tbl of tree) {
             const node = document.createElement("div");
             node.className = "dtx-tree-node";
-            const tblIcon = tbl.calculation_group ? CALC_GROUP_SVG : TABLE_SVG;
+            const tblIcon = ({
+                calculation_group: CALC_GROUP_SVG,
+                calculated_table: CALCULATED_TABLE_SVG,
+                field_parameter: FIELD_PARAMETER_SVG,
+                date_table: DATE_TABLE_SVG,
+            })[tbl.kind] || TABLE_SVG;
             const countParts = [
                 `${(tbl.columns || []).length}c`,
                 `${(tbl.measures || []).length}m`,
+                `${(tbl.hierarchies || []).length}h`,
             ];
-            if ((tbl.hierarchies || []).length) {
-                countParts.push(`${tbl.hierarchies.length}h`);
-            }
+            const countDescription = [
+                `${(tbl.columns || []).length} ${(tbl.columns || []).length === 1 ? "column" : "columns"}`,
+                `${(tbl.measures || []).length} ${(tbl.measures || []).length === 1 ? "measure" : "measures"}`,
+                `${(tbl.hierarchies || []).length} ${(tbl.hierarchies || []).length === 1 ? "hierarchy" : "hierarchies"}`,
+            ];
             node.innerHTML = `<span class="dtx-tree-caret">${CHEVRON_DOWN_SVG}</span>`
                 + `<span class="dtx-tree-icon">${tblIcon}</span>`
                 + `<span class="dtx-tree-label${tbl.hidden ? " dtx-hidden" : ""}"`
                 + ` title="${escapeHtml(tbl.description ? tbl.description : tbl.name)}">${escapeHtml(tbl.name)}</span>`
-                + `<span class="dtx-tree-counts">${escapeHtml(countParts.join(" · "))}</span>`;
+                + `<span class="dtx-tree-counts" title="${escapeHtml(countDescription.join(", "))}">${escapeHtml(countParts.join(" · "))}</span>`;
             makeDraggable(node, daxTableRef(tbl.name));
             installObjectContextMenu(node, {
                 kind: "table", table: "", name: tbl.name, label: tbl.name,
@@ -7313,9 +7335,10 @@ function render({ model, el }) {
     pickerTop.appendChild(pickerHead);
     const pickerReloadBtn = document.createElement("button");
     pickerReloadBtn.type = "button";
-    pickerReloadBtn.className = "dtx-picker-reload";
-    pickerReloadBtn.innerHTML = REFRESH_SVG + "Reload";
+    pickerReloadBtn.className = "sl-reload-btn";
+    pickerReloadBtn.innerHTML = REFRESH_SVG;
     pickerReloadBtn.title = "Reload workspaces and semantic models";
+    pickerReloadBtn.setAttribute("aria-label", pickerReloadBtn.title);
     pickerTop.appendChild(pickerReloadBtn);
     const pickerFields = document.createElement("div");
     pickerFields.className = "dtx-picker-fields";
@@ -7364,9 +7387,9 @@ function render({ model, el }) {
     pickerActions.appendChild(pickerCancelBtn);
     pickerActions.appendChild(pickerBtn);
     pickerActions.appendChild(pickerSpin);
+    pickerFields.appendChild(pickerActions);
     pickerPanel.appendChild(pickerTop);
     pickerPanel.appendChild(pickerFields);
-    pickerPanel.appendChild(pickerActions);
     pickerPanel.appendChild(pickerError);
     pickerScreen.appendChild(pickerPanel);
     container.insertBefore(pickerScreen, body);
@@ -7395,7 +7418,7 @@ function render({ model, el }) {
         wsPicker.picker.setDisabled(loading);
         dsPicker.picker.setDisabled(!curWs || loading || !dss.length);
         pickerReloadBtn.disabled = loading;
-        pickerReloadBtn.classList.toggle("dtx-loading", loading);
+        pickerReloadBtn.classList.toggle("sl-spinning", loading);
         // Disable Connect when the selection matches the model already
         // in use (same workspace and dataset).
         const sameAsActive = curWs === (model.get("active_workspace_id") || "")
@@ -8589,8 +8612,8 @@ function render({ model, el }) {
             // placeholder helper text in the highlight overlay instead. It
             // disappears as soon as the user types anything.
             hl.innerHTML = '<span class="dtx-query-placeholder">'
-                + 'EVALUATE — type a DAX query here, drag model objects in '
-                + 'from the left, or use the Query Builder.'
+                + 'EVALUATE — type a DAX query here, use the Query Builder '
+                + 'or generate a DAX query using natural language.'
                 + '</span>';
             hl.scrollTop = textarea.scrollTop;
             hl.scrollLeft = textarea.scrollLeft;
@@ -8952,19 +8975,6 @@ function render({ model, el }) {
         }
     });
 
-    const resultDownloadBtn = document.createElement("button");
-    resultDownloadBtn.type = "button";
-    resultDownloadBtn.className = "dtx-hist-download";
-    resultDownloadBtn.innerHTML = DOWNLOAD_SVG;
-    resultDownloadBtn.title = "Download the query result as an Excel file";
-    resultDownloadBtn.setAttribute("aria-label", "Download query result as Excel");
-    resultDownloadBtn.style.display = "none";
-    viewToolbar.appendChild(resultDownloadBtn);
-    resultDownloadBtn.addEventListener("click", () => {
-        if ((model.get("result_total_rows") || 0) <= 0) return;
-        model.set("download_result_trigger", (model.get("download_result_trigger") || 0) + 1);
-        model.save_changes();
-    });
     // Tracks the DAX query text that the currently displayed dependency tree
     // was computed for, so dependencies are only recomputed when it changes.
     let lastDepQuery = null;
@@ -9087,8 +9097,6 @@ function render({ model, el }) {
         histDownloadBtn.disabled = !hist.length;
         histClearBtn.style.display = (mode === "history") ? "" : "none";
         histClearBtn.disabled = !hist.length;
-        resultDownloadBtn.style.display = (mode === "result") ? "" : "none";
-        resultDownloadBtn.disabled = (model.get("result_total_rows") || 0) <= 0;
         // Logical/Physical toggle is only relevant on the DAX Query Plan tab.
         const planType = model.get("query_plan_type") || "Logical";
         planSeg.style.display = (mode === "queryplan") ? "" : "none";
@@ -9426,9 +9434,12 @@ function render({ model, el }) {
     monitoringReloadBtn.addEventListener("click", () => {
         const top = Math.min(200, Math.max(1, Math.round(Number(topInput.value) || 20)));
         topInput.value = String(top);
-        model.set("workspace_monitoring_request", { range: rangeSelect.value, top });
-        model.set("workspace_monitoring_trigger",
-            (model.get("workspace_monitoring_trigger") || 0) + 1);
+        const previousRequest = model.get("workspace_monitoring_request") || {};
+        model.set("workspace_monitoring_request", {
+            range: rangeSelect.value,
+            top,
+            request_id: Number(previousRequest.request_id || 0) + 1,
+        });
         model.save_changes();
     });
     monitoringFullscreenBtn.addEventListener("click", () => {
@@ -9566,6 +9577,10 @@ function render({ model, el }) {
         }
         const body = indexedHistory.map(({ h, index }) => {
             const q = cleanDaxQuery(h.dax_query);
+            const isDax = /^\s*(?:EVALUATE|DEFINE)\b/i.test(q);
+            const queryHtml = isDax
+                ? renderDaxTokens(h.dax_tokens || [], q)
+                : escapeHtml(q);
             const run = String(h.start_time || "");
             const runTime = fmtRunTime(run);
             const metrics = renderMetrics(h.execution_metrics);
@@ -9582,7 +9597,7 @@ function render({ model, el }) {
                 <td>${escapeHtml(String(h.cache || ""))}</td>
                 <td class="dtx-hist-metrics">${metrics ? `<pre>${metrics}</pre>` : ""}</td>
                 <td>${escapeHtml(method)}</td>
-                <td class="dtx-hist-query" data-history-index="${index}" tabindex="0" role="button" aria-label="Copy query from trace history" title="Copy query to clipboard"><pre>${escapeHtml(q)}</pre></td>
+                <td class="dtx-hist-query" data-history-index="${index}" tabindex="0" role="button" aria-label="Copy query from trace history" title="Copy query to clipboard"><pre>${queryHtml}</pre></td>
                 <td>${escapeHtml(reportName)}</td>
                 <td>${escapeHtml(reportWorkspace)}</td>
             </tr>`;
@@ -10542,7 +10557,10 @@ export default { render };
         .replace("__DTX_MOON__", moon_icon)
         .replace("__DTX_INFO__", info_icon)
         .replace("__DTX_TABLE__", table_icon)
+        .replace("__DTX_CALCULATED_TABLE__", calculated_table_icon)
+        .replace("__DTX_DATE_TABLE__", date_table_icon)
         .replace("__DTX_CALC_GROUP__", calc_group_icon)
+        .replace("__DTX_FIELD_PARAMETER__", field_parameter_icon)
         .replace("__DTX_CALC_ITEM__", calc_item_icon)
         .replace("__DTX_COLUMN__", column_icon)
         .replace("__DTX_MEASURE__", measure_icon)
@@ -11030,7 +11048,7 @@ export default { render };
             if widget.clear_cache:
                 from sempy_labs._clear_cache import clear_cache as _clear_cache_fn
 
-                _clear_cache_fn(dataset=ds_id, workspace=ws_id)
+                _clear_cache_fn(dataset=ds_id, workspace=ws_id, verbose=False)
 
             from sempy_labs.report._generate_embed_token import generate_embed_token
 
@@ -11106,6 +11124,7 @@ export default { render };
                         "report_name": report_name,
                         "report_workspace_name": report_workspace_name,
                         "dax_query": item["dax_query"],
+                        "dax_tokens": _monitoring_dax_spans(item["dax_query"]),
                         "start_time": stamp,
                         "end_time": stamp,
                         "rows": 0,
@@ -11225,7 +11244,7 @@ export default { render };
                 role=role_name,
             ) + (None,)
         if clear_cache_flag:
-            _clear_cache_fn(dataset=ds_id, workspace=ws_id)
+            _clear_cache_fn(dataset=ds_id, workspace=ws_id, verbose=False)
         result_df, new_logs, new_count = _execute_and_capture(
             trace,
             ds_id,
@@ -11390,6 +11409,7 @@ export default { render };
                 "report_name": "",
                 "report_workspace_name": "",
                 "dax_query": query,
+                "dax_tokens": _monitoring_dax_spans(query),
                 "start_time": _start_dt.strftime("%Y-%m-%d %H:%M:%S"),
                 "end_time": _end_dt.strftime("%Y-%m-%d %H:%M:%S"),
                 "rows": _row_count,
@@ -11485,6 +11505,7 @@ export default { render };
             _clear_cache_fn(
                 dataset=dataset_id,
                 workspace=model_ctx["workspace_id"],
+                verbose=False,
             )
             widget.error_message = ""
         except Exception as exc:
@@ -11821,6 +11842,7 @@ export default { render };
                 "report_name": "",
                 "report_workspace_name": "",
                 "dax_query": query,
+                "dax_tokens": _monitoring_dax_spans(query),
                 "start_time": _start_dt.strftime("%Y-%m-%d %H:%M:%S"),
                 "end_time": _end_dt.strftime("%Y-%m-%d %H:%M:%S"),
                 "rows": _row_count,
@@ -11970,9 +11992,9 @@ export default { render };
             return
         threading.Thread(target=_compute_performance, daemon=True).start()
 
-    def _load_workspace_monitoring() -> None:
+    def _load_workspace_monitoring(request: Optional[dict] = None) -> None:
         allowed_ranges = {"15m", "1h", "4h", "12h", "1d", "3d", "7d", "30d"}
-        request = dict(widget.workspace_monitoring_request or {})
+        request = dict(request or widget.workspace_monitoring_request or {})
         time_range = str(request.get("range") or "1d")
         if time_range not in allowed_ranges:
             time_range = "1d"
@@ -11993,7 +12015,7 @@ export default { render };
             "| extend ReportId = tostring(ctx.Sources[0].ReportId)\n"
             "| extend VisualId = tostring(ctx.Sources[0].VisualId)\n"
             "| project Timestamp, DurationMs, CpuTimeMs, ExecutingUser, "
-            "ReportId, VisualId, EventText\n"
+            "EventText, ReportId, VisualId\n"
             f"| top {top_n} by DurationMs desc"
         )
         widget.workspace_monitoring_loading = True
@@ -12001,7 +12023,7 @@ export default { render };
         try:
             if not dataset or not workspace:
                 raise ValueError("Choose a semantic model first.")
-            from sempy_labs import query_workspace_monitoring
+            from sempy_labs._kusto import query_workspace_monitoring
 
             monitoring_df = query_workspace_monitoring(
                 query=query,
@@ -12064,7 +12086,17 @@ export default { render };
     def _on_workspace_monitoring(change):
         if change["new"] == change["old"] or widget.workspace_monitoring_loading:
             return
+        widget.workspace_monitoring_loading = True
         threading.Thread(target=_load_workspace_monitoring, daemon=True).start()
+
+    def _on_workspace_monitoring_request(change):
+        if change["new"] == change["old"] or widget.workspace_monitoring_loading:
+            return
+        request = dict(change["new"] or {})
+        widget.workspace_monitoring_loading = True
+        threading.Thread(
+            target=_load_workspace_monitoring, args=(request,), daemon=True
+        ).start()
 
     widget.observe(_on_run, names="run_trigger")
     widget.observe(_on_cancel, names="cancel_trigger")
@@ -12074,6 +12106,9 @@ export default { render };
     widget.observe(_on_vertipaq, names="vertipaq_trigger")
     widget.observe(_on_performance, names="performance_trigger")
     widget.observe(_on_workspace_monitoring, names="workspace_monitoring_trigger")
+    widget.observe(
+        _on_workspace_monitoring_request, names="workspace_monitoring_request"
+    )
     widget.observe(_on_report_capture_start, names="report_capture_start_trigger")
     widget.observe(
         _on_report_capture_checkpoint, names="report_capture_checkpoint_trigger"
@@ -12499,12 +12534,7 @@ export default { render };
                 "Could not build a DAX query from the current selection."
             )
             return
-        try:
-            formatted = _format_dax(dax)
-            dax_out = formatted[0] if formatted else dax
-        except Exception:
-            dax_out = dax
-        dax_out = dax_out.replace("\r\n", "\n").replace("\r", "\n")
+        dax_out = dax.replace("\r\n", "\n").replace("\r", "\n")
         widget.dax_query = dax_out
         widget.dax_tokens = _classify_dax_spans(dax_out)
         widget.error_message = ""
@@ -12512,7 +12542,7 @@ export default { render };
     def _on_build_query(change):
         if change["new"] == change["old"]:
             return
-        threading.Thread(target=_build_query, daemon=True).start()
+        _build_query()
 
     widget.observe(_on_build_query, names="build_query_trigger")
 

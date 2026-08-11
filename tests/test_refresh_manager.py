@@ -72,7 +72,7 @@ def test_refresh_manager_public_signature():
 
 
 def test_widget_includes_optional_dataset_picker():
-    assert "Choose a semantic model" in refresh_manager_module._WIDGET_JS
+    assert "Connect to a semantic model" in refresh_manager_module._WIDGET_JS
     assert 'dispatch("connect"' in refresh_manager_module._WIDGET_JS
     assert 'model.get("connected")' in refresh_manager_module._WIDGET_JS
     assert ">Connect</button>" in refresh_manager_module._WIDGET_JS
@@ -83,6 +83,28 @@ def test_widget_includes_optional_dataset_picker():
     assert "flex:none;width:auto;min-width:96px" in refresh_manager_module._WIDGET_CSS
     assert "data-picker-close" in refresh_manager_module._WIDGET_JS
     assert "data-picker-cancel" not in refresh_manager_module._WIDGET_JS
+
+
+def test_picker_matches_lineage_view_design():
+    widget_js = refresh_manager_module._WIDGET_JS
+    widget_css = refresh_manager_module._WIDGET_CSS
+
+    assert "createSearchSelect({" in widget_js
+    assert widget_js.count("createSearchSelect({") == 2
+    assert 'searchPlaceholder:"Filter workspaces\\u2026"' in widget_js
+    assert 'searchPlaceholder:"Filter semantic models\\u2026"' in widget_js
+    assert "slls-rm-combo" not in widget_js
+    assert "slls-rm-combo" not in widget_css
+    assert "Select a workspace and semantic model to begin." in widget_js
+    assert ".slls-ss-btn" in widget_css
+    assert ".slls-rm-picker-grid .slls-ss-btn { border-radius:999px;" in widget_css
+    assert (
+        ".slls-rm-picker { width:100%;border:1px solid var(--ui-border);"
+        "border-radius:14px;background:var(--ui-surface);padding:16px; }" in widget_css
+    )
+    assert ".sl-reload-btn {" in widget_css
+    assert "width:32px;height:32px;" in widget_css
+    assert ".slls-rm-picker-grid { display:flex;align-items:flex-end;" in widget_css
 
 
 def test_no_dataset_picker_renders_before_discovery():
@@ -103,34 +125,31 @@ def test_no_dataset_picker_renders_before_discovery():
 def test_fullscreen_and_theme_buttons_use_neutral_icon_style():
     assert "slls-rm-header-action" not in refresh_manager_module._WIDGET_JS
     assert "slls-rm-header-action" not in refresh_manager_module._WIDGET_CSS
-    assert 'class="slls-rm-iconbtn" data-fullscreen' in (
+    # The header controls are the shared ones from sempy_labs._ui_components.
+    assert 'class="sl-theme-btn" data-fullscreen' in (
         refresh_manager_module._WIDGET_JS
     )
-    assert 'class="slls-rm-iconbtn" data-theme' in refresh_manager_module._WIDGET_JS
+    assert 'class="sl-theme-btn" data-theme' in refresh_manager_module._WIDGET_JS
+    assert 'class="sl-change-btn" data-change-model' in (
+        refresh_manager_module._WIDGET_JS
+    )
     assert ".slls-rm-title-row .slls-rm-iconbtn" not in (
         refresh_manager_module._WIDGET_CSS
     )
     assert ".slls-rm-iconbtn { width:34px;height:34px" in (
         refresh_manager_module._WIDGET_CSS
     )
-    assert "data-combo-input" in refresh_manager_module._WIDGET_JS
+    assert "background:var(--ui-bg);color:var(--ui-text);display:inline-flex" in (
+        refresh_manager_module._WIDGET_CSS
+    )
+    assert "color:var(--ui-text-secondary);display:inline-flex" not in (
+        refresh_manager_module._WIDGET_CSS
+    )
+    assert "data-picker-ws" in refresh_manager_module._WIDGET_JS
     assert "data-change-model" in refresh_manager_module._WIDGET_JS
     assert "data-fullscreen" in refresh_manager_module._WIDGET_JS
-    assert 'event.key==="Tab"&&kind==="dataset"' in refresh_manager_module._WIDGET_JS
-    assert 'if(connect&&!connect.disabled)connect.focus()' in (
-        refresh_manager_module._WIDGET_JS
-    )
-    assert "choice=exact||(visible.length===1?visible[0]:null)" in (
-        refresh_manager_module._WIDGET_JS
-    )
-    assert "if(choice&&!s.pickDs)" in refresh_manager_module._WIDGET_JS
-    assert "onChoose(choice.dataset.id)" in refresh_manager_module._WIDGET_JS
-    assert "s.pickDs=id;draw();requestAnimationFrame" in (
-        refresh_manager_module._WIDGET_JS
-    )
-    assert 'class="slls-rm-iconbtn" data-picker-reload' in (
-        refresh_manager_module._WIDGET_JS
-    )
+    assert 'class="sl-reload-btn' in refresh_manager_module._WIDGET_JS
+    assert "slls-rm-picker-reload" not in refresh_manager_module._WIDGET_JS
     assert 'title="Reload workspaces and semantic models"' in (
         refresh_manager_module._WIDGET_JS
     )
@@ -155,6 +174,13 @@ def test_widget_uses_shared_expand_and_collapse_icons():
     )
     assert 'expandAll.title=collapse?"Collapse all":"Expand all"' in (
         refresh_manager_module._WIDGET_JS
+    )
+
+
+def test_objects_to_refresh_tables_are_sorted_alphabetically():
+    assert (
+        '.sort((left,right)=>left.name.localeCompare(right.name,undefined,'
+        '{sensitivity:"base"}))' in refresh_manager_module._WIDGET_JS
     )
 
 

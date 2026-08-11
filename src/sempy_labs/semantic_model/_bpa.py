@@ -8,6 +8,7 @@ from sempy_labs._ui_components import (
     LIGHT_THEME_VARS as _UI_LIGHT_VARS,
     DARK_THEME_VARS as _UI_DARK_VARS,
     scoped_button_press_css as _ui_scoped_button_press_css,
+    scoped_header_css as _ui_scoped_header_css,
 )
 
 # The maximum number of models a single bulk scan may target. Keeps the run time
@@ -411,8 +412,8 @@ _WIDGET_CSS = (
 .slls-bpa-selchip button:hover { opacity: 1; }
 
 /* ---------------- Rules panel (overlay) ----------------
-   Fixed to the viewport (not the widget) so the panel is always visible at the
-   top of the screen, however tall the results list is or how far it is scrolled.
+   Fixed to the viewport (not the widget) so the panel is always visible,
+   however tall the results list is or how far it is scrolled.
    The z-index sits above the full-screen overlay and the rule-info popover. */
 .slls-bpa-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 2147483002;
     align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
@@ -420,8 +421,10 @@ _WIDGET_CSS = (
 /* A modal opened from another modal (e.g. the rule change history, opened from
    the rule editor) has to sit above it. */
 .slls-bpa-overlay-top { z-index: 2147483004; }
+/* Auto margins centre the modal but collapse to 0 once it outgrows the
+   viewport, so a tall modal stays scrollable from its top edge. */
 .slls-bpa-modal { background: var(--ui-bg-solid); color: var(--ui-text); border: 1px solid var(--ui-border); border-radius: var(--slls-radius);
-    box-shadow: var(--ui-shadow-lg); width: 100%; max-width: 1040px; padding: 22px 24px; margin: 0 auto; }
+    box-shadow: var(--ui-shadow-lg); width: 100%; max-width: 1040px; padding: 22px 24px; margin: auto; }
 .slls-bpa-modal h2 { margin: 0 0 4px 0; font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
 .slls-bpa-modal h2 .slls-bpa-icon { color: var(--ui-accent); }
 .slls-bpa-modal h2 .slls-bpa-icon svg { width: 18px; height: 18px; }
@@ -429,6 +432,11 @@ _WIDGET_CSS = (
 .slls-bpa-rule-editor-modal { position: relative; }
 .slls-bpa-rule-editor-close { position: absolute; top: 16px; right: 18px; }
 .slls-bpa-rule-editor-modal > h2,.slls-bpa-rule-editor-modal > .slls-bpa-modal-sub { padding-right: 42px; }
+/* The picker modal reuses the select screen's section, which the modal already frames. */
+.slls-bpa-picker-modal { position: relative; max-width: 720px; }
+.slls-bpa-picker-modal > .slls-bpa-section { border: none; background: transparent; padding: 0; margin-top: 0; }
+.slls-bpa-picker-modal > .slls-bpa-section > h3 { padding-right: 42px; }
+.slls-bpa-picker-close { position: absolute; top: 16px; right: 18px; }
 .slls-bpa-modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .slls-bpa-rulelist { max-height: 68vh; min-height: 320px; overflow-y: auto; border: 1px solid var(--ui-border); border-radius: var(--slls-radius-sm); }
 .slls-bpa-rule-count { font-size: 11.5px; color: var(--ui-text-tertiary); margin-bottom: 7px; }
@@ -539,6 +547,7 @@ _WIDGET_CSS = (
 .slls-bpa-searchwrap .slls-bpa-input { padding-left: 32px; min-width: 240px; }
 """
 )
+_WIDGET_CSS += _ui_scoped_header_css(".slls-bpa")
 _WIDGET_CSS += _ui_scoped_button_press_css(".slls-bpa")
 
 
@@ -1085,7 +1094,7 @@ function render({ model, el }) {
     subtitle.className = "slls-bpa-subtitle";
     titleWrap.appendChild(subtitle);
 
-    const changeModelBtn = makeButton("", "slls-bpa-btn-icon", ICON.swap);
+    const changeModelBtn = makeButton("", "sl-change-btn", ICON.swap);
     changeModelBtn.title = "Change semantic model / workspace";
     changeModelBtn.setAttribute("aria-label", "Change semantic model / workspace");
     changeModelBtn.style.display = "none";
@@ -1093,7 +1102,7 @@ function render({ model, el }) {
         // Staged fixes belong to the model they were staged against, so warn
         // before switching (which throws them away).
         if (stagedFixes.size > 0) openDiscardConfirm();
-        else goToSelectScreen();
+        else openSelectPicker();
     });
     header.appendChild(changeModelBtn);
 
@@ -1122,7 +1131,7 @@ function render({ model, el }) {
     rerunBtn.addEventListener("click", () => rerun());
     header.appendChild(rerunBtn);
 
-    const themeBtn = makeButton("", "slls-bpa-btn-icon slls-bpa-view-btn", "");
+    const themeBtn = makeButton("", "sl-theme-btn slls-bpa-view-btn", "");
     function renderThemeBtn() {
         const isDark = model.get("dark_mode") === true;
         themeBtn.innerHTML = isDark ? ICON.sun : ICON.moon;
@@ -1145,7 +1154,7 @@ function render({ model, el }) {
     // native fullscreen attempted as a best-effort enhancement.
     // ------------------------------------------------------------------
     let fsMode = false;
-    const fullscreenBtn = makeButton("", "slls-bpa-btn-icon slls-bpa-view-btn", "");
+    const fullscreenBtn = makeButton("", "sl-theme-btn slls-bpa-view-btn", "");
     function renderFullscreenBtn() {
         fullscreenBtn.innerHTML = fsMode ? ICON.fullscreen_exit : ICON.fullscreen;
         fullscreenBtn.title = fsMode ? "Exit full screen" : "Full screen";
@@ -1191,6 +1200,7 @@ function render({ model, el }) {
         if (historyOverlay.classList.contains("show")) closeHistory();
         else if (stagedOverlay.classList.contains("show")) closeStaged();
         else if (discardOverlay.classList.contains("show")) closeDiscardConfirm();
+        else if (selectOverlay.classList.contains("show")) closeSelectPicker();
         else if (overlay.classList.contains("show")) overlay.classList.remove("show");
         else if (fsMode) setFullscreen(false);
     }
@@ -1350,7 +1360,7 @@ function render({ model, el }) {
 
     // Refetches the workspaces, the models of the selected workspace and any
     // workspace already expanded in the multi-model picker.
-    const reloadBtn = makeButton("", "slls-bpa-btn-icon", ICON.refresh);
+    const reloadBtn = makeButton("", "sl-reload-btn", ICON.refresh);
     reloadBtn.title = "Reload workspaces and semantic models";
     reloadBtn.setAttribute("aria-label", reloadBtn.title);
     reloadBtn.addEventListener("click", () => {
@@ -1692,6 +1702,7 @@ function render({ model, el }) {
     }
 
     function startRun() {
+        closeSelectPicker();
         resetFilters();
         if (bulkMode) {
             runAction("run_bulk", {
@@ -1727,6 +1738,39 @@ function render({ model, el }) {
     model.on("change:workspaces", renderWorkspaces);
     model.on("change:datasets", renderDatasets);
     model.on("change:workspace_datasets", renderBulkTree);
+
+    // Reached from the results screen: the picker opens over the report instead
+    // of replacing it, so closing it leaves the results exactly as they were.
+    const selectOverlay = document.createElement("div");
+    selectOverlay.className = "slls-bpa-overlay";
+    root.appendChild(selectOverlay);
+    selectOverlay.addEventListener("click", (ev) => {
+        if (ev.target === selectOverlay) closeSelectPicker();
+    });
+
+    const selectModal = document.createElement("div");
+    selectModal.className = "slls-bpa-modal slls-bpa-picker-modal";
+    selectOverlay.appendChild(selectModal);
+
+    const selectCloseBtn = makeButton(
+        "", "slls-bpa-btn-sm slls-bpa-btn-icon-sm slls-bpa-picker-close", ICON.close);
+    selectCloseBtn.title = "Close and return to the results";
+    selectCloseBtn.setAttribute("aria-label", selectCloseBtn.title);
+    selectCloseBtn.addEventListener("click", closeSelectPicker);
+    selectModal.appendChild(selectCloseBtn);
+
+    // The picker lives on the select screen, so it is moved in and back out
+    // rather than duplicated (its state and listeners travel with the node).
+    function openSelectPicker() {
+        selectModal.appendChild(selectSection);
+        selectOverlay.classList.add("show");
+    }
+
+    function closeSelectPicker() {
+        if (!selectOverlay.classList.contains("show")) return;
+        selectOverlay.classList.remove("show");
+        selectScreen.appendChild(selectSection);
+    }
 
     // ==================================================================
     // RESULTS SCREEN
@@ -2033,13 +2077,6 @@ function render({ model, el }) {
         stagedOverlay.classList.remove("show");
     }
 
-    function goToSelectScreen() {
-        closeBulkDetail();
-        model.set("screen", "select");
-        model.save_changes();
-        renderScreen();
-    }
-
     function closeDiscardConfirm() {
         discardOverlay.classList.remove("show");
     }
@@ -2049,7 +2086,7 @@ function render({ model, el }) {
     // offering a look at what would be lost.
     function openDiscardConfirm() {
         if (stagedFixes.size === 0) {
-            goToSelectScreen();
+            openSelectPicker();
             return;
         }
         clear(discardOverlay);
@@ -2087,7 +2124,7 @@ function render({ model, el }) {
             // Hides the save bar (and closes the staged changes modal).
             renderStaged();
             refreshViolations();
-            goToSelectScreen();
+            openSelectPicker();
         });
         footer.appendChild(discardChangeBtn);
         modal.appendChild(footer);

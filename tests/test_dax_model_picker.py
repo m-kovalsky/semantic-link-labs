@@ -1,4 +1,6 @@
+import ast
 from pathlib import Path
+from typing import Optional
 
 
 SOURCE_PATH = (
@@ -14,19 +16,71 @@ def _source() -> str:
     return SOURCE_PATH.read_text(encoding="utf-8")
 
 
+def _load_source_function(name: str):
+    module = ast.parse(_source())
+    function = next(
+        node
+        for node in module.body
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    )
+    namespace = {"Optional": Optional}
+    exec(compile(ast.Module(body=[function], type_ignores=[]), str(SOURCE_PATH), "exec"), namespace)
+    return namespace[name]
+
+
 def test_dax_model_picker_source_has_valid_python_syntax():
     compile(_source(), str(SOURCE_PATH), "exec")
 
 
+def test_query_dependencies_show_measures_then_columns_without_folders():
+    build_dependency_tree = _load_source_function("_build_dependency_tree")
+
+    tree = build_dependency_tree(
+        rows=[
+            {"object_type": "COLUMN", "table": "Sales", "object": "Quantity"},
+            {"object_type": "MEASURE", "table": "Sales", "object": "Revenue"},
+            {"object_type": "COLUMN", "table": "Sales", "object": "Amount"},
+            {"object_type": "MEASURE", "table": "Sales", "object": "Cost"},
+        ],
+        rel_lookup={},
+        model_label="Model",
+    )
+
+    table_children = tree[0]["children"][0]["children"][0]["children"]
+    assert table_children == [
+        {"label": "Cost", "kind": "measure"},
+        {"label": "Revenue", "kind": "measure"},
+        {"label": "Amount", "kind": "column"},
+        {"label": "Quantity", "kind": "column"},
+    ]
+
+
+def test_vertipaq_analyzer_defines_shared_fullscreen_css_before_rendering():
+    vertipaq_path = SOURCE_PATH.with_name("_vertipaq_analyzer.py")
+    source = vertipaq_path.read_text(encoding="utf-8")
+    compile(source, str(vertipaq_path), "exec")
+    assignment = source.index("ui_fullscreen_css = _ui_fullscreen_css(")
+    interpolation = source.index("{ui_fullscreen_css}")
+
+    assert "fullscreen_css as _ui_fullscreen_css" in source
+    assert assignment < interpolation
+    assert '        "vpx-fs",' in source[assignment:interpolation]
+    assert 'container_selector=".vpx-container"' in source[assignment:interpolation]
+
+
 def test_no_dataset_uses_searchable_theme_aware_pickers():
     source = _source()
+    ui_source = SOURCE_PATH.parents[1].joinpath("_ui_components.py").read_text(
+        encoding="utf-8"
+    )
     picker_start = source.index("// ---------- Model picker (first screen")
     picker_end = source.index("// ---------- Query options + editor ----------", picker_start)
     picker_source = source[picker_start:picker_end]
 
     assert 'pickerTitle.textContent = "Connect to a semantic model"' in source
     assert 'pickerTop.className = "dtx-picker-top"' in source
-    assert 'pickerReloadBtn.innerHTML = REFRESH_SVG + "Reload"' in source
+    assert 'pickerReloadBtn.innerHTML = REFRESH_SVG' in source
+    assert 'pickerReloadBtn.setAttribute("aria-label", pickerReloadBtn.title)' in source
     assert '"SEARCH_SELECT_CSS", _FALLBACK_SEARCH_SELECT_CSS' in source
     assert '"SEARCH_SELECT_JS", _FALLBACK_SEARCH_SELECT_JS' in source
     assert "function createSearchSelect(config)" in source
@@ -36,6 +90,45 @@ def test_no_dataset_uses_searchable_theme_aware_pickers():
     assert 'dsPicker.picker.setOptions(' in source
     assert 'document.createElement("select")' not in picker_source
     assert 'body.style.display = show ? "none" : ""' in source
+    assert "pickerFields.appendChild(pickerActions)" in picker_source
+    assert "border-radius: 999px;" in source[
+        source.index(".dtx .dtx-picker-field .slls-ss-btn") : source.index(
+            ".dtx .dtx-picker-field .slls-ss-panel"
+        )
+    ]
+    assert '"__SLLS_SS_CARET__", ICONS["chevron_down"]' in ui_source
+    assert ".slls-ss.slls-ss-open .slls-ss-caret { transform: rotate(180deg); }" in ui_source
+
+
+def test_header_view_actions_are_right_aligned_with_theme_last():
+    source = _source()
+    actions_start = source.index('headerViewActions.className = "dtx-header-view-actions"')
+    actions_end = source.index("renderFullscreenBtn();", actions_start)
+    actions = source[actions_start:actions_end]
+
+    assert ".dtx .dtx-header-view-actions {{" in source
+    action_css = source[
+        source.index(".dtx .dtx-header-view-actions {{") : source.index(
+            ".dtx .dtx-tool-icon {{"
+        )
+    ]
+    assert "margin-left: auto;" in action_css
+    assert actions.index("appendChild(modelViewShowBtn)") < actions.index(
+        "appendChild(builderShowBtn)"
+    )
+    assert actions.index("appendChild(builderShowBtn)") < actions.index(
+        "appendChild(monitoringShowBtn)"
+    )
+    assert actions.index("appendChild(monitoringShowBtn)") < actions.index(
+        "appendChild(infoBtn)"
+    )
+    assert actions.index("appendChild(infoBtn)") < actions.index(
+        "appendChild(fullscreenBtn)"
+    )
+    assert actions.index("appendChild(fullscreenBtn)") < actions.index(
+        "appendChild(themeBtn)"
+    )
+    assert "header.appendChild(headerViewActions)" in actions
 
 
 def test_dax_performance_uses_the_shared_speedometer_icon():
@@ -134,7 +227,7 @@ def test_model_view_and_collapsed_query_builder_are_identifiable():
 
     assert 'sidebarTitle.textContent = "Model View"' in source
     assert 'modelViewShowBtn.innerHTML = LIST_TREE_SVG' in source
-    assert 'header.appendChild(modelViewShowBtn)' in source
+    assert 'headerViewActions.appendChild(modelViewShowBtn)' in source
     assert 'sidebarMark.innerHTML = LIST_TREE_SVG' in source
     assert 'sidebarMark.title = "Model View"' in source
     assert ".dtx-sidebar.dtx-sidebar-collapsed .dtx-sidebar-mark" in source
@@ -215,7 +308,7 @@ def test_model_tree_uses_monitoring_chevrons_and_plain_datatype_text():
     assert "flex: 0 0 18px;" in caret_css
     assert "transform: rotate(-90deg);" in caret_css
     assert "transform: rotate(0deg);" in caret_css
-    assert "font-size: 14px;" in label_css
+    assert "font-size: 12.5px;" in label_css
     assert "font-weight: 600;" in label_css
     assert "background:" not in datatype_css
     assert "border:" not in datatype_css
@@ -230,6 +323,82 @@ def test_model_tree_uses_monitoring_chevrons_and_plain_datatype_text():
     assert 'stroke-linecap="round"' in level_icon
     assert '<path d="M2.5 4h11M5.5 8h8M8.5 12h5"/>' in level_icon
     assert "L12 11.75" not in level_icon
+
+
+def test_model_tree_uses_specialized_table_kind_icons():
+    source = _source()
+    metadata = source[
+        source.index("def _model_tree_table_kind") : source.index(
+            "def _build_relationship_lookup"
+        )
+    ]
+    renderer = source[
+        source.index("function renderTree()") : source.index(
+            'const main = document.createElement("div")'
+        )
+    ]
+
+    assert 'return "calculation_group"' in metadata
+    assert 'tom.is_field_parameter(table_name=str(table.Name))' in metadata
+    assert 'return "field_parameter"' in metadata
+    assert 'tom.is_calculated_table(table_name=str(table.Name))' in metadata
+    assert 'return "calculated_table"' in metadata
+    assert 'return "date_table"' in metadata
+    assert '"kind": _model_tree_table_kind(tom, table)' in metadata
+    assert "calculation_group: CALC_GROUP_SVG" in renderer
+    assert "calculated_table: CALCULATED_TABLE_SVG" in renderer
+    assert "field_parameter: FIELD_PARAMETER_SVG" in renderer
+    assert "date_table: DATE_TABLE_SVG" in renderer
+    assert '_UI_ICONS["calculated_table"]' in source
+    assert '_UI_ICONS["calculation_group"]' in source
+    assert '_UI_ICONS["field_parameter"]' in source
+    assert '_UI_ICONS["date_table"]' in source
+
+
+def test_model_tree_table_kind_classification_precedence():
+    table_kind = _load_source_function("_model_tree_table_kind")
+
+    class FakeTom:
+        def __init__(self, field_parameter=False, calculated_table=False):
+            self.field_parameter = field_parameter
+            self.calculated_table = calculated_table
+
+        def is_field_parameter(self, table_name):
+            assert table_name == "Test Table"
+            return self.field_parameter
+
+        def is_calculated_table(self, table_name):
+            assert table_name == "Test Table"
+            return self.calculated_table
+
+    class FakeTable:
+        Name = "Test Table"
+        CalculationGroup = None
+        DataCategory = ""
+        Columns = ()
+
+    class FakeColumn:
+        def __init__(self, is_key, data_type):
+            self.IsKey = is_key
+            self.DataType = data_type
+
+    def date_table(data_type="DateTime", is_key=True):
+        table = FakeTable()
+        table.DataCategory = "Time"
+        table.Columns = (FakeColumn(is_key, data_type),)
+        return table
+
+    calculation_group = FakeTable()
+    calculation_group.CalculationGroup = object()
+
+    assert table_kind(FakeTom(True, True), calculation_group) == "calculation_group"
+    assert table_kind(FakeTom(True, True), FakeTable()) == "field_parameter"
+    assert table_kind(FakeTom(False, True), FakeTable()) == "calculated_table"
+    # Being marked as a date table wins over the calculated-table icon.
+    assert table_kind(FakeTom(False, True), date_table()) == "date_table"
+    assert table_kind(FakeTom(False, False), date_table("Int64")) == "date_table"
+    assert table_kind(FakeTom(False, False), date_table(is_key=False)) == "table"
+    assert table_kind(FakeTom(), FakeTable()) == "table"
 
 
 def test_model_view_flattens_type_groups_and_preserves_display_folders():
@@ -269,12 +438,20 @@ def test_model_view_uses_power_bi_typography_and_table_counts():
         )
     ]
 
+    assert 'const countDescription = [' in tree_render
+    assert '? "column" : "columns"' in tree_render
+    assert '? "measure" : "measures"' in tree_render
+    assert '? "hierarchy" : "hierarchies"' in tree_render
+    assert '`${(tbl.hierarchies || []).length}h`' in tree_render
+    assert "if ((tbl.hierarchies || []).length)" not in tree_render
+    assert 'title="${escapeHtml(countDescription.join(", "))}"' in tree_render
+
     assert 'font-family: "Segoe UI", SegoeUI, Arial, sans-serif;' in source
-    assert ".dtx .dtx-tree-leaf .dtx-tree-label {{\n    font-size: 14px;" in source
+    assert ".dtx .dtx-tree-leaf .dtx-tree-label {{\n    font-size: 12.5px;" in source
     assert ".dtx .dtx-tree-counts {{" in source
     assert '`${(tbl.columns || []).length}c`' in tree_render
     assert '`${(tbl.measures || []).length}m`' in tree_render
-    assert 'countParts.push(`${tbl.hierarchies.length}h`)' in tree_render
+    assert '`${(tbl.hierarchies || []).length}h`' in tree_render
     assert 'countParts.join(" · ")' in tree_render
 
 
@@ -495,13 +672,18 @@ def test_fullscreen_container_has_no_later_shape_override():
 
 def test_change_model_button_is_larger_and_beside_the_tool_name():
     source = _source()
+    ui_source = SOURCE_PATH.parents[1].joinpath("_ui_components.py").read_text(
+        encoding="utf-8"
+    )
     title_start = source.index('title.textContent = "DAX Perf Optimizer"')
-    change_start = source.index('changeModelBtn.className = "dtx-change-btn"')
+    change_start = source.index('changeModelBtn.className = "sl-change-btn"')
     title_row_end = source.index("titleRow.appendChild(changeModelBtn)", change_start)
 
     assert title_start < change_start < title_row_end
-    assert '.dtx .dtx-change-btn {{' in source
-    assert "    width: 32px;\n    height: 32px;" in source
+    # The button chrome is owned by the shared UI components module.
+    assert ".dtx-change-btn" not in source
+    assert ".sl-change-btn {" in ui_source
+    assert "    width: 32px;\n    height: 32px;" in ui_source
     assert 'changeModelBtn.title = "Change model / workspace"' in source
 
 
@@ -602,6 +784,7 @@ def test_eraser_button_clears_the_active_model_cache():
     assert 'cache_clear_loading = traitlets.Bool(False).tag(sync=True)' in source
     assert 'widget.observe(_on_clear_model_cache, names="cache_clear_trigger")' in source
     assert '_clear_cache_fn(\n                dataset=dataset_id,' in source
+    assert source.count("verbose=False") == 4
     assert "renderRunBtn(); renderClearModelCacheBtn(); renderSubtitle();" in source
 
 
@@ -649,6 +832,22 @@ def test_query_builder_filters_and_toolbar_actions_keep_stable_layouts():
     assert "    height: 30px;\n    min-height: 30px;\n    max-height: 30px;" in source
     assert 'buildBtn.innerHTML = BUILDER_SVG + "<span>Build</span>"' in source
     assert ".dtx .dtx-build-btn svg {{ width: 14px; height: 14px; }}" in source
+
+
+def test_query_builder_build_publishes_dax_without_external_formatter():
+    source = _source()
+    build_callback = source[
+        source.index("    def _build_query() -> None:") : source.index(
+            '    widget.observe(_on_build_query, names="build_query_trigger")'
+        )
+    ]
+
+    assert "dax = _build_summarize_dax(" in build_callback
+    assert "_format_dax(" not in build_callback
+    assert "widget.dax_query = dax_out" in build_callback
+    assert "widget.dax_tokens = _classify_dax_spans(dax_out)" in build_callback
+    assert "threading.Thread(target=_build_query" not in build_callback
+    assert "        _build_query()" in build_callback
 
 
 def test_dax_formatter_icon_fits_inside_its_button():
@@ -1131,6 +1330,11 @@ def test_model_objects_open_bidirectional_dependency_tree_and_graph():
             ".dtx .dtx-object-deps-node-text {{"
         )
     ]
+    # The dialog header icon is accent-colored; node icons keep their per-kind color.
+    assert (
+        ".dtx .dtx-object-deps-head .dtx-object-deps-icon "
+        "{{ color: var(--ui-accent); }}" in source
+    )
 
 
 def test_optional_query_controls_hide_only_when_measured_width_does_not_fit():
@@ -1182,11 +1386,13 @@ def test_workspace_monitoring_matches_tools_app_behavior():
     )
     panel_start = source.index("// ---------- Workspace monitoring ----------")
     panel = source[panel_start : source.index("const chartControls", panel_start)]
-    worker_start = source.index("def _load_workspace_monitoring()")
+    worker_start = source.index(
+        "def _load_workspace_monitoring(request: Optional[dict] = None)"
+    )
     worker = source[worker_start : source.index("widget.observe(_on_run", worker_start)]
 
     assert '"activity": (' in ui_source
-    assert "header.appendChild(builderShowBtn);\n    header.appendChild(monitoringShowBtn);" in source
+    assert "headerViewActions.appendChild(builderShowBtn);\n    headerViewActions.appendChild(monitoringShowBtn);" in source
     assert 'monitoringShowBtn.innerHTML = ACTIVITY_SVG' in source
     assert '? "Hide workspace monitoring" : "Show workspace monitoring"' in panel
     assert '<span>Workspace monitoring</span>' in panel
@@ -1194,7 +1400,8 @@ def test_workspace_monitoring_matches_tools_app_behavior():
     assert '["15m", "Last 15 min"]' in panel
     assert '["30d", "Last 30 days"]' in panel
     assert 'topInput.max = "200"' in panel
-    assert 'model.set("workspace_monitoring_trigger"' in panel
+    assert "request_id: Number(previousRequest.request_id || 0) + 1" in panel
+    assert 'model.set("workspace_monitoring_trigger"' not in panel
     assert 'installColumnResizers(monitoringContent.querySelector("table"))' in panel
     assert 'model.set("dax_query", query)' in panel
     assert 'data-monitoring-sort="${index}"' in panel
@@ -1278,6 +1485,15 @@ def test_workspace_monitoring_matches_tools_app_behavior():
     assert "transform: rotate(-90deg);" in collapsed_chevron_css
     assert 'date.toLocaleString()' in panel
     assert 'workspace_monitoring_request = traitlets.Dict({}).tag(sync=True)' in source
+    assert 'names="workspace_monitoring_request"' in source
+    request_observer = source[
+        source.index("def _on_workspace_monitoring_request") : source.index(
+            'widget.observe(_on_run, names="run_trigger")'
+        )
+    ]
+    assert request_observer.index("widget.workspace_monitoring_loading = True") < request_observer.index(
+        "threading.Thread("
+    )
     assert 'workspace_monitoring_rows = traitlets.List([]).tag(sync=True)' in source
     assert 'workspace_monitoring_tokens = traitlets.List([]).tag(sync=True)' in source
     assert 'const monitoringTokens = model.get("workspace_monitoring_tokens") || [];' in panel
@@ -1289,6 +1505,10 @@ def test_workspace_monitoring_matches_tools_app_behavior():
     assert 'EventText startswith "DEFINE"' in worker
     assert 'f\'| where ItemName == "{safe_dataset}"\\n\'' in worker
     assert 'f"| where Timestamp >= ago({time_range})\\n"' in worker
+    assert (
+        '"| project Timestamp, DurationMs, CpuTimeMs, ExecutingUser, "\n'
+        '            "EventText, ReportId, VisualId\\n"'
+    ) in worker
     assert 'f"| top {top_n} by DurationMs desc"' in worker
     assert "query_workspace_monitoring(" in worker
     assert 'dataset != str(widget.dataset_name or "")' in worker
@@ -1327,7 +1547,7 @@ def test_trace_history_queries_copy_and_clear_with_user_feedback():
     ]
     history_controls = source[
         source.index('const histDownloadBtn = document.createElement("button")') :
-        source.index('const resultDownloadBtn = document.createElement("button")')
+        source.index("// Tracks the DAX query text")
     ]
 
     assert 'data-history-index="${index}"' in history_table
@@ -1347,3 +1567,19 @@ def test_trace_history_queries_copy_and_clear_with_user_feedback():
     assert 'showToast("Trace history cleared")' in history_controls
     assert 'toast.setAttribute("aria-live", "polite")' in source
     assert '.replace("__DTX_TRASH__", trash_icon)' in source
+    assert "resultDownloadBtn" not in source
+
+
+def test_trace_history_dax_queries_use_query_pane_syntax_highlighting():
+    source = _source()
+    history_table = source[
+        source.index("function renderHistoryTable") : source.index(
+            "function renderQueryPlanTable"
+        )
+    ]
+
+    assert 'const isDax = /^\\s*(?:EVALUATE|DEFINE)\\b/i.test(q);' in history_table
+    assert 'renderDaxTokens(h.dax_tokens || [], q)' in history_table
+    assert ': escapeHtml(q);' in history_table
+    assert '<pre>${queryHtml}</pre>' in history_table
+    assert source.count('"dax_tokens": _monitoring_dax_spans(') == 3
