@@ -363,8 +363,12 @@ from ._onelake import (
     modify_onelake_diagnostics,
     modify_immutability_policy,
 )
+from ._app import (
+    app,
+)
 
 __all__ = [
+    "app",
     "get_onelake_settings",
     "modify_onelake_diagnostics",
     "modify_immutability_policy",
