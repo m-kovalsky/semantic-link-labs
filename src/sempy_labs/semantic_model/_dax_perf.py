@@ -46,6 +46,11 @@ def dax_perf_optimizer(
     Formula Engine Duration, Storage Engine Duration, and CPU time) using
     the same conventions as `DAX Studio <https://github.com/DaxStudio/DaxStudio>`_.
 
+    The widget's Vertipaq Analyzer tab shows a "Delta Analyzer" button when the
+    semantic model has tables in Direct Lake mode which source from a lakehouse.
+    Clicking it lets you pick which Direct-Lake-over-Lakehouse source tables to
+    analyze on Spark and then merges the resulting `Delta Analyzer <https://github.com/microsoft/Analysis-Services/tree/master/DeltaAnalyzer>`_ statistics (e.g. delta table size, row groups, parquet files, V-Order, Z-Order, liquid clustering, deletion vectors, auto-compaction, and per-column compressed/uncompressed sizes and cardinality) into the Tables and Columns sections.
+
     Parameters
     ----------
     dataset : str | uuid.UUID, default=None
@@ -887,6 +892,25 @@ def _execution_metrics_dict(metric_rows: list) -> dict:
     }
 
 
+def _payload_cell(value):
+    """Normalize one dataframe cell for JSON transport."""
+
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, float):
+        return None if value != value else value
+    if isinstance(value, (bool, int)):
+        return value
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return str(value)
+
+
 def _result_payload_from_df(df: pd.DataFrame, max_rows: int = 5000) -> dict:
     """Convert a query result dataframe to a payload of ``{columns, rows,
     total_rows, truncated}`` for the front-end."""
@@ -897,17 +921,12 @@ def _result_payload_from_df(df: pd.DataFrame, max_rows: int = 5000) -> dict:
     total_rows = int(len(df))
     truncated = total_rows > max_rows
     view = df.head(max_rows) if truncated else df
-    rows: list = []
-    for _, r in view.iterrows():
-        row: list = []
-        for v in r.tolist():
-            if v is None:
-                row.append(None)
-            elif pd.isna(v):
-                row.append(None)
-            else:
-                row.append(v if isinstance(v, (int, float, bool, str)) else str(v))
-        rows.append(row)
+    # itertuples avoids building a Series per row, which dominates the cost of
+    # serializing the wide Vertipaq Analyzer tables.
+    rows = [
+        [_payload_cell(value) for value in values]
+        for values in view.itertuples(index=False, name=None)
+    ]
     return {
         "columns": columns,
         "rows": rows,
@@ -2201,6 +2220,33 @@ def _visualize_dax_test(
     from {{ transform: translateX(0); }}
     to {{ transform: translateX(390%); }}
 }}
+.dtx .dtx-loading {{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 34px 24px;
+    color: var(--ui-text-secondary);
+    font-size: 13px;
+}}
+.dtx .dtx-load-progress {{
+    position: relative;
+    width: min(320px, 70%);
+    height: 3px;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--ui-accent-soft);
+}}
+.dtx .dtx-load-progress::after {{
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: -35%;
+    width: 35%;
+    border-radius: inherit;
+    background: var(--ui-accent);
+    animation: dtx-run-progress 1s ease-in-out infinite;
+}}
 .dtx .dtx-query-titlegroup {{
     display: flex;
     align-items: center;
@@ -2916,8 +2962,170 @@ def _visualize_dax_test(
     padding: 4px 24px 10px 24px;
 }}
 .dtx .dtx-vp-seg {{
-    margin: 0 24px 10px 24px;
+    margin: 0;
     width: fit-content;
+}}
+.dtx .dtx-vp-bar {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 0 24px 10px 24px;
+}}
+.dtx .dtx-vp-icon-btn {{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: auto;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 7px;
+    border: 1px solid var(--ui-border-strong);
+    border-radius: 8px;
+    background: var(--ui-bg-secondary);
+    color: var(--ui-text-secondary);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}}
+.dtx .dtx-vp-icon-btn svg {{ width: 15px; height: 15px; display: block; }}
+.dtx .dtx-vp-icon-btn:hover:not(:disabled) {{
+    border-color: var(--ui-accent);
+    color: var(--ui-accent);
+}}
+.dtx .dtx-vp-icon-btn:disabled {{ opacity: 0.5; cursor: not-allowed; }}
+.dtx .dtx-vp-icon-btn.dtx-vp-spinning svg {{ animation: dtxVpDeltaSpin 1s linear infinite; }}
+.dtx .dtx-vp-search {{
+    margin-left: auto;
+    width: min(240px, 30vw);
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--ui-border-strong);
+    border-radius: 8px;
+    background: var(--ui-bg);
+    color: var(--ui-text);
+    font-family: inherit;
+    font-size: 12px;
+}}
+.dtx .dtx-vp-search:focus {{
+    outline: none;
+    border-color: var(--ui-accent);
+    box-shadow: 0 0 0 3px var(--ui-accent-soft);
+}}
+.dtx .dtx-vp-delta-btn:disabled {{ opacity: 0.6; cursor: not-allowed; }}
+.dtx .dtx-vp-delta-btn.dtx-vp-delta-loaded {{ background: var(--ui-bg-hover); }}
+.dtx .dtx-vp-delta-btn.dtx-vp-delta-running {{
+    border-color: var(--ui-danger);
+    color: var(--ui-danger);
+    background: transparent;
+}}
+.dtx .dtx-vp-delta-btn.dtx-vp-delta-running svg {{ display: none; }}
+.dtx .dtx-vp-delta-spinner {{
+    display: none;
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+}}
+.dtx .dtx-vp-delta-btn.dtx-vp-delta-running .dtx-vp-delta-spinner {{
+    display: inline-block;
+    animation: dtxVpDeltaSpin 0.8s linear infinite;
+}}
+@keyframes dtxVpDeltaSpin {{ to {{ transform: rotate(360deg); }} }}
+.dtx .dtx-vp-delta-progress {{ font-variant-numeric: tabular-nums; }}
+.dtx .dtx-vp-delta-progress:empty {{ display: none; }}
+/* Columns merged in from the Delta Analyzer carry its badge. */
+.dtx .dtx-vp-delta-colicon {{
+    display: inline-flex;
+    vertical-align: -2px;
+    margin-right: 5px;
+    color: var(--ui-accent);
+}}
+.dtx .dtx-vp-delta-colicon svg {{ width: 11px; height: 11px; display: block; }}
+/* Vertipaq Analyzer full screen: only its own toolbar and table remain. */
+.dtx.dtx-vp-fs .dtx-sidebar,
+.dtx.dtx-vp-fs .dtx-sidebar-resizer,
+.dtx.dtx-vp-fs .dtx-monitoring {{ display: none !important; }}
+.dtx.dtx-vp-fs .dtx-main > *:not(.dtx-vp-bar):not(.dtx-table-wrap) {{
+    display: none !important;
+}}
+/* The table wrapper stays the scroll container so headers keep sticking. */
+.dtx.dtx-vp-fs .dtx-main {{ overflow: hidden; }}
+.dtx.dtx-vp-fs .dtx-table-wrap {{
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+}}
+.dtx .dtx-vp-delta-status {{
+    font-size: 12px;
+    color: var(--ui-text-secondary);
+}}
+.dtx .dtx-vp-delta-status.dtx-vp-delta-status-error {{ color: var(--ui-danger); }}
+.dtx .dtx-vp-delta-status.dtx-vp-delta-status-success {{ color: var(--ui-accent); }}
+.dtx .dtx-vpdelta-dialog {{ width: 460px; }}
+.dtx .dtx-vpdelta-listhead {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 14px 0 4px;
+    color: var(--ui-text-tertiary);
+    font-size: 12px;
+}}
+.dtx .dtx-vpdelta-listhead button {{
+    border: none;
+    background: none;
+    color: var(--ui-accent);
+    font: inherit;
+    font-size: 12px;
+    padding: 0 4px;
+    cursor: pointer;
+}}
+.dtx .dtx-vpdelta-list {{
+    max-height: 240px;
+    overflow: auto;
+}}
+.dtx .dtx-vpdelta-row {{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 6px;
+    color: var(--ui-text);
+    font-size: 13px;
+    cursor: pointer;
+}}
+.dtx .dtx-vpdelta-row:hover {{ background: var(--ui-accent-soft); }}
+.dtx .dtx-vpdelta-name {{
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}}
+.dtx .dtx-vpdelta-src {{ color: var(--ui-text-tertiary); font-size: 12px; }}
+.dtx .dtx-vpdelta-skiprow {{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 6px 0;
+    color: var(--ui-text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+}}
+.dtx .dtx-vpdelta-skiprow span {{ flex: 1; }}
+.dtx .dtx-vpdelta-row input,
+.dtx .dtx-vpdelta-skiprow input {{ accent-color: var(--ui-accent); }}
+.dtx .dtx-vpdelta-run {{
+    border-color: var(--ui-accent) !important;
+    background: var(--ui-accent);
+    color: var(--ui-on-accent);
+}}
+.dtx .dtx-vpdelta-run:hover {{
+    border-color: var(--ui-accent-hover) !important;
+    background: var(--ui-accent-hover);
 }}
 .dtx .dtx-view-title {{
     font-size: 11px;
@@ -2960,6 +3168,16 @@ def _visualize_dax_test(
     cursor: not-allowed;
 }}
 .dtx .dtx-seg-btn[disabled]:hover {{ color: var(--ui-text-secondary); }}
+.dtx .dtx-vp-seg .dtx-seg-btn {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}}
+.dtx .dtx-seg-icon {{
+    display: inline-flex;
+    flex: 0 0 auto;
+}}
+.dtx .dtx-seg-icon svg {{ width: 14px; height: 14px; display: block; }}
 .dtx .dtx-chart-wrap {{
     padding: 12px 24px 20px 24px;
     overflow-x: auto;
@@ -3342,18 +3560,23 @@ def _visualize_dax_test(
 .dtx .dtx-vertipaq-table .dtx-vp-frozen {{
     position: sticky;
     left: 0;
-    background: var(--ui-bg);
+    /* The base colour must stay fully opaque: a translucent frozen cell lets
+       the columns scrolling underneath show through it. Tints are layered on
+       top via background-image instead of replacing the colour. */
+    background-color: var(--ui-bg);
+    background-image: none;
 }}
 .dtx .dtx-vertipaq-table tbody tr:nth-child(even) .dtx-vp-frozen {{
-    background: var(--ui-bg-tertiary);
+    background-color: var(--ui-bg-tertiary);
 }}
 .dtx .dtx-vertipaq-table tbody tr:hover .dtx-vp-frozen {{
-    background: var(--ui-accent-soft);
+    background-image: linear-gradient(var(--ui-accent-soft), var(--ui-accent-soft));
 }}
-.dtx .dtx-vertipaq-table td.dtx-vp-frozen {{ z-index: 2; }}
+.dtx .dtx-vertipaq-table td.dtx-vp-frozen {{ z-index: 3; }}
+.dtx .dtx-vertipaq-table thead th {{ z-index: 4; }}
 .dtx .dtx-vertipaq-table th.dtx-vp-frozen {{
     z-index: 5;
-    background: var(--ui-bg-secondary);
+    background-color: var(--ui-bg-secondary);
 }}
 .dtx .dtx-vertipaq-table .dtx-vp-frozen-edge {{
     box-shadow: inset -1px 0 0 var(--ui-border-strong);
@@ -5006,6 +5229,8 @@ def _visualize_dax_test(
     column_icon = _UI_ICONS["column"].replace("`", "\\`")
     measure_icon = _UI_ICONS["measure"].replace("`", "\\`")
     hierarchy_icon = _UI_ICONS["hierarchy"].replace("`", "\\`")
+    partition_icon = _UI_ICONS["partition"].replace("`", "\\`")
+    relationship_icon = _UI_ICONS["relationship"].replace("`", "\\`")
     caret_icon = _UI_ICONS["caret_right"].replace("`", "\\`")
     folder_icon = _UI_ICONS["folder"].replace("`", "\\`")
     level_icon = _UI_ICONS["level"].replace("`", "\\`")
@@ -5052,6 +5277,7 @@ def _visualize_dax_test(
     cpu_icon = _UI_ICONS["cpu"].replace("`", "\\`")
     database_icon = _UI_ICONS["database"].replace("`", "\\`")
     vertipaq_icon = _UI_ICONS["vertipaq"].replace("`", "\\`")
+    delta_stats_icon = _UI_ICONS["delta_stats"].replace("`", "\\`")
     zap_icon = _UI_ICONS["zap"].replace("`", "\\`")
     # The DAX Formatter logo mark (the orange "formatted lines" glyph from
     # https://www.daxformatter.com/). Uses the SQLBI brand orange so it is
@@ -5290,6 +5516,8 @@ function render({ model, el }) {
     const COLUMN_SVG = `__DTX_COLUMN__`;
     const MEASURE_SVG = `__DTX_MEASURE__`;
     const HIERARCHY_SVG = `__DTX_HIERARCHY__`;
+    const PARTITION_SVG = `__DTX_PARTITION__`;
+    const RELATIONSHIP_SVG = `__DTX_RELATIONSHIP__`;
     const CARET_SVG = `__DTX_CARET__`;
     const FOLDER_SVG = `__DTX_FOLDER__`;
     const LEVEL_SVG = `__DTX_LEVEL__`;
@@ -5329,6 +5557,7 @@ function render({ model, el }) {
     const CPU_SVG = `__DTX_CPU__`;
     const DATABASE_SVG = `__DTX_DATABASE__`;
     const VERTIPAQ_SVG = `__DTX_VERTIPAQ__`;
+    const DELTA_STATS_SVG = `__DTX_DELTA_STATS__`;
     const ZAP_SVG = `__DTX_ZAP__`;
 
     const root = document.createElement("div");
@@ -5463,9 +5692,8 @@ function render({ model, el }) {
         // (Re)load the workspace list so the picker is populated even when a
         // dataset was supplied directly to test().
         model.set("error_message", "");
-        model.set("load_workspaces_trigger",
-            (model.get("load_workspaces_trigger") || 0) + 1);
         model.save_changes();
+        requestWorkspaces();
         renderPicker();
     });
     function renderSubtitle() {
@@ -5599,10 +5827,12 @@ function render({ model, el }) {
     fullscreenBtn.className = "sl-theme-btn";
     fullscreenBtn.addEventListener("click", () => {
         if (isFullscreen()) { exitFullscreen(); } else { enterFullscreen(); }
+        clearVpFullscreenIfExited();
     });
     document.addEventListener("fullscreenchange", () => {
         // Keep the button in sync when the user exits via the Esc key.
         renderFullscreenBtn();
+        clearVpFullscreenIfExited();
     });
 
     let modelViewVisible = true;
@@ -6414,8 +6644,28 @@ function render({ model, el }) {
         });
     }
 
+    // Hovering a tree icon names the kind of object it stands for.
+    const TREE_KINDS = {
+        table: [TABLE_SVG, "Table"],
+        calculated_table: [CALCULATED_TABLE_SVG, "Calculated table"],
+        calculation_group: [CALC_GROUP_SVG, "Calculation group"],
+        field_parameter: [FIELD_PARAMETER_SVG, "Field parameter"],
+        date_table: [DATE_TABLE_SVG, "Date table"],
+        measure: [MEASURE_SVG, "Measure"],
+        column: [COLUMN_SVG, "Column"],
+        hierarchy: [HIERARCHY_SVG, "Hierarchy"],
+        level: [LEVEL_SVG, "Hierarchy level"],
+        calculation_item: [CALC_ITEM_SVG, "Calculation item"],
+        folder: [FOLDER_SVG, "Display folder"],
+    };
+    function treeIconHtml(kind) {
+        const [icon, label] = TREE_KINDS[kind] || TREE_KINDS.table;
+        return `<span class="dtx-tree-icon" title="${escapeHtml(label)}"`
+            + ` aria-label="${escapeHtml(label)}">${icon}</span>`;
+    }
+
     function makeLeaf(
-        iconSvg, name, hidden, dataType, dragText, description, pad, meta, contextMeta
+        kind, name, hidden, dataType, dragText, description, pad, meta, contextMeta
     ) {
         const leaf = document.createElement("div");
         leaf.className = "dtx-tree-leaf";
@@ -6425,7 +6675,7 @@ function render({ model, el }) {
             ? `<span class="dtx-tree-type" title="${escapeHtml(dataType)}">${escapeHtml(dataType)}</span>`
             : "";
         leaf.innerHTML = `<span class="dtx-tree-caret-spacer"></span>`
-            + `<span class="dtx-tree-icon">${iconSvg}</span>`
+            + treeIconHtml(kind)
             + `<span class="dtx-tree-label${hidden ? " dtx-hidden" : ""}"`
             + ` title="${escapeHtml(tip)}">${escapeHtml(name)}</span>`
             + typeHtml;
@@ -6467,7 +6717,7 @@ function render({ model, el }) {
         header.className = "dtx-tree-folder-header";
         header.style.paddingLeft = pad + "px";
         header.innerHTML = `<span class="dtx-tree-caret">${CHEVRON_DOWN_SVG}</span>`
-            + `<span class="dtx-tree-icon">${FOLDER_SVG}</span>`
+            + treeIconHtml("folder")
             + `<span class="dtx-tree-label" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
         const children = document.createElement("div");
         children.className = "dtx-tree-subtree";
@@ -6510,7 +6760,7 @@ function render({ model, el }) {
             node.innerHTML = (hasLevels
                     ? `<span class="dtx-tree-caret">${CHEVRON_DOWN_SVG}</span>`
                     : `<span class="dtx-tree-caret-spacer"></span>`)
-                + `<span class="dtx-tree-icon">${HIERARCHY_SVG}</span>`
+                + treeIconHtml("hierarchy")
                 + `<span class="dtx-tree-label${it.hidden ? " dtx-hidden" : ""}"`
                 + ` title="${escapeHtml(tip)}">${escapeHtml(it.name)}</span>`;
             makeDraggable(node, daxColumnRef(tableName, it.name));
@@ -6530,7 +6780,7 @@ function render({ model, el }) {
                     lleaf.style.paddingLeft = (pad + 14) + "px";
                     const ltip = lvl.description ? lvl.description : lvl.name;
                     lleaf.innerHTML = `<span class="dtx-tree-caret-spacer"></span>`
-                        + `<span class="dtx-tree-icon">${LEVEL_SVG}</span>`
+                        + treeIconHtml("level")
                         + `<span class="dtx-tree-label"`
                         + ` title="${escapeHtml(ltip)}">${escapeHtml(lvl.name)}</span>`;
                     lchildren.appendChild(lleaf);
@@ -6557,7 +6807,7 @@ function render({ model, el }) {
         const build = (it, pad) => {
             if (it._kind === "measure") {
                 return makeLeaf(
-                    MEASURE_SVG, it.name, !!it.hidden, it.data_type,
+                    "measure", it.name, !!it.hidden, it.data_type,
                     daxMeasureRef(it.name), it.description, pad,
                     {kind: "measure", table: table.name, name: it.name,
                         data_type: it.data_type, expression: it.expression,
@@ -6565,7 +6815,7 @@ function render({ model, el }) {
             }
             if (it._kind === "column") {
                 return makeLeaf(
-                    COLUMN_SVG, it.name, !!it.hidden, it.data_type,
+                    "column", it.name, !!it.hidden, it.data_type,
                     daxColumnRef(table.name, it.name), it.description, pad,
                     {kind: "column", table: table.name, name: it.name,
                         data_type: it.data_type,
@@ -6574,7 +6824,7 @@ function render({ model, el }) {
             }
             if (it._kind === "hierarchy") return hierarchyBuilder(it, pad);
             return makeLeaf(
-                CALC_ITEM_SVG, it.name, !!it.hidden, it.data_type,
+                "calculation_item", it.name, !!it.hidden, it.data_type,
                 daxColumnRef(table.name, it.name), it.description, pad, null,
                 {kind: "calculationItem", table: table.name, name: it.name,
                     label: daxColumnRef(table.name, it.name)});
@@ -6640,12 +6890,6 @@ function render({ model, el }) {
         for (const tbl of tree) {
             const node = document.createElement("div");
             node.className = "dtx-tree-node";
-            const tblIcon = ({
-                calculation_group: CALC_GROUP_SVG,
-                calculated_table: CALCULATED_TABLE_SVG,
-                field_parameter: FIELD_PARAMETER_SVG,
-                date_table: DATE_TABLE_SVG,
-            })[tbl.kind] || TABLE_SVG;
             const countParts = [
                 `${(tbl.columns || []).length}c`,
                 `${(tbl.measures || []).length}m`,
@@ -6657,7 +6901,7 @@ function render({ model, el }) {
                 `${(tbl.hierarchies || []).length} ${(tbl.hierarchies || []).length === 1 ? "hierarchy" : "hierarchies"}`,
             ];
             node.innerHTML = `<span class="dtx-tree-caret">${CHEVRON_DOWN_SVG}</span>`
-                + `<span class="dtx-tree-icon">${tblIcon}</span>`
+                + treeIconHtml(tbl.kind)
                 + `<span class="dtx-tree-label${tbl.hidden ? " dtx-hidden" : ""}"`
                 + ` title="${escapeHtml(tbl.description ? tbl.description : tbl.name)}">${escapeHtml(tbl.name)}</span>`
                 + `<span class="dtx-tree-counts" title="${escapeHtml(countDescription.join(", "))}">${escapeHtml(countParts.join(" · "))}</span>`;
@@ -7394,6 +7638,39 @@ function render({ model, el }) {
     pickerScreen.appendChild(pickerPanel);
     container.insertBefore(pickerScreen, body);
 
+    // A picker request the kernel never answers (lost comm message, hung call,
+    // dead kernel) would otherwise leave the picker on "Loading..." with its
+    // controls disabled and no way back. The watchdog releases the loading
+    // state so the reload button can be used again.
+    let pickerStalled = false;
+    let pickerWatchdog = null;
+    function armPickerWatchdog(timeoutMs) {
+        if (pickerWatchdog !== null) window.clearTimeout(pickerWatchdog);
+        pickerStalled = false;
+        pickerWatchdog = window.setTimeout(() => {
+            pickerWatchdog = null;
+            if (model.get("picker_loading") !== true) return;
+            pickerStalled = true;
+            model.set("error_message", "The kernel did not respond. Use the "
+                + "reload button to try again.");
+            model.save_changes();
+            renderPicker();
+        }, timeoutMs || 120000);
+    }
+    function clearPickerWatchdog() {
+        if (pickerWatchdog !== null) {
+            window.clearTimeout(pickerWatchdog);
+            pickerWatchdog = null;
+        }
+        pickerStalled = false;
+    }
+    function requestWorkspaces() {
+        model.set("load_workspaces_trigger",
+            (model.get("load_workspaces_trigger") || 0) + 1);
+        model.save_changes();
+        armPickerWatchdog();
+    }
+
     function renderPicker() {
         const chosen = model.get("dataset_chosen") === true;
         const show = pickerOpen || (!chosen && !connectingToModel);
@@ -7401,7 +7678,7 @@ function render({ model, el }) {
         body.style.display = show ? "none" : "";
         // Allow canceling only when a model is already in use.
         pickerCancelBtn.style.display = chosen ? "" : "none";
-        const loading = model.get("picker_loading") === true;
+        const loading = model.get("picker_loading") === true && !pickerStalled;
         const curWs = model.get("selected_workspace_id") || "";
         const curDs = model.get("selected_dataset_id") || "";
         const wss = model.get("available_workspaces") || [];
@@ -7440,6 +7717,7 @@ function render({ model, el }) {
         model.set("select_workspace_trigger",
             (model.get("select_workspace_trigger") || 0) + 1);
         model.save_changes();
+        armPickerWatchdog();
         renderPicker();
     }
     function selectDataset(datasetId) {
@@ -7448,11 +7726,9 @@ function render({ model, el }) {
         renderPicker();
     }
     pickerReloadBtn.addEventListener("click", () => {
-        if (model.get("picker_loading") === true) return;
         model.set("error_message", "");
-        model.set("load_workspaces_trigger",
-            (model.get("load_workspaces_trigger") || 0) + 1);
         model.save_changes();
+        requestWorkspaces();
     });
     pickerBtn.addEventListener("click", () => {
         if (!model.get("selected_dataset_id")) return;
@@ -7464,6 +7740,8 @@ function render({ model, el }) {
         model.set("select_dataset_trigger",
             (model.get("select_dataset_trigger") || 0) + 1);
         model.save_changes();
+        // Loading a model's metadata can legitimately take minutes.
+        armPickerWatchdog(600000);
         renderPicker();
         renderSubtitle();
         renderTree();
@@ -8153,9 +8431,12 @@ function render({ model, el }) {
     }
     runBtn.addEventListener("click", () => {
         if (model.get("is_running") === true) {
-            // Cancel
+            // Cancel. The kernel is busy running the query, so it only sees
+            // this once the query returns; stop waiting for it here instead.
+            model.set("is_running", false);
             model.set("cancel_trigger", (model.get("cancel_trigger") || 0) + 1);
             model.save_changes();
+            renderRunBtn();
             return;
         }
         // Run
@@ -8172,6 +8453,7 @@ function render({ model, el }) {
     clearModelCacheBtn.className = "dtx-fmt-btn dtx-clear-model-cache-btn";
     clearModelCacheBtn.innerHTML = ERASER_SVG;
     clearModelCacheBtn.setAttribute("aria-label", "Clear model cache");
+    let cacheClearPending = false;
     function renderClearModelCacheBtn() {
         const chosen = model.get("dataset_chosen") === true;
         const loading = model.get("cache_clear_loading") === true;
@@ -8184,6 +8466,7 @@ function render({ model, el }) {
     clearModelCacheBtn.addEventListener("click", () => {
         if (model.get("dataset_chosen") !== true
             || model.get("cache_clear_loading") === true) return;
+        cacheClearPending = true;
         model.set("error_message", "");
         model.set("cache_clear_loading", true);
         model.set("cache_clear_trigger",
@@ -8874,10 +9157,272 @@ function render({ model, el }) {
     // Tables, Partitions, Columns, Relationships, Hierarchies). This
     // segmented control (built dynamically from the returned sections) lets
     // the user switch between them. It is shown only on the Vertipaq tab.
+
+    // The kernel only reports that it started working after a comm round
+    // trip, so these mirror its loading state optimistically and the progress
+    // bar appears the moment the user asks for the results.
+    let dependenciesPending = false;
+    let vertipaqPending = false;
+    const dependenciesBusy = () =>
+        dependenciesPending || model.get("dependencies_loading") === true;
+    const vertipaqBusy = () =>
+        vertipaqPending || model.get("vertipaq_loading") === true;
+
+    const vpBar = document.createElement("div");
+    vpBar.className = "dtx-vp-bar";
+    vpBar.style.display = "none";
+    main.appendChild(vpBar);
+
     const vpSeg = document.createElement("div");
     vpSeg.className = "dtx-seg dtx-vp-seg";
-    vpSeg.style.display = "none";
-    main.appendChild(vpSeg);
+    vpBar.appendChild(vpSeg);
+
+    // ---------- Delta Analyzer ----------
+    // Models with Direct Lake tables sourced from a lakehouse can run the
+    // Delta Analyzer on Spark; its stats are merged into the Tables and
+    // Columns sections.
+    const VP_DELTA_TITLE = "Run Delta Analyzer stats \u2014 pick which Direct "
+        + "Lake source tables to analyze on Spark, then merge the results into "
+        + "the Tables and Columns sections";
+    let vpDeltaRunning = false;
+    let vpDeltaStatusTimer = null;
+
+    const vpDeltaBtn = document.createElement("button");
+    vpDeltaBtn.type = "button";
+    vpDeltaBtn.className = "dtx-vp-icon-btn dtx-vp-delta-btn";
+    vpDeltaBtn.title = VP_DELTA_TITLE;
+    vpDeltaBtn.setAttribute("aria-label", "Delta Analyzer");
+    vpDeltaBtn.style.display = "none";
+    vpDeltaBtn.innerHTML = `${DELTA_STATS_SVG}`
+        + `<span class="dtx-vp-delta-spinner" aria-hidden="true"></span>`
+        + `<span class="dtx-vp-delta-progress"></span>`;
+    vpBar.appendChild(vpDeltaBtn);
+
+    const vpReloadBtn = document.createElement("button");
+    vpReloadBtn.type = "button";
+    vpReloadBtn.className = "dtx-vp-icon-btn";
+    vpReloadBtn.innerHTML = REFRESH_SVG;
+    vpReloadBtn.title = "Reload the Vertipaq Analyzer statistics";
+    vpReloadBtn.setAttribute("aria-label", vpReloadBtn.title);
+    vpBar.appendChild(vpReloadBtn);
+    vpReloadBtn.addEventListener("click", () => {
+        if (vertipaqBusy()) return;
+        // The kernel owns vertipaq_loading; setting it here would make its
+        // observer treat the request as a duplicate and drop it.
+        vertipaqPending = true;
+        model.set("vertipaq_trigger", (model.get("vertipaq_trigger") || 0) + 1);
+        model.save_changes();
+        renderVpBar();
+        renderTable();
+    });
+
+    let vpFullscreen = false;
+    // True only when the Vertipaq view is what put the tool into full screen,
+    // so leaving it does not drop a tool-level full screen the user chose.
+    let vpOwnsFullscreen = false;
+    const vpFsBtn = document.createElement("button");
+    vpFsBtn.type = "button";
+    vpFsBtn.className = "dtx-vp-icon-btn";
+    vpBar.appendChild(vpFsBtn);
+    function setVpFullscreen(on) {
+        vpFullscreen = on;
+        root.classList.toggle("dtx-vp-fs", on);
+        if (on) {
+            vpOwnsFullscreen = !isFullscreen();
+            if (vpOwnsFullscreen) enterFullscreen();
+        } else {
+            if (vpOwnsFullscreen) exitFullscreen();
+            vpOwnsFullscreen = false;
+        }
+        renderVpBar();
+    }
+    function clearVpFullscreenIfExited() {
+        if (!vpFullscreen || isFullscreen()) return;
+        vpFullscreen = false;
+        vpOwnsFullscreen = false;
+        root.classList.remove("dtx-vp-fs");
+        renderVpBar();
+    }
+    vpFsBtn.addEventListener("click", () => setVpFullscreen(!vpFullscreen));
+
+    const vpDeltaStatus = document.createElement("span");
+    vpDeltaStatus.className = "dtx-vp-delta-status";
+    vpDeltaStatus.style.display = "none";
+    vpBar.appendChild(vpDeltaStatus);
+
+    let vertipaqSearch = "";
+    const vpSearchInput = document.createElement("input");
+    vpSearchInput.type = "search";
+    vpSearchInput.className = "dtx-vp-search";
+    vpSearchInput.placeholder = "Search rows";
+    vpSearchInput.title = "Filter the rows of the selected Vertipaq Analyzer section";
+    vpSearchInput.setAttribute("aria-label", "Search Vertipaq Analyzer results");
+    vpBar.appendChild(vpSearchInput);
+    vpSearchInput.addEventListener("input", () => {
+        vertipaqSearch = vpSearchInput.value.trim().toLowerCase();
+        renderVertipaqTable();
+    });
+
+    const vpDeltaOverlay = document.createElement("div");
+    vpDeltaOverlay.className = "dtx-confirm-overlay";
+    vpDeltaOverlay.innerHTML = `
+        <div class="dtx-confirm-dialog dtx-vpdelta-dialog" role="dialog" aria-modal="true" aria-label="Run Delta Analyzer stats">
+            <h2 class="dtx-confirm-title">Run Delta Analyzer stats</h2>
+            <p class="dtx-confirm-message">Choose the Direct Lake source tables to analyze on Spark.</p>
+            <div class="dtx-vpdelta-listhead">
+                <span>Tables</span>
+                <span>
+                    <button type="button" class="dtx-vpdelta-selectall">Select all</button>
+                    <button type="button" class="dtx-vpdelta-clearall">Clear</button>
+                </span>
+            </div>
+            <div class="dtx-vpdelta-list"></div>
+            <label class="dtx-vpdelta-skiprow">
+                <span>Skip cardinality (faster; skips per-column distinct counts)</span>
+                <input type="checkbox" class="dtx-vpdelta-skip" checked />
+            </label>
+            <div class="dtx-confirm-actions">
+                <button type="button" class="dtx-confirm-cancel">Cancel</button>
+                <button type="button" class="dtx-vpdelta-run">Run</button>
+            </div>
+        </div>`;
+    root.appendChild(vpDeltaOverlay);
+    const vpDeltaList = vpDeltaOverlay.querySelector(".dtx-vpdelta-list");
+    const vpDeltaCancelBtn = vpDeltaOverlay.querySelector(".dtx-confirm-cancel");
+    const vpDeltaRunBtn = vpDeltaOverlay.querySelector(".dtx-vpdelta-run");
+    const vpDeltaSkip = vpDeltaOverlay.querySelector(".dtx-vpdelta-skip");
+
+    function closeVpDeltaDialog() {
+        vpDeltaOverlay.classList.remove("dtx-open");
+        vpDeltaBtn.focus();
+    }
+    function openVpDeltaDialog() {
+        const tables = model.get("vertipaq_delta_tables") || [];
+        if (!tables.length) return;
+        vpDeltaList.innerHTML = tables.map(t => `
+            <label class="dtx-vpdelta-row">
+                <span class="dtx-vpdelta-name">${escapeHtml(t.tableName)}</span>
+                <span class="dtx-vpdelta-src">${escapeHtml(t.deltaTableName || "")}</span>
+                <input type="checkbox" class="dtx-vpdelta-cb" data-table="${escapeHtml(t.tableName)}" checked />
+            </label>`).join("");
+        vpDeltaOverlay.classList.add("dtx-open");
+        window.setTimeout(() => vpDeltaCancelBtn.focus(), 0);
+    }
+    vpDeltaOverlay.addEventListener("click", event => {
+        if (event.target === vpDeltaOverlay) closeVpDeltaDialog();
+    });
+    vpDeltaOverlay.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            event.preventDefault();
+            closeVpDeltaDialog();
+        }
+    });
+    vpDeltaCancelBtn.addEventListener("click", closeVpDeltaDialog);
+    vpDeltaOverlay.querySelector(".dtx-vpdelta-selectall").addEventListener("click", () => {
+        vpDeltaList.querySelectorAll(".dtx-vpdelta-cb").forEach(cb => { cb.checked = true; });
+    });
+    vpDeltaOverlay.querySelector(".dtx-vpdelta-clearall").addEventListener("click", () => {
+        vpDeltaList.querySelectorAll(".dtx-vpdelta-cb").forEach(cb => { cb.checked = false; });
+    });
+    vpDeltaRunBtn.addEventListener("click", () => {
+        const selected = Array.from(vpDeltaList.querySelectorAll(".dtx-vpdelta-cb"))
+            .filter(cb => cb.checked)
+            .map(cb => cb.getAttribute("data-table"));
+        if (!selected.length) return;
+        closeVpDeltaDialog();
+        setVpDeltaRunning(true);
+        model.set("vertipaq_delta_request", {
+            tables: selected,
+            skip_cardinality: !!vpDeltaSkip.checked,
+        });
+        model.set("vertipaq_delta_trigger", (model.get("vertipaq_delta_trigger") || 0) + 1);
+        model.save_changes();
+    });
+    vpDeltaBtn.addEventListener("click", () => {
+        if (vpDeltaRunning) {
+            // While running the button acts as a cancel button; the run stops
+            // after the table currently being analyzed.
+            vpDeltaBtn.disabled = true;
+            model.set("vertipaq_delta_cancel_trigger",
+                (model.get("vertipaq_delta_cancel_trigger") || 0) + 1);
+            model.save_changes();
+            return;
+        }
+        openVpDeltaDialog();
+    });
+
+    function setVpDeltaProgress(progress) {
+        const el = vpDeltaBtn.querySelector(".dtx-vp-delta-progress");
+        if (el) el.textContent = progress && progress.total
+            ? `${progress.done}/${progress.total}` : "";
+    }
+    function setVpDeltaRunning(running) {
+        vpDeltaRunning = running;
+        vpDeltaBtn.disabled = false;
+        vpDeltaBtn.classList.toggle("dtx-vp-delta-running", running);
+        const label = running
+            ? "Cancel the Delta Analyzer run (stops after the table currently being analyzed)"
+            : VP_DELTA_TITLE;
+        vpDeltaBtn.title = label;
+        vpDeltaBtn.setAttribute("aria-label", running ? "Cancel Delta Analyzer" : "Delta Analyzer");
+        if (!running) setVpDeltaProgress(null);
+    }
+    function renderVpDeltaStatus() {
+        const status = model.get("vertipaq_delta_status") || {};
+        if (vpDeltaStatusTimer) {
+            window.clearTimeout(vpDeltaStatusTimer);
+            vpDeltaStatusTimer = null;
+        }
+        if (status.message) {
+            vpDeltaStatus.textContent = status.message;
+            vpDeltaStatus.className =
+                `dtx-vp-delta-status dtx-vp-delta-status-${status.kind || "info"}`;
+            vpDeltaStatus.style.display = "";
+            if (status.auto_hide) {
+                vpDeltaStatusTimer = window.setTimeout(() => {
+                    vpDeltaStatus.style.display = "none";
+                    vpDeltaStatusTimer = null;
+                }, 6000);
+            }
+        } else {
+            vpDeltaStatus.style.display = "none";
+        }
+        if (status.progress) setVpDeltaProgress(status.progress);
+        if (status.done) setVpDeltaRunning(false);
+    }
+    function renderVpDeltaBtn() {
+        const tables = model.get("vertipaq_delta_tables") || [];
+        const merged = model.get("vertipaq_delta_results") || {};
+        vpDeltaBtn.style.display = tables.length ? "" : "none";
+        vpDeltaBtn.classList.toggle("dtx-vp-delta-loaded",
+            Object.keys(merged.tables || {}).length > 0);
+    }
+    function renderVpBar() {
+        renderVpDeltaBtn();
+        const loading = vertipaqBusy();
+        // Nothing to reload or expand unless results are on screen.
+        const hasResults = !loading
+            && (model.get("vertipaq_sections") || []).length > 0;
+        vpReloadBtn.style.display = hasResults ? "" : "none";
+        vpFsBtn.style.display = hasResults ? "" : "none";
+        vpSearchInput.style.display = hasResults ? "" : "none";
+        vpReloadBtn.classList.toggle("dtx-vp-spinning", loading);
+        vpFsBtn.innerHTML = vpFullscreen ? FULLSCREEN_EXIT_SVG : FULLSCREEN_SVG;
+        const fsLabel = vpFullscreen
+            ? "Exit full screen" : "Show the Vertipaq Analyzer full screen";
+        vpFsBtn.title = fsLabel;
+        vpFsBtn.setAttribute("aria-label", fsLabel);
+    }
+
+    // Mirrors the tab icons of the standalone vertipaq_analyzer visualization.
+    const VP_SECTION_ICONS = {
+        "Model Summary": DATABASE_SVG,
+        "Tables": TABLE_SVG,
+        "Partitions": PARTITION_SVG,
+        "Columns": COLUMN_SVG,
+        "Relationships": RELATIONSHIP_SVG,
+        "Hierarchies": HIERARCHY_SVG,
+    };
 
     function buildVertipaqSeg() {
         const sections = model.get("vertipaq_sections") || [];
@@ -8885,12 +9430,16 @@ function render({ model, el }) {
         if (!sections.some(s => s.name === active)) {
             active = sections.length ? sections[0].name : "";
         }
+        // An empty segmented control still paints as a small rounded pill.
+        vpSeg.style.display = sections.length ? "" : "none";
         vpSeg.innerHTML = "";
         sections.forEach(s => {
             const b = document.createElement("button");
             b.type = "button";
             b.className = "dtx-seg-btn";
-            b.textContent = s.name;
+            const icon = VP_SECTION_ICONS[s.name] || "";
+            b.innerHTML = (icon ? `<span class="dtx-seg-icon">${icon}</span>` : "")
+                + `<span>${escapeHtml(s.name)}</span>`;
             b.classList.toggle("dtx-seg-btn-on", s.name === active);
             b.addEventListener("click", () => {
                 model.set("vertipaq_section", s.name);
@@ -9006,9 +9555,11 @@ function render({ model, el }) {
         const curQuery = model.get("dax_query") || "";
         if (curQuery !== lastDepQuery) {
             lastDepQuery = curQuery;
+            dependenciesPending = true;
             model.set("dependencies_trigger", (model.get("dependencies_trigger") || 0) + 1);
         }
         model.save_changes();
+        renderTable();
     });
 
     // Tracks the dataset id the displayed Vertipaq Analyzer results were
@@ -9021,9 +9572,11 @@ function render({ model, el }) {
         const curDs = model.get("active_dataset_id") || "";
         if (curDs && curDs !== lastVertipaqDataset) {
             lastVertipaqDataset = curDs;
+            vertipaqPending = true;
             model.set("vertipaq_trigger", (model.get("vertipaq_trigger") || 0) + 1);
         }
         model.save_changes();
+        renderTable();
     });
 
     // Trigger a fresh DAX performance analysis and switch to its tab. The
@@ -9109,8 +9662,13 @@ function render({ model, el }) {
         depColumnsBtn.classList.toggle("dtx-seg-btn-on", depView === "columns");
         // Section toggle is only relevant on the Vertipaq Analyzer tab.
         const vpVisible = (mode === "vertipaq");
-        vpSeg.style.display = vpVisible ? "" : "none";
-        if (vpVisible) buildVertipaqSeg();
+        vpBar.style.display = vpVisible ? "" : "none";
+        if (vpVisible) {
+            buildVertipaqSeg();
+            renderVpBar();
+        } else if (vpFullscreen) {
+            setVpFullscreen(false);
+        }
     }
 
     const resultMeta = document.createElement("div");
@@ -9767,9 +10325,17 @@ function render({ model, el }) {
             </table>`;
     }
 
+    function loadingHtml(label) {
+        return `<div class="dtx-loading">`
+            + `<div>${escapeHtml(label)}</div>`
+            + `<div class="dtx-load-progress" role="progressbar"`
+            + ` aria-label="${escapeHtml(label)}"></div>`
+            + `</div>`;
+    }
+
     function renderDependenciesTable() {
-        if (model.get("dependencies_loading") === true) {
-            tableWrap.innerHTML = `<div class="dtx-dep-tree"><div class="dtx-empty">Computing query dependencies&hellip;</div></div>`;
+        if (dependenciesBusy()) {
+            tableWrap.innerHTML = loadingHtml("Computing query dependencies\u2026");
             return;
         }
         const view = model.get("dependency_view") || "tree";
@@ -9795,6 +10361,44 @@ function render({ model, el }) {
     }
 
     const vertipaqSortBySection = new Map();
+    let vertipaqScrollSection = null;
+    const vertipaqIsBlank = value => value === null || value === undefined
+        || (typeof value === "string" && value.trim() === "");
+
+    function vertipaqActiveSection() {
+        const sections = model.get("vertipaq_sections") || [];
+        if (!sections.length) return null;
+        return sections.find(s => s.name === (model.get("vertipaq_section") || ""))
+            || sections[0];
+    }
+    // Delegated so sorting keeps working for every header (including the
+    // trailing Delta Analyzer columns) no matter how the table is re-rendered
+    // or decorated afterwards by the column resizers.
+    function vertipaqSortFromEvent(event) {
+        const target = event.target;
+        if (!target || typeof target.closest !== "function") return;
+        if (target.closest(".dtx-column-resizer")) return;
+        const header = target.closest("th[data-vertipaq-sort]");
+        if (!header) return;
+        const section = vertipaqActiveSection();
+        if (!section) return;
+        const index = Number(header.dataset.vertipaqSort);
+        if (!Number.isInteger(index)) return;
+        const current = vertipaqSortBySection.get(section.name);
+        const direction =
+            current?.index === index && current.direction === "ascending"
+                ? "descending" : "ascending";
+        vertipaqSortBySection.set(section.name, { index, direction });
+        renderVertipaqTable();
+    }
+    tableWrap.addEventListener("click", vertipaqSortFromEvent);
+    tableWrap.addEventListener("keydown", event => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        if (!event.target?.closest?.("th[data-vertipaq-sort]")) return;
+        event.preventDefault();
+        vertipaqSortFromEvent(event);
+    });
+
     function updateVertipaqFrozen(table) {
         if (!table?.classList.contains("dtx-vertipaq-table")) return;
         const headers = Array.from(table.querySelectorAll("thead th"));
@@ -9811,20 +10415,73 @@ function render({ model, el }) {
         });
     }
 
+    // Merge the Delta Analyzer stats (once they have been run) into the Tables
+    // and Columns sections as extra trailing columns.
+    function vertipaqDeltaMerge(section) {
+        const cols = (section.columns || []).slice();
+        const rows = (section.rows || []).map(row => row.slice());
+        const results = model.get("vertipaq_delta_results") || {};
+        const plain = { cols, rows, deltaCols: new Set() };
+        const tableIdx = cols.indexOf("Table Name");
+        if (tableIdx < 0) return plain;
+        let extraCols = [];
+        let store = null;
+        let keyOf = null;
+        if (section.name === "Tables") {
+            extraCols = results.table_columns || [];
+            store = results.tables || {};
+            keyOf = row => String(row[tableIdx] ?? "");
+        } else if (section.name === "Columns") {
+            const colIdx = cols.indexOf("Column Name");
+            if (colIdx < 0) return plain;
+            extraCols = results.column_columns || [];
+            store = results.columns || {};
+            keyOf = row => `${String(row[tableIdx] ?? "")}\u0000${String(row[colIdx] ?? "")}`;
+        } else {
+            return plain;
+        }
+        if (!extraCols.length || !Object.keys(store).length) return plain;
+        const keys = rows.map(keyOf);
+        // Stats that were not collected (e.g. cardinality was skipped) come
+        // back empty for every row; an all-blank column cannot be sorted, so
+        // it is left out entirely.
+        const usedCols = extraCols.filter(name =>
+            keys.some(key => !vertipaqIsBlank((store[key] || {})[name])));
+        if (!usedCols.length) return plain;
+        rows.forEach((row, index) => {
+            const stat = store[keys[index]] || {};
+            usedCols.forEach(name => {
+                const value = stat[name];
+                row.push(value === undefined ? null : value);
+            });
+        });
+        return {
+            cols: cols.concat(usedCols),
+            rows,
+            deltaCols: new Set(usedCols),
+        };
+    }
+
     function renderVertipaqTable() {
-        if (model.get("vertipaq_loading") === true) {
-            tableWrap.innerHTML = `<div class="dtx-dep-tree"><div class="dtx-empty">Running Vertipaq Analyzer&hellip;</div></div>`;
+        if (vertipaqBusy()) {
+            tableWrap.innerHTML = loadingHtml("Running Vertipaq Analyzer\u2026");
             return;
         }
-        const sections = model.get("vertipaq_sections") || [];
-        if (!sections.length) {
+        const section = vertipaqActiveSection();
+        if (!section) {
             tableWrap.innerHTML = `<div class="dtx-dep-tree"><div class="dtx-empty">No Vertipaq Analyzer results available.</div></div>`;
             return;
         }
-        let section = sections.find(s => s.name === (model.get("vertipaq_section") || ""));
-        if (!section) section = sections[0];
-        const cols = section.columns || [];
-        const rows = section.rows || [];
+        // Re-rendering replaces the table, which would reset the scroll offset
+        // and hide the trailing (Delta Analyzer) columns the user just sorted.
+        const keepScroll = vertipaqScrollSection === section.name;
+        const scrollLeft = keepScroll ? tableWrap.scrollLeft : 0;
+        const scrollTop = keepScroll ? tableWrap.scrollTop : 0;
+        vertipaqScrollSection = section.name;
+        const merged = vertipaqDeltaMerge(section);
+        const cols = merged.cols;
+        const rows = merged.rows;
+        const deltaCols = merged.deltaCols;
         const frozenNames = {
             Tables: ["Table Name"],
             Partitions: ["Table Name", "Partition Name"],
@@ -9841,7 +10498,12 @@ function render({ model, el }) {
         const parseNumeric = value => {
             if (typeof value === "number" && !Number.isFinite(value)) return null;
             if (typeof value !== "number" && typeof value !== "string") return null;
-            const text = String(value).trim();
+            let text = String(value).trim();
+            // Stats can arrive pre-grouped (e.g. "1,234"); sort on magnitude.
+            if (text.includes(",")
+                    && /^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(text)) {
+                text = text.replace(/,/g, "");
+            }
             const match = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(text);
             if (!match || !(match[2] || match[3])) return null;
             const exponent = Number(match[4] || 0);
@@ -9856,6 +10518,7 @@ function render({ model, el }) {
             return { sign: match[1] === "-" ? -1 : 1, digits, scale };
         };
         const compareNumeric = (left, right) => {
+            if (!left || !right) return (left ? 1 : 0) - (right ? 1 : 0);
             if (left.sign !== right.sign) return left.sign - right.sign;
             if (left.sign === 0) return 0;
             const leftMagnitude = left.digits.length + left.scale;
@@ -9870,6 +10533,7 @@ function render({ model, el }) {
             return left.sign * result;
         };
         const formatNumeric = parsed => {
+            if (!parsed) return "";
             if (parsed.sign === 0) return "0";
             const point = parsed.digits.length + parsed.scale;
             const integer = point <= 0
@@ -9883,14 +10547,25 @@ function render({ model, el }) {
             const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
             return `${parsed.sign < 0 ? "-" : ""}${grouped}${fraction ? `.${fraction}` : ""}`;
         };
-        const isBlank = value => value === null || value === undefined
-            || (typeof value === "string" && value.trim() === "");
+        const isBlank = vertipaqIsBlank;
+        // Stops at the first unparsable value instead of materializing and
+        // parsing every cell of a text column.
         const numericColumns = cols.map((_, index) => {
-            const values = rows.map(row => row[index]).filter(value => !isBlank(value));
-            return values.length > 0 && values.every(value => parseNumeric(value) !== null);
+            let sawValue = false;
+            for (const row of rows) {
+                const value = row[index];
+                if (isBlank(value)) continue;
+                if (parseNumeric(value) === null) return false;
+                sawValue = true;
+            }
+            return sawValue;
         });
         const sortState = vertipaqSortBySection.get(section.name) || null;
-        const viewRows = rows.map((row, index) => ({ row, index }));
+        const viewRows = rows
+            .map((row, index) => ({ row, index }))
+            .filter(({ row }) => !vertipaqSearch || row.some(
+                value => String(value ?? "").toLowerCase().includes(vertipaqSearch)
+            ));
         if (sortState && sortState.index < cols.length) {
             viewRows.sort((left, right) => {
                 const a = left.row[sortState.index];
@@ -9909,7 +10584,11 @@ function render({ model, el }) {
         }
         const head = cols.map((column, index) => {
             const direction = sortState?.index === index ? sortState.direction : "none";
-            return `<th class="${frozenClasses(index).trim()}" scope="col" data-vertipaq-sort="${index}" tabindex="0" aria-sort="${direction}">${escapeHtml(String(column))}</th>`;
+            const isDelta = deltaCols.has(column);
+            const cls = `${frozenClasses(index)}${isDelta ? " dtx-vp-delta-col" : ""}`.trim();
+            const icon = isDelta
+                ? `<span class="dtx-vp-delta-colicon">${DELTA_STATS_SVG}</span>` : "";
+            return `<th class="${cls}" scope="col" data-vertipaq-sort="${index}" tabindex="0" aria-sort="${direction}">${icon}${escapeHtml(String(column))}</th>`;
         }).join("");
         const displayValue = (value, index) => {
             if (isBlank(value)) return "";
@@ -9917,8 +10596,9 @@ function render({ model, el }) {
             return formatNumeric(parseNumeric(value));
         };
         let body;
-        if (!rows.length) {
-            body = `<tr><td colspan="${Math.max(cols.length, 1)}" class="dtx-empty">No rows.</td></tr>`;
+        if (!viewRows.length) {
+            const empty = rows.length ? "No matching rows." : "No rows.";
+            body = `<tr><td colspan="${Math.max(cols.length, 1)}" class="dtx-empty">${empty}</td></tr>`;
         } else {
             body = viewRows.map(({ row }) => `<tr>`
                 + row.map((value, index) => `<td class="${numericColumns[index] ? "dtx-num" : ""}${frozenClasses(index)}">${escapeHtml(displayValue(value, index))}</td>`).join("")
@@ -9929,24 +10609,10 @@ function render({ model, el }) {
                 <thead><tr>${head}</tr></thead>
                 <tbody>${body}</tbody>
             </table>`;
-        requestAnimationFrame(() => updateVertipaqFrozen(
-            tableWrap.querySelector(".dtx-vertipaq-table")
-        ));
-        const sortColumn = header => {
-            const index = Number(header.dataset.vertipaqSort);
-            const direction = sortState?.index === index && sortState.direction === "ascending"
-                ? "descending" : "ascending";
-            vertipaqSortBySection.set(section.name, { index, direction });
-            renderVertipaqTable();
-        };
-        tableWrap.querySelectorAll("th[data-vertipaq-sort]").forEach(header => {
-            header.addEventListener("click", () => sortColumn(header));
-            header.addEventListener("keydown", event => {
-                if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    sortColumn(header);
-                }
-            });
+        requestAnimationFrame(() => {
+            updateVertipaqFrozen(tableWrap.querySelector(".dtx-vertipaq-table"));
+            tableWrap.scrollLeft = scrollLeft;
+            tableWrap.scrollTop = scrollTop;
         });
     }
 
@@ -10182,7 +10848,7 @@ function render({ model, el }) {
 
     function renderPerformance() {
         if (model.get("performance_loading") === true) {
-            tableWrap.innerHTML = `<div class="dtx-dep-tree"><div class="dtx-empty">Generating DAX performance analysis&hellip;</div></div>`;
+            tableWrap.innerHTML = loadingHtml("Generating DAX performance analysis\u2026");
             return;
         }
         const findings = model.get("performance_findings") || [];
@@ -10261,41 +10927,50 @@ function render({ model, el }) {
 
     function renderTable() {
         const mode = model.get("view_mode") || "trace";
+        // The tab chrome is rendered first so a failure while building the
+        // body cannot leave the tabs out of sync with the selected view.
+        renderSeg();
         // Default visibility — chart/table swap below.
         tableWrap.style.display = "";
         chartWrap.style.display = "none";
         chartControls.style.display = "none";
-        if (mode === "chart") {
-            tableWrap.style.display = "none";
-            chartWrap.style.display = "";
+        try {
+            if (mode === "chart") {
+                tableWrap.style.display = "none";
+                chartWrap.style.display = "";
+                resultMeta.style.display = "none";
+                renderChart();
+            } else if (mode === "result") {
+                renderResultTable();
+                resultMeta.style.display = (model.get("result_columns") || []).length ? "" : "none";
+            } else if (mode === "history") {
+                renderHistoryTable();
+                resultMeta.style.display = "none";
+            } else if (mode === "queryplan") {
+                renderQueryPlanTable();
+                resultMeta.style.display = "none";
+            } else if (mode === "dependencies") {
+                renderDependenciesTable();
+                resultMeta.style.display = "none";
+            } else if (mode === "vertipaq") {
+                renderVertipaqTable();
+                resultMeta.style.display = "none";
+            } else if (mode === "performance") {
+                renderPerformance();
+                resultMeta.style.display = "none";
+            } else if (mode === "execmetrics") {
+                renderExecMetricsTable();
+                resultMeta.style.display = "none";
+            } else {
+                renderTraceTable();
+                resultMeta.style.display = "none";
+            }
+        } catch (error) {
             resultMeta.style.display = "none";
-            renderChart();
-        } else if (mode === "result") {
-            renderResultTable();
-            resultMeta.style.display = (model.get("result_columns") || []).length ? "" : "none";
-        } else if (mode === "history") {
-            renderHistoryTable();
-            resultMeta.style.display = "none";
-        } else if (mode === "queryplan") {
-            renderQueryPlanTable();
-            resultMeta.style.display = "none";
-        } else if (mode === "dependencies") {
-            renderDependenciesTable();
-            resultMeta.style.display = "none";
-        } else if (mode === "vertipaq") {
-            renderVertipaqTable();
-            resultMeta.style.display = "none";
-        } else if (mode === "performance") {
-            renderPerformance();
-            resultMeta.style.display = "none";
-        } else if (mode === "execmetrics") {
-            renderExecMetricsTable();
-            resultMeta.style.display = "none";
-        } else {
-            renderTraceTable();
-            resultMeta.style.display = "none";
+            tableWrap.innerHTML = `<div class="dtx-loading">`
+                + `${escapeHtml(`Could not render this view: ${error && error.message ? error.message : error}`)}`
+                + `</div>`;
         }
-        renderSeg();
     }
 
     // ---------- Attribution ----------
@@ -10333,7 +11008,10 @@ function render({ model, el }) {
     model.on("change:query_plan_type", renderTable);
     model.on("change:execution_metrics", renderTable);
     model.on("change:dependency_tree", renderTable);
-    model.on("change:dependencies_loading", renderTable);
+    model.on("change:dependencies_loading", () => {
+        dependenciesPending = false;
+        renderTable();
+    });
     model.on("change:dependency_columns", renderTable);
     model.on("change:dependency_view", renderTable);
     model.on("change:object_dependencies_loading", renderObjectDependencies);
@@ -10344,8 +11022,18 @@ function render({ model, el }) {
         vertipaqSortBySection.clear();
         renderTable();
     });
-    model.on("change:vertipaq_section", renderTable);
-    model.on("change:vertipaq_loading", renderTable);
+    model.on("change:vertipaq_section", () => { renderVpBar(); renderTable(); });
+    model.on("change:vertipaq_loading", () => {
+        vertipaqPending = false;
+        renderVpBar();
+        renderTable();
+    });
+    model.on("change:vertipaq_delta_tables", () => {
+        vertipaqSortBySection.clear();
+        renderVpBar();
+    });
+    model.on("change:vertipaq_delta_results", () => { renderVpBar(); renderTable(); });
+    model.on("change:vertipaq_delta_status", renderVpDeltaStatus);
     model.on("change:performance_findings", renderTable);
     model.on("change:performance_summary", renderTable);
     model.on("change:performance_loading", () => { renderAnalyzeBtn(); renderTable(); });
@@ -10402,7 +11090,17 @@ function render({ model, el }) {
         root.classList.toggle("dtx-running", model.get("is_running") === true);
         renderRunBtn();
     });
-    model.on("change:error_message", renderError);
+    model.on("change:error_message", () => {
+        // A request the kernel rejected outright never flips its loading
+        // trait, so the optimistic progress bar has to stop here.
+        if (String(model.get("error_message") || "").trim()) {
+            dependenciesPending = false;
+            vertipaqPending = false;
+            renderVpBar();
+            renderTable();
+        }
+        renderError();
+    });
     model.on("change:dax_query", () => {
         if (textarea.value !== model.get("dax_query")) {
             const newVal = model.get("dax_query") || "";
@@ -10436,7 +11134,15 @@ function render({ model, el }) {
     });
     model.on("change:dataset_chosen", renderNlBtn);
     model.on("change:clear_cache", renderCacheBtn);
-    model.on("change:cache_clear_loading", renderClearModelCacheBtn);
+    model.on("change:cache_clear_loading", () => {
+        renderClearModelCacheBtn();
+        if (!cacheClearPending || model.get("cache_clear_loading") === true) return;
+        cacheClearPending = false;
+        // Failures already surface through the error banner.
+        if (!String(model.get("error_message") || "").trim()) {
+            showToast("Model cache cleared");
+        }
+    });
     model.on("change:impersonation_mode", renderImpersonation);
     model.on("change:impersonation_value", renderImpersonation);
     model.on("change:model_roles", renderImpersonation);
@@ -10461,6 +11167,12 @@ function render({ model, el }) {
     });
     model.on("change:available_workspaces", renderPicker);
     model.on("change:available_datasets", renderPicker);
+    // The kernel acknowledges every picker request, so a response that carries
+    // no visible change (e.g. an empty list) still clears the loading state.
+    model.on("change:picker_ack", () => {
+        clearPickerWatchdog();
+        renderPicker();
+    });
     model.on("change:selected_workspace_id", renderPicker);
     model.on("change:selected_dataset_id", renderPicker);
     model.on("change:active_workspace_id", renderPicker);
@@ -10527,9 +11239,7 @@ function render({ model, el }) {
     if (model.get("dataset_chosen") !== true
         && (model.get("available_workspaces") || []).length === 0
         && model.get("picker_loading") !== true) {
-        model.set("load_workspaces_trigger",
-            (model.get("load_workspaces_trigger") || 0) + 1);
-        model.save_changes();
+        requestWorkspaces();
     }
 
     // Notify Python to tear down the long-running trace when this view is
@@ -10565,6 +11275,8 @@ export default { render };
         .replace("__DTX_COLUMN__", column_icon)
         .replace("__DTX_MEASURE__", measure_icon)
         .replace("__DTX_HIERARCHY__", hierarchy_icon)
+        .replace("__DTX_PARTITION__", partition_icon)
+        .replace("__DTX_RELATIONSHIP__", relationship_icon)
         .replace("__DTX_CARET__", caret_icon)
         .replace("__DTX_FOLDER__", folder_icon)
         .replace("__DTX_LEVEL__", level_icon)
@@ -10607,6 +11319,7 @@ export default { render };
         .replace("__DTX_CPU__", cpu_icon)
         .replace("__DTX_DATABASE__", database_icon)
         .replace("__DTX_VERTIPAQ__", vertipaq_icon)
+        .replace("__DTX_DELTA_STATS__", delta_stats_icon)
         .replace("__DTX_ZAP__", zap_icon)
     )
 
@@ -10662,6 +11375,12 @@ export default { render };
         vertipaq_section = traitlets.Unicode("").tag(sync=True)
         vertipaq_loading = traitlets.Bool(False).tag(sync=True)
         vertipaq_trigger = traitlets.Int(0).tag(sync=True)
+        vertipaq_delta_tables = traitlets.List([]).tag(sync=True)
+        vertipaq_delta_results = traitlets.Dict({}).tag(sync=True)
+        vertipaq_delta_status = traitlets.Dict({}).tag(sync=True)
+        vertipaq_delta_request = traitlets.Dict({}).tag(sync=True)
+        vertipaq_delta_trigger = traitlets.Int(0).tag(sync=True)
+        vertipaq_delta_cancel_trigger = traitlets.Int(0).tag(sync=True)
         performance_findings = traitlets.List([]).tag(sync=True)
         performance_summary = traitlets.Dict({}).tag(sync=True)
         performance_loading = traitlets.Bool(False).tag(sync=True)
@@ -10692,6 +11411,7 @@ export default { render };
         active_workspace_id = traitlets.Unicode("").tag(sync=True)
         active_dataset_id = traitlets.Unicode("").tag(sync=True)
         picker_loading = traitlets.Bool(False).tag(sync=True)
+        picker_ack = traitlets.Int(0).tag(sync=True)
         select_workspace_trigger = traitlets.Int(0).tag(sync=True)
         select_dataset_trigger = traitlets.Int(0).tag(sync=True)
         load_workspaces_trigger = traitlets.Int(0).tag(sync=True)
@@ -10721,6 +11441,14 @@ export default { render };
     # current ids from this dict rather than closing over fixed values).
     model_ctx = {"dataset_id": dataset_id, "workspace_id": workspace_id}
     dataset_chosen = dataset_id is not None
+    # Model-level lookups reused by the query dependencies view (rebuilding
+    # them means reopening the XMLA connection, which is the slow part).
+    dep_meta_cache: dict = {
+        "dataset_id": None,
+        "rel_lookup": {},
+        "rel_columns": {},
+        "rownumber_cols": set(),
+    }
 
     # Collect the model metadata tree synchronously before constructing the
     # widget. Loading it in a background thread that sets traits right after
@@ -10746,20 +11474,18 @@ export default { render };
         initial_roles = []
         initial_reports = []
 
-    # Avoid blocking the initial picker screen on workspace enumeration. For a
-    # supplied dataset, retain the existing eager picker data so Change Model
-    # is immediately ready.
-    if dataset_chosen:
-        try:
-            initial_workspaces = _list_workspaces_for_picker()
-        except Exception:
-            initial_workspaces = []
-        try:
-            initial_datasets = _list_datasets_for_picker(workspace_id)
-        except Exception:
-            initial_datasets = []
-    else:
+    # Ship the picker lists as initial widget state so the workspace/model
+    # selectors are populated on first paint instead of after a comm
+    # round-trip once the front-end has rendered.
+    try:
+        initial_workspaces = _list_workspaces_for_picker()
+    except Exception:
         initial_workspaces = []
+    try:
+        initial_datasets = (
+            _list_datasets_for_picker(workspace_id) if workspace_id else []
+        )
+    except Exception:
         initial_datasets = []
 
     widget = DaxTestWidget(
@@ -10802,6 +11528,12 @@ export default { render };
         vertipaq_section="",
         vertipaq_loading=False,
         vertipaq_trigger=0,
+        vertipaq_delta_tables=[],
+        vertipaq_delta_results={},
+        vertipaq_delta_status={},
+        vertipaq_delta_request={},
+        vertipaq_delta_trigger=0,
+        vertipaq_delta_cancel_trigger=0,
         performance_findings=[],
         performance_summary={},
         performance_loading=False,
@@ -10818,6 +11550,7 @@ export default { render };
         active_workspace_id=str(workspace_id) if workspace_id else "",
         active_dataset_id=str(dataset_id) if dataset_id else "",
         picker_loading=False,
+        picker_ack=0,
         select_workspace_trigger=0,
         select_dataset_trigger=0,
         load_workspaces_trigger=0,
@@ -10862,6 +11595,10 @@ export default { render };
     # Most recent Vertipaq Analyzer result (dict of dataframes), populated
     # when the user opens the Vertipaq Analyzer tab. Stored for later use.
     widget.last_vertipaq = {}  # type: ignore[attr-defined]
+    # Delta Analyzer metadata for the Direct-Lake-over-Lakehouse tables of the
+    # model the Vertipaq Analyzer results belong to.
+    widget._vp_delta_info = {}  # type: ignore[attr-defined]
+    widget._vp_col_src = {}  # type: ignore[attr-defined]
 
     # State shared between the run/cancel observers.
     import threading
@@ -10877,8 +11614,15 @@ export default { render };
         # must be (re)captured for the query currently in the query pane.
         "traced_query": None,
         "deps_query": None,
+        # True only while a query is executing, so a cancel that is delivered
+        # after the run finished is not mistaken for a real cancellation.
+        "active": False,
     }
     state_lock = threading.Lock()
+
+    # Widget work always runs on the kernel thread: trait updates emitted from
+    # a worker thread never reach the browser in a Fabric PySpark notebook.
+    _run_widget_task = _ui_components.run_widget_task
 
     # ---- Persistent (long-running) trace shared by all queries in the UI ----
     # Instead of creating a fresh trace per query, the widget keeps a single
@@ -11183,17 +11927,17 @@ export default { render };
     def _on_report_capture_start(change):
         if change["new"] == change["old"]:
             return
-        threading.Thread(target=_start_report_capture, daemon=True).start()
+        _run_widget_task(_start_report_capture)
 
     def _on_report_capture_finish(change):
         if change["new"] == change["old"]:
             return
-        threading.Thread(target=_finish_report_capture, daemon=True).start()
+        _run_widget_task(_finish_report_capture)
 
     def _on_report_capture_checkpoint(change):
         if change["new"] == change["old"]:
             return
-        threading.Thread(target=_checkpoint_report_capture, daemon=True).start()
+        _run_widget_task(_checkpoint_report_capture)
 
     def _update_history_execution_metrics(history_id, metric_rows: list) -> None:
         metrics = _execution_metrics_dict(metric_rows)
@@ -11474,19 +12218,26 @@ export default { render };
         with state_lock:
             run_state["current_run_id"] += 1
             run_id = run_state["current_run_id"]
-        thread = threading.Thread(
-            target=_worker,
-            args=(query, bool(widget.clear_cache), run_id, effective_user, role_name),
-            daemon=True,
-        )
-        with state_lock:
-            run_state["thread"] = thread
-        thread.start()
+            run_state["active"] = True
+        try:
+            thread = _run_widget_task(
+                _worker,
+                (query, bool(widget.clear_cache), run_id, effective_user, role_name),
+            )
+            with state_lock:
+                run_state["thread"] = thread
+        finally:
+            with state_lock:
+                run_state["active"] = False
 
     def _on_cancel(change):
         if change["new"] == change["old"]:
             return
         with state_lock:
+            if not run_state["active"]:
+                # Delivered after the query finished, so there is nothing to
+                # stop and the results that just landed must be kept.
+                return
             run_id = run_state["current_run_id"]
             run_state["canceled_run_ids"].add(run_id)
         widget.is_running = False
@@ -11520,7 +12271,7 @@ export default { render };
             widget.cache_clear_loading = False
             widget.error_message = "Wait for report query capture to finish first."
             return
-        threading.Thread(target=_clear_model_cache, daemon=True).start()
+        _run_widget_task(_clear_model_cache)
 
     def _compute_dependencies() -> None:
         """Compute the model objects (tables, columns, measures,
@@ -11579,22 +12330,41 @@ export default { render };
                 "COLUMN" in (row["object_type"] or "").upper() for row in rows
             )
             if needs_rel or needs_cols:
-                try:
-                    from sempy_labs.tom import connect_semantic_model
+                # Opening the XMLA connection dominates this call, so the
+                # model-level lookups are cached until the model changes.
+                cached = dep_meta_cache.get("dataset_id") == model_ctx["dataset_id"]
+                if not cached:
+                    try:
+                        from sempy_labs.tom import connect_semantic_model
 
-                    with connect_semantic_model(
-                        dataset=model_ctx["dataset_id"],
-                        workspace=model_ctx["workspace_id"],
-                        readonly=True,
-                    ) as tom:
-                        if needs_rel:
-                            rel_lookup = _build_relationship_lookup(tom)
-                            rel_columns = _build_relationship_columns(tom)
-                        rownumber_cols = _build_rownumber_columns(tom)
-                except Exception:
-                    rel_lookup = {}
-                    rel_columns = {}
-                    rownumber_cols = set()
+                        with connect_semantic_model(
+                            dataset=model_ctx["dataset_id"],
+                            workspace=model_ctx["workspace_id"],
+                            readonly=True,
+                        ) as tom:
+                            dep_meta_cache["rel_lookup"] = _build_relationship_lookup(
+                                tom
+                            )
+                            dep_meta_cache["rel_columns"] = _build_relationship_columns(
+                                tom
+                            )
+                            dep_meta_cache["rownumber_cols"] = _build_rownumber_columns(
+                                tom
+                            )
+                        dep_meta_cache["dataset_id"] = model_ctx["dataset_id"]
+                    except Exception:
+                        dep_meta_cache.update(
+                            {
+                                "dataset_id": None,
+                                "rel_lookup": {},
+                                "rel_columns": {},
+                                "rownumber_cols": set(),
+                            }
+                        )
+                if needs_rel:
+                    rel_lookup = dep_meta_cache["rel_lookup"]
+                    rel_columns = dep_meta_cache["rel_columns"]
+                rownumber_cols = dep_meta_cache["rownumber_cols"]
             widget.dependency_tree = _build_dependency_tree(
                 rows, rel_lookup, widget.dataset_name or "Model", rownumber_cols
             )
@@ -11621,7 +12391,7 @@ export default { render };
         if widget.dependencies_loading:
             return
         widget.dependencies_loading = True
-        threading.Thread(target=_compute_dependencies, daemon=True).start()
+        _run_widget_task(_compute_dependencies)
 
     def _compute_object_dependencies(request_id: int) -> None:
         dataset_snapshot = model_ctx["dataset_id"]
@@ -11695,11 +12465,7 @@ export default { render };
         if change["new"] == change["old"]:
             return
         request_id = int(change["new"])
-        threading.Thread(
-            target=_compute_object_dependencies,
-            args=(request_id,),
-            daemon=True,
-        ).start()
+        _run_widget_task(_compute_object_dependencies, (request_id,))
 
     def _compute_vertipaq() -> None:
         """Run the Vertipaq Analyzer against the active semantic model and push
@@ -11712,7 +12478,10 @@ export default { render };
                 return
             from sempy_labs.semantic_model._vertipaq_analyzer import (
                 vertipaq_analyzer,
+                _direct_lake_delta_tables,
+                _column_source_map,
             )
+            from sempy_labs._helper_functions import _pure_python_notebook
             from IPython.utils.capture import capture_output
 
             # vertipaq_analyzer renders its own HTML visualization via
@@ -11738,11 +12507,43 @@ export default { render };
                     }
                 )
             widget.vertipaq_sections = sections
+            # Direct-Lake-over-Lakehouse source tables enable the "Delta
+            # Analyzer" button on the Vertipaq Analyzer tab.
+            partitions_df = (result or {}).get("Partitions")
+            columns_df = (result or {}).get("Columns")
+            delta_tables = (
+                _direct_lake_delta_tables(partitions_df.to_dict("records"))
+                if partitions_df is not None and not partitions_df.empty
+                else []
+            )
+            widget._vp_delta_info = {  # type: ignore[attr-defined]
+                t["tableName"]: t for t in delta_tables
+            }
+            widget._vp_col_src = (  # type: ignore[attr-defined]
+                _column_source_map(columns_df.to_dict("records"))
+                if columns_df is not None and not columns_df.empty
+                else {}
+            )
+            widget.vertipaq_delta_results = {}
+            # In a pure-Python (non-Spark) notebook the Delta Analyzer cannot
+            # run, so surface an upfront hint next to the button.
+            if delta_tables and _pure_python_notebook():
+                widget.vertipaq_delta_status = {
+                    "message": (
+                        "The Delta Analyzer requires Spark. Run this in a "
+                        "PySpark notebook to get the Delta Analyzer stats."
+                    ),
+                    "kind": "info",
+                }
+            else:
+                widget.vertipaq_delta_status = {}
+            widget.vertipaq_delta_tables = delta_tables
             if sections and not (widget.vertipaq_section or "").strip():
                 widget.vertipaq_section = sections[0]["name"]
             widget.error_message = ""
         except Exception as exc:  # noqa: BLE001
             widget.vertipaq_sections = []
+            widget.vertipaq_delta_tables = []
             widget.error_message = f"Failed to run Vertipaq Analyzer: {exc}"
         finally:
             widget.vertipaq_loading = False
@@ -11757,7 +12558,145 @@ export default { render };
         if widget.vertipaq_loading:
             return
         widget.vertipaq_loading = True
-        threading.Thread(target=_compute_vertipaq, daemon=True).start()
+        _run_widget_task(_compute_vertipaq)
+
+    # Delta Analyzer runs (merged into the Vertipaq Analyzer Tables/Columns
+    # sections) execute inline on the kernel thread: Spark/OneLake calls (e.g.
+    # mounting the lakehouse) are not reliable from a background thread in
+    # Fabric notebooks.
+    vp_delta_state = {"active": False}
+    vp_delta_cancel = threading.Event()
+
+    def _run_vertipaq_delta(selected, skip_cardinality) -> None:
+        from sempy_labs.semantic_model._vertipaq_analyzer import (
+            _compute_table_delta_stats_raw,
+            _DELTA_TABLE_STAT_COLUMNS,
+            _DELTA_COLUMN_STAT_COLUMNS,
+        )
+
+        total = len(selected)
+        prior = widget.vertipaq_delta_results or {}
+        results_tables = dict(prior.get("tables", {}))
+        results_columns = dict(prior.get("columns", {}))
+        col_src = getattr(widget, "_vp_col_src", {}) or {}
+        completed = 0
+
+        def _publish() -> None:
+            # Reassign (new object) so the traitlet change fires and the
+            # frontend merges progressively after each table.
+            widget.vertipaq_delta_results = {
+                "tables": dict(results_tables),
+                "columns": dict(results_columns),
+                "table_columns": list(_DELTA_TABLE_STAT_COLUMNS),
+                "column_columns": list(_DELTA_COLUMN_STAT_COLUMNS),
+            }
+
+        try:
+            for index, info in enumerate(selected, start=1):
+                if vp_delta_cancel.is_set():
+                    break
+                table_name = info.get("tableName")
+                widget.vertipaq_delta_status = {
+                    "message": (
+                        f"Running Delta Analyzer on '{table_name}' "
+                        f"({index}/{total})\u2026 a cold Spark session can take "
+                        f"a few minutes."
+                    ),
+                    "kind": "info",
+                    "progress": {"done": completed, "total": total},
+                }
+                table_stats, column_stats = _compute_table_delta_stats_raw(
+                    info, skip_cardinality=skip_cardinality
+                )
+                results_tables[table_name] = table_stats
+                for model_col, source_col in (col_src.get(table_name) or {}).items():
+                    stat = column_stats.get(source_col) or column_stats.get(model_col)
+                    if stat:
+                        results_columns[f"{table_name}\u0000{model_col}"] = stat
+                completed += 1
+                _publish()
+            if vp_delta_cancel.is_set():
+                widget.vertipaq_delta_status = {
+                    "message": (
+                        f"Delta Analyzer cancelled after {completed} "
+                        f"table{'s' if completed != 1 else ''}."
+                    ),
+                    "kind": "info",
+                    "done": True,
+                    "auto_hide": True,
+                }
+            else:
+                widget.vertipaq_delta_status = {
+                    "message": (
+                        f"Delta Analyzer complete for {total} "
+                        f"table{'s' if total != 1 else ''}."
+                    ),
+                    "kind": "success",
+                    "done": True,
+                    "auto_hide": True,
+                }
+        except Exception as exc:  # noqa: BLE001
+            widget.vertipaq_delta_status = {
+                "message": f"Delta Analyzer error: {exc}",
+                "kind": "error",
+                "done": True,
+            }
+
+    def _on_vertipaq_delta(change):
+        if change["new"] == change["old"]:
+            return
+        if vp_delta_state["active"]:
+            return
+
+        from sempy_labs._helper_functions import _pure_python_notebook
+
+        if _pure_python_notebook():
+            widget.vertipaq_delta_status = {
+                "message": (
+                    "The Delta Analyzer requires Spark. Run this in a PySpark "
+                    "notebook to get the Delta Analyzer stats."
+                ),
+                "kind": "error",
+                "done": True,
+            }
+            return
+
+        request = dict(widget.vertipaq_delta_request or {})
+        # The Python-side descriptors (built from the Direct Lake partitions)
+        # are authoritative; the frontend only sends the table names.
+        delta_info = getattr(widget, "_vp_delta_info", {}) or {}
+        selected = [
+            delta_info[name]
+            for name in (request.get("tables") or [])
+            if name in delta_info
+        ]
+        if not selected:
+            widget.vertipaq_delta_status = {"message": "", "kind": "info", "done": True}
+            return
+
+        vp_delta_cancel.clear()
+        vp_delta_state["active"] = True
+        try:
+            _run_vertipaq_delta(selected, bool(request.get("skip_cardinality", True)))
+        finally:
+            vp_delta_state["active"] = False
+
+    def _on_vertipaq_delta_cancel(change):
+        if change["new"] == change["old"]:
+            return
+        if not vp_delta_state["active"]:
+            # The run already finished (the kernel only reaches this handler
+            # once it is free again), so just clear the spinner/status.
+            widget.vertipaq_delta_status = {"message": "", "kind": "info", "done": True}
+            return
+        vp_delta_cancel.set()
+        widget.vertipaq_delta_status = {
+            "message": (
+                "Cancelling the Delta Analyzer\u2026 the table currently being "
+                "analyzed will finish first."
+            ),
+            "kind": "info",
+        }
 
     def _ensure_trace_captured(query: str) -> None:
         """Ensure the trace artifacts for ``query`` are populated before a
@@ -11990,7 +12929,7 @@ export default { render };
             widget.performance_loading = False
             widget.error_message = "Wait for report query capture to finish first."
             return
-        threading.Thread(target=_compute_performance, daemon=True).start()
+        _run_widget_task(_compute_performance)
 
     def _load_workspace_monitoring(request: Optional[dict] = None) -> None:
         allowed_ranges = {"15m", "1h", "4h", "12h", "1d", "3d", "7d", "30d"}
@@ -12087,16 +13026,14 @@ export default { render };
         if change["new"] == change["old"] or widget.workspace_monitoring_loading:
             return
         widget.workspace_monitoring_loading = True
-        threading.Thread(target=_load_workspace_monitoring, daemon=True).start()
+        _run_widget_task(_load_workspace_monitoring)
 
     def _on_workspace_monitoring_request(change):
         if change["new"] == change["old"] or widget.workspace_monitoring_loading:
             return
         request = dict(change["new"] or {})
         widget.workspace_monitoring_loading = True
-        threading.Thread(
-            target=_load_workspace_monitoring, args=(request,), daemon=True
-        ).start()
+        _run_widget_task(_load_workspace_monitoring, (request,))
 
     widget.observe(_on_run, names="run_trigger")
     widget.observe(_on_cancel, names="cancel_trigger")
@@ -12104,6 +13041,8 @@ export default { render };
     widget.observe(_on_dependencies, names="dependencies_trigger")
     widget.observe(_on_object_dependencies, names="object_dependency_trigger")
     widget.observe(_on_vertipaq, names="vertipaq_trigger")
+    widget.observe(_on_vertipaq_delta, names="vertipaq_delta_trigger")
+    widget.observe(_on_vertipaq_delta_cancel, names="vertipaq_delta_cancel_trigger")
     widget.observe(_on_performance, names="performance_trigger")
     widget.observe(_on_workspace_monitoring, names="workspace_monitoring_trigger")
     widget.observe(
@@ -12185,7 +13124,7 @@ export default { render };
     def _on_download_history(change):
         if change["new"] == change["old"]:
             return
-        threading.Thread(target=_build_history_excel, daemon=True).start()
+        _run_widget_task(_build_history_excel)
 
     widget.observe(_on_download_history, names="download_history_trigger")
 
@@ -12230,7 +13169,7 @@ export default { render };
     def _on_download_result(change):
         if change["new"] == change["old"]:
             return
-        threading.Thread(target=_build_result_excel, daemon=True).start()
+        _run_widget_task(_build_result_excel)
 
     widget.observe(_on_download_result, names="download_result_trigger")
 
@@ -12245,79 +13184,86 @@ export default { render };
     widget.observe(_on_query_change, names="dax_query")
 
     def _load_metadata() -> None:
-        if model_ctx["dataset_id"] is None:
-            widget.metadata_loading = False
-            return
         try:
-            tree, roles = _collect_model_metadata(
-                model_ctx["dataset_id"], model_ctx["workspace_id"]
-            )
-        except Exception as exc:  # noqa: BLE001
+            if model_ctx["dataset_id"] is None:
+                return
+            try:
+                tree, roles = _collect_model_metadata(
+                    model_ctx["dataset_id"], model_ctx["workspace_id"]
+                )
+            except Exception as exc:  # noqa: BLE001
+                widget.error_message = f"Failed to load model metadata: {exc}"
+                return
+            widget.model_tree = tree
+            widget.model_roles = roles
+            try:
+                widget.available_reports = _list_reports_for_capture(
+                    model_ctx["dataset_id"], model_ctx["workspace_id"]
+                )
+            except Exception:
+                widget.available_reports = []
+            # Start (or keep) the long-running trace for this model now that
+            # its metadata has loaded.
+            _ensure_trace(model_ctx["dataset_id"], model_ctx["workspace_id"])
+        finally:
             widget.metadata_loading = False
-            widget.error_message = f"Failed to load model metadata: {exc}"
-            return
-        widget.model_tree = tree
-        widget.model_roles = roles
-        try:
-            widget.available_reports = _list_reports_for_capture(
-                model_ctx["dataset_id"], model_ctx["workspace_id"]
-            )
-        except Exception:
-            widget.available_reports = []
-        widget.metadata_loading = False
-        # Start (or keep) the long-running trace for this model now that its
-        # metadata has loaded.
-        _ensure_trace(model_ctx["dataset_id"], model_ctx["workspace_id"])
 
     def _on_refresh_metadata(change):
         if change["new"] == change["old"]:
             return
-        if widget.metadata_loading:
-            return
         widget.metadata_loading = True
-        threading.Thread(target=_load_metadata, daemon=True).start()
+        _run_widget_task(_load_metadata)
 
     widget.observe(_on_refresh_metadata, names="refresh_metadata_trigger")
 
-    def _load_datasets_for_selected_workspace() -> None:
-        ws_id = (widget.selected_workspace_id or "").strip()
-        if not ws_id:
-            widget.available_datasets = []
-            widget.picker_loading = False
-            return
-        try:
-            datasets = _list_datasets_for_picker(ws_id)
-        except Exception as exc:  # noqa: BLE001
-            widget.available_datasets = []
-            widget.picker_loading = False
-            widget.error_message = f"Failed to list semantic models: {exc}"
-            return
-        widget.available_datasets = datasets
+    def _picker_settled() -> None:
+        """Release the picker's loading state.
+
+        The acknowledgement counter always changes, so the front-end learns the
+        request finished even when the answer equals the value it already holds
+        (assigning ``[]`` over ``[]`` fires no change event on either side).
+        """
         widget.picker_loading = False
+        widget.picker_ack = int(widget.picker_ack or 0) + 1
+
+    def _load_datasets_for_selected_workspace() -> None:
+        try:
+            ws_id = (widget.selected_workspace_id or "").strip()
+            if not ws_id:
+                widget.available_datasets = []
+                return
+            try:
+                widget.available_datasets = _list_datasets_for_picker(ws_id)
+            except Exception as exc:  # noqa: BLE001
+                widget.available_datasets = []
+                widget.error_message = f"Failed to list semantic models: {exc}"
+        finally:
+            _picker_settled()
 
     def _on_select_workspace(change):
         if change["new"] == change["old"]:
             return
-        if widget.picker_loading:
-            return
         widget.picker_loading = True
-        threading.Thread(
-            target=_load_datasets_for_selected_workspace, daemon=True
-        ).start()
+        _run_widget_task(_load_datasets_for_selected_workspace)
 
     widget.observe(_on_select_workspace, names="select_workspace_trigger")
 
     def _activate_selected_dataset() -> None:
-        if widget.report_capture_loading:
+        try:
+            _activate_selected_dataset_inner()
+        finally:
+            # The Model View spins on this flag, so it must clear even when the
+            # activation fails unexpectedly.
             widget.metadata_loading = False
-            widget.picker_loading = False
+            _picker_settled()
+
+    def _activate_selected_dataset_inner() -> None:
+        if widget.report_capture_loading:
             widget.error_message = "Wait for report query capture to finish first."
             return
         ws_id = (widget.selected_workspace_id or "").strip()
         ds_id = (widget.selected_dataset_id or "").strip()
         if not ws_id or not ds_id:
-            widget.metadata_loading = False
-            widget.picker_loading = False
             return
         try:
             from sempy_labs._helper_functions import (
@@ -12333,8 +13279,6 @@ export default { render };
             tree, roles = _collect_model_metadata(ds_id_resolved, ws_id_resolved)
         except Exception as exc:  # noqa: BLE001
             widget.error_message = f"Failed to load semantic model: {exc}"
-            widget.metadata_loading = False
-            widget.picker_loading = False
             return
         widget.dataset_name = str(ds_name) if ds_name else str(ds_id)
         widget.workspace_name = str(ws_name) if ws_name else ""
@@ -12348,12 +13292,24 @@ export default { render };
             )
         except Exception:
             widget.available_reports = []
-        widget.metadata_loading = False
         # Clear Vertipaq Analyzer results from any previously selected model so
         # stale stats aren't shown; they are recomputed on the next tab open.
         widget.vertipaq_sections = []
         widget.vertipaq_section = ""
         widget.last_vertipaq = {}  # type: ignore[attr-defined]
+        widget.vertipaq_delta_tables = []
+        widget.vertipaq_delta_results = {}
+        widget.vertipaq_delta_status = {}
+        widget._vp_delta_info = {}  # type: ignore[attr-defined]
+        widget._vp_col_src = {}  # type: ignore[attr-defined]
+        dep_meta_cache.update(
+            {
+                "dataset_id": None,
+                "rel_lookup": {},
+                "rel_columns": {},
+                "rownumber_cols": set(),
+            }
+        )
         # Clear any performance analysis produced for the previous model.
         widget.performance_findings = []
         widget.performance_summary = {}
@@ -12376,44 +13332,40 @@ export default { render };
         widget.impersonation_value = ""
         widget.dataset_chosen = True
         widget.error_message = ""
-        widget.picker_loading = False
+        _picker_settled()
         # Rebind the long-running trace to the newly selected model.
         _ensure_trace(ds_id_resolved, ws_id_resolved)
 
     def _on_select_dataset(change):
         if change["new"] == change["old"]:
             return
-        if widget.picker_loading:
-            return
         widget.picker_loading = True
-        threading.Thread(target=_activate_selected_dataset, daemon=True).start()
+        _run_widget_task(_activate_selected_dataset)
 
     widget.observe(_on_select_dataset, names="select_dataset_trigger")
 
     def _load_workspaces() -> None:
         try:
-            workspaces = _list_workspaces_for_picker()
-        except Exception as exc:  # noqa: BLE001
-            widget.picker_loading = False
-            widget.error_message = f"Failed to list workspaces: {exc}"
-            return
-        widget.available_workspaces = workspaces
-        # Refresh the dataset list for the currently selected workspace too.
-        ws_id = (widget.selected_workspace_id or "").strip()
-        if ws_id:
             try:
-                widget.available_datasets = _list_datasets_for_picker(ws_id)
-            except Exception:
-                pass
-        widget.picker_loading = False
+                widget.available_workspaces = _list_workspaces_for_picker()
+            except Exception as exc:  # noqa: BLE001
+                widget.error_message = f"Failed to list workspaces: {exc}"
+                return
+            # Refresh the dataset list for the currently selected workspace too.
+            ws_id = (widget.selected_workspace_id or "").strip()
+            if ws_id:
+                try:
+                    widget.available_datasets = _list_datasets_for_picker(ws_id)
+                except Exception:
+                    pass
+        finally:
+            _picker_settled()
 
     def _on_load_workspaces(change):
         if change["new"] == change["old"]:
             return
-        if widget.picker_loading:
-            return
         widget.picker_loading = True
-        threading.Thread(target=_load_workspaces, daemon=True).start()
+        _run_widget_task(_load_workspaces)
 
     widget.observe(_on_load_workspaces, names="load_workspaces_trigger")
 
@@ -12441,7 +13393,7 @@ export default { render };
         if widget.format_loading:
             return
         widget.format_loading = True
-        threading.Thread(target=_format_query, daemon=True).start()
+        _run_widget_task(_format_query)
 
     widget.observe(_on_format_query, names="format_query_trigger")
 
@@ -12497,7 +13449,7 @@ export default { render };
     def _on_nl_to_dax(change):
         if change["new"] == change["old"]:
             return
-        threading.Thread(target=_nl_to_dax_run, daemon=True).start()
+        _run_widget_task(_nl_to_dax_run)
 
     widget.observe(_on_nl_to_dax, names="nl_to_dax_trigger")
 
@@ -12556,12 +13508,9 @@ export default { render };
     # Start the long-running trace for the initially selected model (if any)
     # so it is ready by the time the first query runs.
     if model_ctx["dataset_id"] is not None:
-        threading.Thread(
-            target=lambda: _ensure_trace(
-                model_ctx["dataset_id"], model_ctx["workspace_id"]
-            ),
-            daemon=True,
-        ).start()
+        _run_widget_task(
+            _ensure_trace, (model_ctx["dataset_id"], model_ctx["workspace_id"])
+        )
 
     display(widget)
 

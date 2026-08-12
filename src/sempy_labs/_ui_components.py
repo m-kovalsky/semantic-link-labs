@@ -594,6 +594,18 @@ ICONS: dict[str, str] = {
         '<rect x="9.5" y="9" width="4.5" height="4.5" rx="1"/>'
         '<path d="M4.25 7v2.25a1.5 1.5 0 0 0 1.5 1.5h3.75"/></svg>'
     ),
+    # A model grid seen through an eye: a perspective is a curated view of the
+    # semantic model's objects.
+    "perspective": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true">'
+        '<path d="M20.5 11V6a2 2 0 0 0-2-2H5.5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2H10"/>'
+        '<path d="M3.5 9h17"/>'
+        '<path d="M8.5 9v11"/>'
+        '<path d="M22 17.2s-1.9 3-4.6 3-4.6-3-4.6-3 1.9-3 4.6-3 4.6 3 4.6 3z"/>'
+        '<circle cx="17.4" cy="17.2" r="1.2"/></svg>'
+    ),
     "mini_model_manager": (
         '<svg width="40" height="40" viewBox="0 0 72 72" fill="none" '
         'xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
@@ -1291,6 +1303,225 @@ function createSearchSelect(config) {
 SEARCH_SELECT_JS = SEARCH_SELECT_JS.replace(
     "__SLLS_SS_CARET__", ICONS["chevron_down"]
 ).replace("__SLLS_SS_SEARCH__", ICONS["search"])
+
+
+# ---------------------------------------------------------------------------
+# Widget background work
+# ---------------------------------------------------------------------------
+def run_widget_task(target, args: Sequence = ()):
+    """Run a widget action on the kernel thread.
+
+    Fabric PySpark notebooks route widget messages through the running cell, so
+    trait updates emitted from a worker thread never reach the browser (the UI
+    keeps showing its progress bar even though the work finished), and the
+    first sempy/TOM call made there blocks on the Spark gateway. Widget work is
+    therefore never moved off the kernel thread. The kernel is busy while the
+    action runs, which is why long actions must report progress through traits
+    rather than relying on the user being able to interact meanwhile.
+
+    Parameters
+    ----------
+    target : typing.Callable
+        The function to run.
+    args : typing.Sequence, default=()
+        Positional arguments passed to ``target``.
+
+    Returns
+    -------
+    None
+        Always None; the action has already completed when this returns.
+    """
+
+    target(*args)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Workspace / semantic model picker data
+# ---------------------------------------------------------------------------
+# Every interactive tool opens on a workspace + semantic model picker, and each
+# used to build those lists itself via ``fabric.list_workspaces()``. That call
+# is unreliable in Fabric PySpark notebooks, and because each tool wrapped it in
+# a bare ``except`` the failure surfaced as a picker that never populated. The
+# Fabric REST endpoints are queried first (they only return item identities, so
+# they are also markedly faster than the equivalent semantic-link dataframes)
+# and semantic link is kept as a fallback.
+def _picker_items_from_api(request: str) -> List[Dict[str, str]]:
+    """Collect ``{"id", "name"}`` entries from a paginated Fabric list endpoint."""
+
+    from sempy_labs._helper_functions import _base_api
+
+    responses = _base_api(request=request, uses_pagination=True, client="fabric_sp")
+    return [
+        {"id": str(value.get("id")), "name": str(value.get("displayName") or "")}
+        for response in responses
+        for value in response.get("value", [])
+        if value.get("id")
+    ]
+
+
+def _picker_items_from_df(
+    df, id_names: Sequence[str], name_names: Sequence[str]
+) -> List[Dict[str, str]]:
+    """Collect ``{"id", "name"}`` entries from a semantic-link dataframe."""
+
+    if df is None or not hasattr(df, "columns"):
+        return []
+    columns = list(df.columns)
+    id_column = next((c for c in id_names if c in columns), None)
+    name_column = next((c for c in name_names if c in columns), None)
+    if id_column is None or name_column is None:
+        return []
+    return [
+        {"id": str(row[id_column]), "name": str(row[name_column])}
+        for _, row in df.iterrows()
+        if str(row[id_column])
+    ]
+
+
+def _picker_sorted(items: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    return sorted(items, key=lambda item: item["name"].lower())
+
+
+def _picker_fallback(
+    item_id: Optional[str], item_name: Optional[str]
+) -> List[Dict[str, str]]:
+    """The single current item, so a failed lookup still yields a usable picker."""
+
+    if not item_id:
+        return []
+    return [{"id": str(item_id), "name": str(item_name or item_id)}]
+
+
+def list_picker_workspaces(
+    fallback_id: Optional[str] = None,
+    fallback_name: Optional[str] = None,
+) -> List[Dict[str, str]]:
+    """
+    Returns the workspaces to offer in an interactive tool's workspace picker.
+
+    Queries the Fabric REST API first and falls back to semantic link. When
+    neither is available, ``fallback_id`` (usually the workspace the tool was
+    opened against) is returned on its own so the picker is never empty.
+
+    Parameters
+    ----------
+    fallback_id : str, default=None
+        Workspace ID to return when the workspaces cannot be listed.
+    fallback_name : str, default=None
+        Display name paired with ``fallback_id``.
+
+    Returns
+    -------
+    List[Dict[str, str]]
+        A list of ``{"id": ..., "name": ...}`` dicts sorted by name.
+    """
+
+    rows: List[Dict[str, str]] = []
+    try:
+        rows = _picker_items_from_api("/v1/workspaces")
+    except Exception:
+        rows = []
+    if not rows:
+        try:
+            import sempy.fabric as fabric
+
+            rows = _picker_items_from_df(
+                fabric.list_workspaces(), ["Id", "ID"], ["Name"]
+            )
+        except Exception:
+            rows = []
+    if not rows:
+        return _picker_fallback(fallback_id, fallback_name)
+    return _picker_sorted(rows)
+
+
+def list_picker_datasets(
+    workspace_id: Optional[str],
+    fallback_id: Optional[str] = None,
+    fallback_name: Optional[str] = None,
+) -> List[Dict[str, str]]:
+    """
+    Returns the semantic models to offer in an interactive tool's model picker.
+
+    Queries the Fabric REST API first and falls back to semantic link.
+
+    Parameters
+    ----------
+    workspace_id : str
+        The workspace whose semantic models are listed.
+    fallback_id : str, default=None
+        Semantic model ID to return when the models cannot be listed.
+    fallback_name : str, default=None
+        Display name paired with ``fallback_id``.
+
+    Returns
+    -------
+    List[Dict[str, str]]
+        A list of ``{"id": ..., "name": ...}`` dicts sorted by name.
+    """
+
+    if not workspace_id:
+        return []
+    rows: List[Dict[str, str]] = []
+    try:
+        rows = _picker_items_from_api(f"/v1/workspaces/{workspace_id}/semanticModels")
+    except Exception:
+        rows = []
+    if not rows:
+        try:
+            import sempy.fabric as fabric
+
+            rows = _picker_items_from_df(
+                fabric.list_datasets(workspace=workspace_id, mode="rest"),
+                ["Dataset Id", "Dataset ID", "Id"],
+                ["Dataset Name", "Name"],
+            )
+        except Exception:
+            rows = []
+    if not rows:
+        return _picker_fallback(fallback_id, fallback_name)
+    return _picker_sorted(rows)
+
+
+def list_picker_lakehouses(
+    workspace_id: Optional[str],
+) -> List[Dict[str, str]]:
+    """
+    Returns the lakehouses to offer in an interactive tool's lakehouse picker.
+
+    Queries the Fabric REST API first and falls back to semantic link.
+
+    Parameters
+    ----------
+    workspace_id : str
+        The workspace whose lakehouses are listed.
+
+    Returns
+    -------
+    List[Dict[str, str]]
+        A list of ``{"id": ..., "name": ...}`` dicts sorted by name.
+    """
+
+    if not workspace_id:
+        return []
+    rows: List[Dict[str, str]] = []
+    try:
+        rows = _picker_items_from_api(f"/v1/workspaces/{workspace_id}/lakehouses")
+    except Exception:
+        rows = []
+    if not rows:
+        try:
+            from sempy_labs._list_functions import list_lakehouses
+
+            rows = _picker_items_from_df(
+                list_lakehouses(workspace=workspace_id),
+                ["Lakehouse ID", "Lakehouse Id", "Id"],
+                ["Lakehouse Name", "Name"],
+            )
+        except Exception:
+            rows = []
+    return _picker_sorted(rows)
 
 
 # ---------------------------------------------------------------------------

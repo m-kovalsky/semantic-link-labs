@@ -755,7 +755,6 @@ def _render_find_unused_objects(
         ) from e
 
     from IPython.display import display
-    import sempy.fabric as fabric
 
     # Captured workspace-monitoring queries (fetched on "Count queries", scored
     # on "Analyze") so the two-step flow does not re-query the monitoring db.
@@ -770,41 +769,11 @@ def _render_find_unused_objects(
             ctx_cache["context"] = _build_usage_context(dataset_id, workspace_id)
         return ctx_cache["context"]
 
-    def _pick_columns(df, preferred_id, preferred_name):
-        cols = list(df.columns)
-        if not cols:
-            return None, None
-        id_col = next((c for c in preferred_id if c in cols), cols[0])
-        name_col = next((c for c in preferred_name if c in cols), cols[-1])
-        return id_col, name_col
-
     def _list_workspaces_payload():
-        try:
-            df = fabric.list_workspaces()
-        except Exception:
-            return [{"id": workspace_id, "name": str(workspace_name or "")}]
-        id_col, name_col = _pick_columns(df, ["Id"], ["Name"])
-        if id_col is None or name_col is None:
-            return [{"id": workspace_id, "name": str(workspace_name or "")}]
-        rows = [
-            {"id": str(r[id_col]), "name": str(r[name_col])} for _, r in df.iterrows()
-        ]
-        return sorted(rows, key=lambda x: x["name"].lower())
+        return _list_picker_workspaces(workspace_id, workspace_name)
 
     def _list_datasets_payload(target_workspace_id):
-        try:
-            df = fabric.list_datasets(workspace=target_workspace_id, mode="rest")
-        except Exception:
-            return []
-        id_col, name_col = _pick_columns(
-            df, ["Dataset Id", "Dataset ID", "Id"], ["Dataset Name", "Name"]
-        )
-        if id_col is None or name_col is None:
-            return []
-        rows = [
-            {"id": str(r[id_col]), "name": str(r[name_col])} for _, r in df.iterrows()
-        ]
-        return sorted(rows, key=lambda x: x["name"].lower())
+        return _list_picker_datasets(target_workspace_id)
 
     # Nothing is fetched before the widget is displayed: with no semantic model
     # the picker requests its workspace / model lists after the first render (via
@@ -1073,7 +1042,8 @@ _WIDGET_CSS = """
 .fuo-badge.fuo-badge-sm { width: 32px; height: 32px; border-radius: 9px; }
 .fuo-badge.fuo-badge-sm svg { width: 17px; height: 17px; }
 .fuo-cfg-titlewrap { display: flex; flex-direction: column; margin-right: auto; min-width: 0; }
-.fuo-title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; color: var(--ui-text); }
+.fuo-title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fuo-title { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; color: var(--ui-text); }
 .fuo-desc { font-size: 13px; line-height: 1.5; color: var(--ui-text-secondary); margin-top: 5px; }
 .fuo-desc b { color: var(--ui-text); font-weight: 600; }
 .fuo-section-label {
@@ -1192,7 +1162,7 @@ __SEARCH_SELECT_CSS__
     padding: 16px 18px; border-bottom: 1px solid var(--ui-border);
 }
 .fuo-res-titlewrap { display: flex; flex-direction: column; margin-right: auto; min-width: 0; }
-.fuo-res-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ui-text); }
+.fuo-res-title { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; color: var(--ui-text); }
 .fuo-res-sub { font-size: 12px; color: var(--ui-text-secondary); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fuo-res-sub b { color: var(--ui-text); font-weight: 600; }
 .fuo-res-sub .fuo-sep { color: var(--ui-text-tertiary); margin: 0 6px; }
@@ -1668,10 +1638,13 @@ function render({ model, el }) {
                 <div class="fuo-cfg-head">
                     <div class="fuo-badge">${IC.scan}</div>
                     <div class="fuo-cfg-titlewrap">
-                        <div class="fuo-title">Find unused objects</div>
+                        <div class="fuo-title-row">
+                            <div class="fuo-title">Find unused objects</div>
+                            ${swapBtnHtml()}
+                        </div>
                         <div class="fuo-desc">${desc}</div>
                     </div>
-                    <div class="fuo-hdr-ctrls">${swapBtnHtml()}${fsBtnHtml()}${themeBtnHtml()}</div>
+                    <div class="fuo-hdr-ctrls">${fsBtnHtml()}${themeBtnHtml()}</div>
                 </div>
                 <div class="fuo-section-label">Analyze by</div>
                 <div class="fuo-seg" data-r="method">
@@ -1770,17 +1743,20 @@ function render({ model, el }) {
                 <div class="fuo-res-head">
                     <div class="fuo-badge fuo-badge-sm">${IC.scan}</div>
                     <div class="fuo-res-titlewrap">
-                        <div class="fuo-res-title">Find unused objects</div>
+                        <div class="fuo-title-row">
+                            <div class="fuo-res-title">Find unused objects</div>
+                            ${swapBtnHtml()}
+                        </div>
                         <div class="fuo-res-sub" data-r="subtitle"></div>
                     </div>
-                    <div class="fuo-hdr-ctrls">${rerunBtnHtml()}${swapBtnHtml()}${fsBtnHtml()}${themeBtnHtml()}</div>
+                    <div class="fuo-hdr-ctrls">${rerunBtnHtml()}${fsBtnHtml()}${themeBtnHtml()}</div>
                 </div>
                 <div class="fuo-res-toolbar">
+                    <div class="fuo-toggle-wrap" data-r="toggle"></div>
                     <div class="fuo-tools">
                         <button class="fuo-icon-btn fuo-sm" data-r="expand" type="button" title="Expand all">${IC.expand}</button>
                         <button class="fuo-icon-btn fuo-sm" data-r="collapse" type="button" title="Collapse all">${IC.collapse}</button>
                     </div>
-                    <div class="fuo-toggle-wrap" data-r="toggle"></div>
                 </div>
                 <div class="fuo-search-wrap fuo-res-search">${IC.search}<input type="text" class="fuo-search" data-r="search" placeholder="Filter objects…" /></div>
                 <div class="fuo-tree" data-r="tree"></div>
@@ -1954,6 +1930,8 @@ from sempy_labs._ui_components import (  # noqa: E402
     ICONS as _UI_ICONS,
     LIGHT_THEME_VARS as _UI_LIGHT_VARS,
     DARK_THEME_VARS as _UI_DARK_VARS,
+    list_picker_datasets as _list_picker_datasets,
+    list_picker_workspaces as _list_picker_workspaces,
     scoped_button_press_css as _ui_scoped_button_press_css,
     scoped_header_css as _ui_scoped_header_css,
     SEARCH_SELECT_CSS as _UI_SEARCH_SELECT_CSS,

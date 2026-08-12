@@ -96,6 +96,45 @@ def test_perspective_editor_uses_table_kind_icons():
     assert '"kind": _perspective_table_kind(tom, table)' in source
 
 
+def test_perspective_editor_header_shows_a_tool_icon():
+    source = _source()
+
+    assert "perspective: `__SLLS_ICON_PERSPECTIVE__`," in source
+    assert '.replace("__SLLS_ICON_PERSPECTIVE__", _UI_ICONS["perspective"])' in source
+    assert 'titleIcon.className = "slls-pe-title-icon";' in source
+    assert "titleIcon.innerHTML = ICON_SVG.perspective;" in source
+    # Sits ahead of the title block in the header.
+    assert source.index("header.appendChild(titleIcon);") < source.index(
+        "header.appendChild(titleWrap);"
+    )
+    assert ".slls-pe-title-icon {" in source
+    assert ".slls-pe-title-icon svg { display: block; width: 27px; height: 27px; }" in (
+        source
+    )
+
+
+def test_expand_and_collapse_all_are_icon_buttons():
+    source = _source()
+
+    assert "expand: `__SLLS_ICON_EXPAND__`," in source
+    assert "collapse: `__SLLS_ICON_COLLAPSE__`," in source
+    # Reuses the shared chevron pair already used by the other tools.
+    assert '.replace("__SLLS_ICON_EXPAND__", _UI_ICONS["expand_rows"])' in source
+    assert '.replace("__SLLS_ICON_COLLAPSE__", _UI_ICONS["collapse_rows"])' in source
+    assert 'expandAllBtn.className = "slls-pe-btn slls-pe-btn-icon";' in source
+    assert "expandAllBtn.innerHTML = ICON_SVG.expand;" in source
+    assert 'collapseAllBtn.className = "slls-pe-btn slls-pe-btn-icon";' in source
+    assert "collapseAllBtn.innerHTML = ICON_SVG.collapse;" in source
+    # The label moves to a tooltip so the buttons stay accessible.
+    assert 'expandAllBtn.title = "Expand all";' in source
+    assert 'collapseAllBtn.title = "Collapse all";' in source
+    assert 'expandAllBtn.setAttribute("aria-label", expandAllBtn.title);' in source
+    assert 'collapseAllBtn.setAttribute("aria-label", collapseAllBtn.title);' in source
+    assert 'textContent = "Expand All"' not in source
+    assert 'textContent = "Collapse All"' not in source
+    assert ".slls-pe-btn-icon svg { display: block; }" in source
+
+
 def test_perspective_editor_sorts_tables_alphabetically():
     source = _source()
     tree = source[source.index("function renderTree()") : source.index("function deepClone")]
@@ -195,3 +234,56 @@ def test_perspective_editor_connect_replaces_state_and_writes_active_model():
     assert 'dataset=model_ctx["dataset_id"]' in observer
     assert 'workspace=model_ctx["workspace_id"]' in observer
     assert "current_metadata = dict(widget.metadata or {})" in source
+
+
+def test_perspective_editor_lists_measures_before_columns():
+    source = _source()
+    tree = source[
+        source.index("function renderTree()") : source.index("function deepClone")
+    ]
+
+    # Only the loop feeding the child rows drives display order; the other
+    # type loops are order-agnostic aggregations.
+    render_loop = tree[: tree.index("for (const n of (data[t] || []))")]
+    assert render_loop.rstrip().endswith(
+        'for (const t of ["measures", "columns", "hierarchies"]) {'
+    )
+    summary = tree[tree.index("summary.textContent =") :]
+    assert summary.index("measures") < summary.index("cols")
+
+
+def test_fullscreen_tree_grows_into_the_unused_vertical_space():
+    source = _source()
+    fullscreen = source[
+        source.index(".slls-pe.slls-pe-fs {") : source.index(".slls-pe-header {")
+    ]
+
+    assert "display: flex;" in fullscreen
+    assert "flex-direction: column;" in fullscreen
+    assert "flex: 1 1 auto;" in fullscreen
+    assert "max-height: none;" in fullscreen
+    # A fixed cap would leave dead space below the tree when full screen.
+    assert "calc(100vh - 320px)" not in fullscreen
+
+
+def test_connecting_shows_a_progress_bar_without_waiting_for_the_kernel():
+    source = _source()
+
+    assert ".slls-pe-picker-progress { display: none;" in source
+    assert ".slls-pe-picker-progress.show { display: flex; }" in source
+    assert ".slls-pe-picker-track::after {" in source
+    assert "@keyframes slls-pe-progress {" in source
+
+    # The flag is set on the click itself; waiting for picker_loading to come
+    # back from the kernel would delay the bar by a full comm round trip.
+    connect = source[
+        source.index("pickerScreen.querySelector('[data-picker=\"connect\"]')") :
+    ]
+    connect = connect[: connect.index("// ============== Renderers")]
+    assert "connecting = true;" in connect
+    assert connect.index("connecting = true;") < connect.index("sendPicker({")
+    assert "renderPicker();" in connect
+
+    assert 'class="slls-pe-picker-progress${connecting ? " show" : ""}"' in source
+    assert 'if (model.get("picker_loading") !== true) connecting = false;' in source
+    assert "connecting = false;\n        pickerOpen = false;" in source

@@ -180,7 +180,7 @@ def test_connect_does_not_reopen_picker_for_transient_active_model_state():
     error_assignment = activation.index(
         'widget.error_message = f"Failed to load semantic model: {exc}"'
     )
-    loading_finished = activation.index("widget.picker_loading = False", error_assignment)
+    loading_finished = activation.index("_picker_settled()", error_assignment)
     assert error_assignment < loading_finished
     assert activation.index("widget.active_dataset_id =") < activation.index(
         "widget.dataset_chosen = True"
@@ -208,7 +208,7 @@ def test_no_dataset_workspace_loading_uses_frontend_trigger_after_render():
     source = _source()
     initial_render_position = source.index("    renderBuilderZones();\n    renderBuildBtn();")
     frontend_trigger_position = source.index(
-        'model.set("load_workspaces_trigger",', initial_render_position
+        "requestWorkspaces();", initial_render_position
     )
     display_position = source.index("    display(widget)", frontend_trigger_position)
 
@@ -345,10 +345,29 @@ def test_model_tree_uses_specialized_table_kind_icons():
     assert 'return "calculated_table"' in metadata
     assert 'return "date_table"' in metadata
     assert '"kind": _model_tree_table_kind(tom, table)' in metadata
-    assert "calculation_group: CALC_GROUP_SVG" in renderer
-    assert "calculated_table: CALCULATED_TABLE_SVG" in renderer
-    assert "field_parameter: FIELD_PARAMETER_SVG" in renderer
-    assert "date_table: DATE_TABLE_SVG" in renderer
+    assert "calculation_group: [CALC_GROUP_SVG, \"Calculation group\"]" in source
+    assert "calculated_table: [CALCULATED_TABLE_SVG, \"Calculated table\"]" in source
+    assert "field_parameter: [FIELD_PARAMETER_SVG, \"Field parameter\"]" in source
+    assert "date_table: [DATE_TABLE_SVG, \"Date table\"]" in source
+    assert "treeIconHtml(tbl.kind)" in renderer
+    # Icons name their object kind on hover; labels show the description.
+    assert 'measure: [MEASURE_SVG, "Measure"]' in source
+    assert 'column: [COLUMN_SVG, "Column"]' in source
+    assert 'hierarchy: [HIERARCHY_SVG, "Hierarchy"]' in source
+    assert 'level: [LEVEL_SVG, "Hierarchy level"]' in source
+    assert 'calculation_item: [CALC_ITEM_SVG, "Calculation item"]' in source
+    assert 'table: [TABLE_SVG, "Table"]' in source
+    assert (
+        '<span class="dtx-tree-icon" title="${escapeHtml(label)}"' in source
+    )
+    assert "const tip = description ? description : name;" in source
+    assert "const tip = it.description ? it.description : it.name;" in source
+    assert "const ltip = lvl.description ? lvl.description : lvl.name;" in source
+    assert (
+        'title="${escapeHtml(tbl.description ? tbl.description : tbl.name)}"'
+        in renderer
+    )
+    assert '<span class="dtx-tree-icon">' not in source
     assert '_UI_ICONS["calculated_table"]' in source
     assert '_UI_ICONS["calculation_group"]' in source
     assert '_UI_ICONS["field_parameter"]' in source
@@ -786,6 +805,9 @@ def test_eraser_button_clears_the_active_model_cache():
     assert '_clear_cache_fn(\n                dataset=dataset_id,' in source
     assert source.count("verbose=False") == 4
     assert "renderRunBtn(); renderClearModelCacheBtn(); renderSubtitle();" in source
+    # A completed clear is confirmed with a transient toast.
+    assert "cacheClearPending = true;" in source
+    assert 'showToast("Model cache cleared");' in source
 
 
 def test_run_button_matches_adjacent_toolbar_button_size():
@@ -944,7 +966,8 @@ def test_vertipaq_output_sorts_numeric_columns_and_formats_numbers():
         )
     ]
 
-    assert "values.every(value => parseNumeric(value) !== null)" in renderer
+    assert "values.every(value => parseNumeric(value) !== null)" not in renderer
+    assert "if (parseNumeric(value) === null) return false;" in renderer
     assert "? compareNumeric(parseNumeric(a), parseNumeric(b))" in renderer
     assert 'localeCompare(String(b ?? ""), undefined, {' in renderer
     assert 'sortState.direction === "ascending" ? result : -result' in renderer
@@ -958,8 +981,8 @@ def test_vertipaq_output_sorts_numeric_columns_and_formats_numbers():
     assert 'scope="col"' in renderer
     assert 'role="button"' not in renderer
     assert 'aria-sort="${direction}"' in renderer
-    assert 'header.addEventListener("click"' in renderer
-    assert 'event.key === "Enter" || event.key === " "' in renderer
+    assert 'tableWrap.addEventListener("click", vertipaqSortFromEvent)' in renderer
+    assert 'event.key !== "Enter" && event.key !== " "' in renderer
     assert 'vertipaqSortBySection.set(section.name, { index, direction })' in renderer
     assert 'vertipaqSortBySection.clear();' in source
     assert ".dtx .dtx-vertipaq-table th[data-vertipaq-sort]" in source
@@ -981,7 +1004,8 @@ def test_embedded_vertipaq_layout_filters_and_freezes_identifier_columns():
         )
     ]
 
-    assert "main.appendChild(vpSeg);" in source
+    assert "main.appendChild(vpBar);" in source
+    assert "vpBar.appendChild(vpSeg);" in source
     assert "viewToolbar.insertBefore(vpSeg, seg);" not in source
     assert 'Tables: ["Table Name"]' in renderer
     assert 'Partitions: ["Table Name", "Partition Name"]' in renderer
@@ -1226,7 +1250,7 @@ def test_object_dependencies_use_raw_model_graph_with_isolated_state():
     assert 'str(model_ctx["workspace_id"]) == str(workspace_snapshot)' in worker
     assert "widget.object_dependency_trigger == request_id" in worker
     assert "or widget.object_dependencies_loading" not in worker
-    assert "args=(request_id,)" in worker
+    assert "(request_id,)" in worker
     assert "widget.object_dependency_edges = edges" in worker
     assert 'names="object_dependency_trigger"' in source
     activation = source[
@@ -1309,8 +1333,9 @@ def test_model_objects_open_bidirectional_dependency_tree_and_graph():
     assert 'kind: "hierarchy"' in model_tree
     assert 'kind: "calculationItem"' in model_tree
     calculation_item = model_tree[
-        model_tree.index("CALC_ITEM_SVG") : model_tree.index(
-            "renderFolderTree(parentEl", model_tree.index("CALC_ITEM_SVG")
+        model_tree.index('"calculation_item", it.name') : model_tree.index(
+            "renderFolderTree(parentEl",
+            model_tree.index('"calculation_item", it.name'),
         )
     ]
     assert "it.description, pad, null," in calculation_item
@@ -1492,7 +1517,7 @@ def test_workspace_monitoring_matches_tools_app_behavior():
         )
     ]
     assert request_observer.index("widget.workspace_monitoring_loading = True") < request_observer.index(
-        "threading.Thread("
+        "_run_widget_task("
     )
     assert 'workspace_monitoring_rows = traitlets.List([]).tag(sync=True)' in source
     assert 'workspace_monitoring_tokens = traitlets.List([]).tag(sync=True)' in source
@@ -1583,3 +1608,145 @@ def test_trace_history_dax_queries_use_query_pane_syntax_highlighting():
     assert ': escapeHtml(q);' in history_table
     assert '<pre>${queryHtml}</pre>' in history_table
     assert source.count('"dax_tokens": _monitoring_dax_spans(') == 3
+
+
+def test_vertipaq_bar_controls_and_delta_columns():
+    source = _source()
+    renderer = source[
+        source.index("const vertipaqSortBySection = new Map()") : source.index(
+            "function renderChart()"
+        )
+    ]
+    bar = source[
+        source.index("// ---------- Delta Analyzer ----------") : source.index(
+            "function buildVertipaqSeg()"
+        )
+    ]
+
+    # Icon-only button, described on hover, shown for any selected section.
+    assert 'vpDeltaBtn.className = "dtx-vp-icon-btn dtx-vp-delta-btn"' in bar
+    assert "dtx-vp-delta-text" not in source
+    assert "vpDeltaBtn.title = VP_DELTA_TITLE;" in bar
+    assert 'vpDeltaBtn.style.display = tables.length ? "" : "none";' in bar
+    assert 'section === "Tables" || section === "Columns"' not in bar
+
+    # Reload + full screen controls for the Vertipaq Analyzer.
+    assert "vpReloadBtn.innerHTML = REFRESH_SVG;" in bar
+    assert (
+        'model.set("vertipaq_trigger", (model.get("vertipaq_trigger") || 0) + 1);'
+        in bar
+    )
+    assert 'root.classList.toggle("dtx-vp-fs", on);' in bar
+    assert (
+        "vpFsBtn.innerHTML = vpFullscreen ? FULLSCREEN_EXIT_SVG : FULLSCREEN_SVG;"
+        in bar
+    )
+    assert "function clearVpFullscreenIfExited()" in bar
+    # The results tabs are irrelevant while the Vertipaq view is full screen.
+    assert ".dtx.dtx-vp-fs .dtx-main > *:not(.dtx-vp-bar):not(.dtx-table-wrap)" in source
+    assert ".dtx.dtx-vp-fs .dtx-main {{ overflow: hidden; }}" in source
+    assert ".dtx.dtx-vp-fs .dtx-table-wrap {{\n    flex: 1 1 auto;" in source
+
+    # Leaving the Vertipaq full screen keeps a tool-level full screen intact.
+    assert "vpOwnsFullscreen = !isFullscreen();" in bar
+    assert "if (vpOwnsFullscreen) exitFullscreen();" in bar
+
+    # Reload/full screen controls only show once results are on screen.
+    assert 'vpReloadBtn.style.display = hasResults ? "" : "none";' in bar
+    assert 'vpFsBtn.style.display = hasResults ? "" : "none";' in bar
+    # An empty section toggle would paint as a stray pill while loading.
+    assert 'vpSeg.style.display = sections.length ? "" : "none";' in source
+
+    # The section tabs carry the same icons as the standalone
+    # vertipaq_analyzer visualization.
+    assert '"Model Summary": DATABASE_SVG,' in source
+    assert '"Tables": TABLE_SVG,' in source
+    assert '"Partitions": PARTITION_SVG,' in source
+    assert '"Columns": COLUMN_SVG,' in source
+    assert '"Relationships": RELATIONSHIP_SVG,' in source
+    assert '"Hierarchies": HIERARCHY_SVG,' in source
+    assert 'const icon = VP_SECTION_ICONS[s.name] || "";' in source
+    assert '<span class="dtx-seg-icon">${icon}</span>' in source
+    assert "`<span>${escapeHtml(s.name)}</span>`" in source
+    assert ".dtx .dtx-vp-seg .dtx-seg-btn {{" in source
+    assert (
+        ".dtx .dtx-seg-icon svg {{ width: 14px; height: 14px; display: block; }}"
+        in source
+    )
+    assert '.replace("__DTX_PARTITION__", partition_icon)' in source
+    assert '.replace("__DTX_RELATIONSHIP__", relationship_icon)' in source
+    assert '_UI_ICONS["partition"]' in source
+    assert '_UI_ICONS["relationship"]' in source
+
+    # Search bar filters the rows of the selected section.
+    assert 'vpSearchInput.className = "dtx-vp-search"' in bar
+    assert 'vpSearchInput.style.display = hasResults ? "" : "none";' in bar
+    assert "vertipaqSearch = vpSearchInput.value.trim().toLowerCase();" in bar
+    assert ".dtx .dtx-vp-search {{" in source
+    assert "!vertipaqSearch || row.some(" in renderer
+    assert 'const empty = rows.length ? "No matching rows." : "No rows.";' in renderer
+
+    # The Delta Analyzer button uses the neutral icon-button styling.
+    assert ".dtx .dtx-vp-delta-btn {{\n    border-color: var(--ui-accent);" not in source
+
+    # Frozen columns stay opaque so scrolled columns cannot show through.
+    assert "background-image: linear-gradient(var(--ui-accent-soft), var(--ui-accent-soft));" in source
+
+    # Delta Analyzer columns are badged and sort like every other column.
+    assert "deltaCols: new Set(usedCols)," in renderer
+    assert "const isDelta = deltaCols.has(column);" in renderer
+    # A stat that was never collected (e.g. skipped cardinality) is empty for
+    # every row, so it is dropped rather than shown as an unsortable column.
+    assert "const usedCols = extraCols.filter(name =>" in renderer
+    assert "keys.some(key => !vertipaqIsBlank((store[key] || {})[name])));" in renderer
+    assert '<span class="dtx-vp-delta-colicon">${DELTA_STATS_SVG}</span>' in renderer
+    assert 'data-vertipaq-sort="${index}"' in renderer
+    head = renderer[
+        renderer.index("const head = cols.map(") : renderer.index("const displayValue")
+    ]
+    assert "${icon}${escapeHtml(String(column))}" in head
+    # Sorting is delegated, so it also works when the click lands on the badge
+    # icon of a Delta Analyzer header or after the resizers decorate the table.
+    assert 'tableWrap.addEventListener("click", vertipaqSortFromEvent);' in renderer
+    assert 'target.closest("th[data-vertipaq-sort]")' in renderer
+    assert 'if (target.closest(".dtx-column-resizer")) return;' in renderer
+    assert "vertipaqSortBySection.set(section.name, { index, direction });" in renderer
+    # Sorting a trailing (Delta Analyzer) column keeps it in view.
+    assert "tableWrap.scrollLeft = scrollLeft;" in renderer
+    assert "const keepScroll = vertipaqScrollSection === section.name;" in renderer
+    # Numbers may arrive pre-grouped, and one odd value must not abort the
+    # render (which would also strand the section tabs).
+    assert 'if (text.includes(",")' in renderer
+    assert "if (!left || !right) return (left ? 1 : 0) - (right ? 1 : 0);" in renderer
+    assert "const formatNumeric = parsed => {\n            if (!parsed) return \"\";" in renderer
+    # Long-running panes show an indeterminate progress bar.
+    assert 'loadingHtml("Running Vertipaq Analyzer\\u2026")' in source
+    assert 'loadingHtml("Computing query dependencies\\u2026")' in source
+    assert ".dtx .dtx-load-progress {{" in source
+    # The progress bar is driven by an optimistic flag so it appears on click
+    # rather than after the kernel reports back.
+    assert "if (dependenciesBusy()) {" in source
+    assert "if (vertipaqBusy()) {" in source
+    assert 'dependenciesPending || model.get("dependencies_loading") === true' in source
+    assert 'vertipaqPending || model.get("vertipaq_loading") === true' in source
+    assert "            dependenciesPending = true;" in source
+    assert "            vertipaqPending = true;" in source
+    # ...and is released once the kernel answers or reports a failure.
+    assert (
+        'model.on("change:dependencies_loading", () => {\n        dependenciesPending = false;'
+        in source
+    )
+    assert (
+        'model.on("change:vertipaq_loading", () => {\n        vertipaqPending = false;'
+        in source
+    )
+    assert 'if (String(model.get("error_message") || "").trim()) {' in source
+    # The tabs are rendered before the body so a body failure cannot strand
+    # the Vertipaq section toggle on the previous section.
+    render_table = source[
+        source.index("function renderTable() {") : source.index(
+            "// ---------- Attribution ----------"
+        )
+    ]
+    assert render_table.index("renderSeg();") < render_table.index("try {")
+    assert "} catch (error) {" in render_table

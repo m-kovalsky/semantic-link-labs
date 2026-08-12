@@ -92,9 +92,13 @@ _WIDGET_CSS = """
     border-radius: 0;
     box-shadow: none;
     overflow: auto;
+    display: flex;
+    flex-direction: column;
 }
 .slls-pe.slls-pe-fs .slls-pe-tree {
-    max-height: calc(100vh - 320px);
+    flex: 1 1 auto;
+    max-height: none;
+    min-height: 180px;
 }
 
 .slls-pe-header {
@@ -104,6 +108,19 @@ _WIDGET_CSS = """
     margin-bottom: 18px;
     flex-wrap: wrap;
 }
+.slls-pe-title-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+    border: 1px solid var(--slls-border);
+    border-radius: 10px;
+    background: var(--slls-surface-2);
+    color: var(--slls-accent);
+}
+.slls-pe-title-icon svg { display: block; width: 27px; height: 27px; }
 .slls-pe-title {
     font-size: 22px;
     font-weight: 600;
@@ -227,7 +244,9 @@ _WIDGET_CSS = """
     border-radius: 50%;
     font-size: 18px;
     line-height: 1;
+    flex: 0 0 auto;
 }
+.slls-pe-btn-icon svg { display: block; }
 
 .slls-pe.slls-pe-picker-open > :not(.slls-pe-header):not(.slls-pe-picker-screen):not(.slls-pe-attribution) { display: none !important; }
 .slls-pe-picker-screen { display: none; align-items: flex-start; justify-content: stretch; min-height: 430px; }
@@ -242,6 +261,37 @@ _WIDGET_CSS = """
 .slls-pe-picker-label { padding-left: 4px; color: var(--slls-text-tertiary); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .slls-pe-picker-field .slls-ss-btn { border-radius: 999px; padding: 7px 12px 7px 15px; background: var(--slls-surface); font-size: 13.5px; }
 .slls-pe-picker-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex: 0 0 auto; }
+.slls-pe-picker-progress { display: none; flex-direction: column; gap: 8px; margin-top: 16px; }
+.slls-pe-picker-progress.show { display: flex; }
+.slls-pe-picker-progress-label {
+    font-size: 12.5px;
+    color: var(--slls-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.slls-pe-picker-progress-label b { color: var(--slls-text); font-weight: 600; }
+.slls-pe-picker-track {
+    position: relative;
+    height: 3px;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--slls-accent-soft);
+}
+.slls-pe-picker-track::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: -35%;
+    width: 35%;
+    border-radius: inherit;
+    background: var(--slls-accent);
+    animation: slls-pe-progress 1s ease-in-out infinite;
+}
+@keyframes slls-pe-progress {
+    from { transform: translateX(0); }
+    to { transform: translateX(390%); }
+}
 @media (max-width: 640px) {
     .slls-pe-picker-fields { align-items: stretch; flex-direction: column; }
     .slls-pe-picker-actions { justify-content: flex-end; }
@@ -501,6 +551,9 @@ function render({ model, el }) {
         date_table: `__SLLS_ICON_DATE_TABLE__`,
         field_parameter: `__SLLS_ICON_FIELD_PARAMETER__`,
         swap: `__SLLS_ICON_SWAP__`,
+        perspective: `__SLLS_ICON_PERSPECTIVE__`,
+        expand: `__SLLS_ICON_EXPAND__`,
+        collapse: `__SLLS_ICON_COLLAPSE__`,
     };
     const CARET = `__SLLS_ICON_CARET__`;
 
@@ -514,6 +567,9 @@ function render({ model, el }) {
     let filterText = "";
     let expanded = {};
     let pickerOpen = model.get("dataset_chosen") !== true;
+    // Mirrors the kernel's connect state locally: the trait round trip only
+    // completes once the (potentially slow) connect has already finished.
+    let connecting = false;
     // Names of perspectives created in the UI that have not yet been
     // persisted to the model. While present, Save is force-enabled.
     const pendingNewPerspectives = new Set();
@@ -522,6 +578,11 @@ function render({ model, el }) {
     const header = document.createElement("div");
     header.className = "slls-pe-header";
     root.appendChild(header);
+
+    const titleIcon = document.createElement("span");
+    titleIcon.className = "slls-pe-title-icon";
+    titleIcon.innerHTML = ICON_SVG.perspective;
+    header.appendChild(titleIcon);
 
     const titleWrap = document.createElement("div");
     titleWrap.className = "slls-pe-titlewrap";
@@ -674,13 +735,19 @@ function render({ model, el }) {
     toolbar.appendChild(search);
 
     const expandAllBtn = document.createElement("button");
-    expandAllBtn.className = "slls-pe-btn";
-    expandAllBtn.textContent = "Expand All";
+    expandAllBtn.type = "button";
+    expandAllBtn.className = "slls-pe-btn slls-pe-btn-icon";
+    expandAllBtn.innerHTML = ICON_SVG.expand;
+    expandAllBtn.title = "Expand all";
+    expandAllBtn.setAttribute("aria-label", expandAllBtn.title);
     toolbar.appendChild(expandAllBtn);
 
     const collapseAllBtn = document.createElement("button");
-    collapseAllBtn.className = "slls-pe-btn";
-    collapseAllBtn.textContent = "Collapse All";
+    collapseAllBtn.type = "button";
+    collapseAllBtn.className = "slls-pe-btn slls-pe-btn-icon";
+    collapseAllBtn.innerHTML = ICON_SVG.collapse;
+    collapseAllBtn.title = "Collapse all";
+    collapseAllBtn.setAttribute("aria-label", collapseAllBtn.title);
     toolbar.appendChild(collapseAllBtn);
 
     const summaryEl = document.createElement("div");
@@ -865,6 +932,10 @@ function render({ model, el }) {
         const selectedDataset = model.get("selected_dataset_id") || "";
         const sameAsActive = selectedWorkspace === (model.get("active_workspace_id") || "")
             && selectedDataset === (model.get("active_dataset_id") || "");
+        const connectingName = (datasets.find((d) => d.id === selectedDataset) || {}).name;
+        const connectingLabel = connectingName
+            ? `<b>${escapeHtml(connectingName)}</b>`
+            : "the semantic model";
 
         pickerScreen.innerHTML = `
             <section class="slls-pe-picker-panel">
@@ -881,10 +952,15 @@ function render({ model, el }) {
                     <div class="slls-pe-picker-field"><span class="slls-pe-picker-label">Workspace</span><div data-picker="workspace"></div></div>
                     <div class="slls-pe-picker-field"><span class="slls-pe-picker-label">Semantic model</span><div data-picker="dataset"></div></div>
                     <div class="slls-pe-picker-actions">
-                        ${chosen ? '<button class="slls-pe-btn" type="button" data-picker="cancel">Cancel</button>' : ""}
+                        ${chosen ? `<button class="slls-pe-btn" type="button" data-picker="cancel" ${connecting ? "disabled" : ""}>Cancel</button>` : ""}
                         <button class="slls-pe-btn slls-pe-btn-primary" type="button" data-picker="connect"
                             ${loading || !selectedDataset || sameAsActive ? "disabled" : ""}>Connect</button>
                     </div>
+                </div>
+                <div class="slls-pe-picker-progress${connecting ? " show" : ""}" role="progressbar"
+                    aria-label="Connecting to the semantic model" aria-hidden="${connecting ? "false" : "true"}">
+                    <span class="slls-pe-picker-progress-label">Connecting to ${connectingLabel}\u2026</span>
+                    <div class="slls-pe-picker-track"></div>
                 </div>
             </section>`;
 
@@ -938,11 +1014,13 @@ function render({ model, el }) {
         });
         pickerScreen.querySelector('[data-picker="connect"]').addEventListener("click", () => {
             if (!selectedWorkspace || !selectedDataset) return;
+            connecting = true;
             sendPicker({
                 action: "connect",
                 workspace_id: selectedWorkspace,
                 dataset_id: selectedDataset,
             });
+            renderPicker();
         });
     }
 
@@ -1034,7 +1112,7 @@ function render({ model, el }) {
             childWrap.className = "slls-pe-children";
             block.appendChild(childWrap);
 
-            for (const t of ["columns", "measures", "hierarchies"]) {
+            for (const t of ["measures", "columns", "hierarchies"]) {
                 for (const n of (data[t] || [])) {
                     const lockedColumn = data.kind === "calculation_group" && t === "columns";
                     const objHidden = (data[`hidden_${t}`] || []).indexOf(n) >= 0
@@ -1100,7 +1178,7 @@ function render({ model, el }) {
                 check.dataset.state = st;
                 const c = tableCounts(tblName);
                 summary.textContent =
-                    ` ${c.columns[0]}/${c.columns[1]} cols · ${c.measures[0]}/${c.measures[1]} measures · ${c.hierarchies[0]}/${c.hierarchies[1]} hierarchies`;
+                    ` ${c.measures[0]}/${c.measures[1]} measures · ${c.columns[0]}/${c.columns[1]} cols · ${c.hierarchies[0]}/${c.hierarchies[1]} hierarchies`;
                 tblDirty.style.display = isTableDirty(tblName) ? "inline-block" : "none";
                 for (const cr of childWrap.querySelectorAll(".slls-pe-child")) {
                     const tt = cr.dataset.type;
@@ -1333,8 +1411,12 @@ function render({ model, el }) {
     model.on("change:available_datasets", renderPicker);
     model.on("change:selected_workspace_id", renderPicker);
     model.on("change:selected_dataset_id", renderPicker);
-    model.on("change:picker_loading", renderPicker);
+    model.on("change:picker_loading", () => {
+        if (model.get("picker_loading") !== true) connecting = false;
+        renderPicker();
+    });
     model.on("change:connect_done", () => {
+        connecting = false;
         pickerOpen = false;
         filterText = "";
         search.value = "";
@@ -1390,6 +1472,9 @@ _WIDGET_JS = (
     .replace("__SLLS_ICON_DATE_TABLE__", _UI_ICONS["date_table"])
     .replace("__SLLS_ICON_FIELD_PARAMETER__", _UI_ICONS["field_parameter"])
     .replace("__SLLS_ICON_SWAP__", _UI_ICONS["swap"])
+    .replace("__SLLS_ICON_PERSPECTIVE__", _UI_ICONS["perspective"])
+    .replace("__SLLS_ICON_EXPAND__", _UI_ICONS["expand_rows"])
+    .replace("__SLLS_ICON_COLLAPSE__", _UI_ICONS["collapse_rows"])
     .replace("__SLLS_ICON_REFRESH__", _UI_ICONS["refresh"])
     .replace("__SLLS_ICON_CARET__", _UI_ICONS["caret_right"])
     .replace("__SLLS_ICON_SUN__", _UI_ICONS["sun"])
@@ -1492,38 +1577,19 @@ def _collect_perspective_editor_state(
 
 
 def _list_perspective_workspaces() -> list:
-    import sempy.fabric as fabric
+    """Return workspace options for the interactive picker."""
 
-    try:
-        workspaces = fabric.list_workspaces()
-    except Exception:
-        return []
-    return sorted(
-        [
-            {"id": str(row["Id"]), "name": str(row["Name"])}
-            for _, row in workspaces.iterrows()
-        ],
-        key=lambda item: item["name"].lower(),
-    )
+    from sempy_labs._ui_components import list_picker_workspaces
+
+    return list_picker_workspaces()
 
 
 def _list_perspective_datasets(workspace_id: str) -> list:
-    import sempy.fabric as fabric
+    """Return semantic model options for a workspace."""
 
-    try:
-        datasets = fabric.list_datasets(workspace=workspace_id, mode="rest")
-    except Exception:
-        return []
-    return sorted(
-        [
-            {
-                "id": str(row["Dataset Id"]),
-                "name": str(row["Dataset Name"]),
-            }
-            for _, row in datasets.iterrows()
-        ],
-        key=lambda item: item["name"].lower(),
-    )
+    from sempy_labs._ui_components import list_picker_datasets
+
+    return list_picker_datasets(workspace_id)
 
 
 @log

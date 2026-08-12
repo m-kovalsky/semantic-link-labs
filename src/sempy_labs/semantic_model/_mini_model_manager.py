@@ -392,10 +392,22 @@ _WIDGET_CSS = """
     overflow-y: auto;
 }
 .slls-mmm-broken-list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     font-size: 12px;
     color: var(--slls-danger);
 }
+.slls-mmm-broken-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+}
+.slls-mmm-broken-icon svg { display: block; width: 14px; height: 14px; }
 
 /* ---------------- Toolbar / tree ---------------- */
 .slls-mmm-toolbar {
@@ -603,6 +615,16 @@ _WIDGET_CSS = """
     font-size: 12.5px;
 }
 .slls-mmm-updateprogress.show { display: flex; }
+.slls-mmm-pickerprogress {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    color: var(--slls-text-secondary);
+    font-size: 12.5px;
+}
+.slls-mmm-pickerprogress.show { display: flex; }
+.slls-mmm-pickerprogress b { color: var(--slls-text); font-weight: 600; }
 .slls-mmm-verifytrack {
     position: relative;
     flex: 1 1 auto;
@@ -757,7 +779,13 @@ _WIDGET_CSS = """
 
 _WIDGET_JS = r"""
 function render({ model, el }) {
-    const TYPES = ["columns", "measures", "hierarchies"];
+    const TYPES = ["measures", "columns", "hierarchies"];
+    const TYPE_LABEL = {
+        columns: "Column",
+        measures: "Measure",
+        hierarchies: "Hierarchy",
+        table: "Table",
+    };
 
     const ICON_SVG = {
         columns: `__SLLS_ICON_COLUMN__`,
@@ -798,6 +826,9 @@ function render({ model, el }) {
     let metadataOnly = false;
     let verifyingFilters = false;
     let updatingFromMaster = false;
+    // Mirrors the kernel's connect state locally: the busy trait only arrives
+    // after a comm round trip, by which time the connect has already run.
+    let connectingModel = false;
     let fsMode = false;
     let objectsFsMode = false;
     let pickWs = model.get("workspace_id") || "";
@@ -1075,6 +1106,10 @@ function render({ model, el }) {
         if (!pickWs) pickWs = model.get("workspace_id") || "";
         const workspaces = model.get("workspaces") || [];
         const datasets = (model.get("datasets") || {})[pickWs] || null;
+        const connectingName = ((datasets || []).find((d) => d.id === pickDs) || {}).name;
+        const connectingLabel = connectingName
+            ? `<b>${escapeHtml(connectingName)}</b>`
+            : "the semantic model";
 
         pickerPage.innerHTML =
             `<div class="slls-mmm-picker">` +
@@ -1087,10 +1122,15 @@ function render({ model, el }) {
                         `<div data-picker="dataset"></div></div>` +
                 `</div>` +
                 `<div class="slls-mmm-picker-actions">` +
-                    `<button class="slls-mmm-btn slls-mmm-btn-primary" data-picker="connect" ${(!pickDs || isBusy()) ? "disabled" : ""}>Connect</button>` +
+                    `<button class="slls-mmm-btn slls-mmm-btn-primary" data-picker="connect" ${(!pickDs || isBusy() || connectingModel) ? "disabled" : ""}>Connect</button>` +
                     (isConnected()
-                        ? `<button class="slls-mmm-btn" data-picker="cancel">Cancel</button>`
+                        ? `<button class="slls-mmm-btn" data-picker="cancel" ${connectingModel ? "disabled" : ""}>Cancel</button>`
                         : "") +
+                `</div>` +
+                `<div class="slls-mmm-pickerprogress${connectingModel ? " show" : ""}" role="progressbar"
+                    aria-label="Connecting to the semantic model" aria-hidden="${connectingModel ? "false" : "true"}">` +
+                    `<span>Connecting to ${connectingLabel}\u2026</span>` +
+                    `<div class="slls-mmm-verifytrack"></div>` +
                 `</div>` +
             `</div>`;
 
@@ -1144,6 +1184,7 @@ function render({ model, el }) {
             if (!pickWs || !pickDs) return;
             const workspace = workspaces.find((w) => w.id === pickWs) || {};
             const dataset = (datasets || []).find((d) => d.id === pickDs) || {};
+            connectingModel = true;
             send({
                 action: "connect",
                 workspace_id: pickWs,
@@ -1151,6 +1192,7 @@ function render({ model, el }) {
                 workspace_name: workspace.name || "",
                 dataset_name: dataset.name || "",
             });
+            renderPicker();
         };
     }
 
@@ -1268,8 +1310,12 @@ function render({ model, el }) {
         if (broken.length > 0) {
             const items = broken
                 .map((b) => {
+                    const kind = b.name ? (b.type || "") : "table";
+                    const icon = ICON_SVG[kind === "table" ? "table" : kind] || "";
                     const label = b.name ? `${b.table}[${b.name}]` : `${b.table} (whole table)`;
-                    return `<li>${escapeHtml(label)}</li>`;
+                    const kindLabel = TYPE_LABEL[kind] || "Object";
+                    return `<li><span class="slls-mmm-broken-icon" title="${kindLabel}" `
+                        + `aria-label="${kindLabel}">${icon}</span>${escapeHtml(label)}</li>`;
                 })
                 .join("");
             html +=
@@ -1835,7 +1881,7 @@ function render({ model, el }) {
                 check.dataset.state = tableState(tblName);
                 const c = tableCounts(tblName);
                 summary.textContent =
-                    ` ${c.columns[0]}/${c.columns[1]} cols · ${c.measures[0]}/${c.measures[1]} measures · ${c.hierarchies[0]}/${c.hierarchies[1]} hierarchies`;
+                    ` ${c.measures[0]}/${c.measures[1]} measures · ${c.columns[0]}/${c.columns[1]} cols · ${c.hierarchies[0]}/${c.hierarchies[1]} hierarchies`;
                 tblDirty.style.display = isTableDirty(tblName) ? "inline-block" : "none";
                 for (const cr of childWrap.querySelectorAll(".slls-mmm-child")) {
                     const tt = cr.dataset.type;
@@ -2070,14 +2116,17 @@ function render({ model, el }) {
         const s = model.get("status") || {};
         verifyingFilters = false;
         updatingFromMaster = false;
+        connectingModel = false;
         setBusy(false);
         setStatus(s.message || "", s.kind || "info");
         renderFooter();
+        renderPicker();
         renderVerifyBar();
     });
     model.on("change:busy", () => {
         if (!isBusy()) verifyingFilters = false;
         if (!isBusy()) updatingFromMaster = false;
+        if (!isBusy()) connectingModel = false;
         setBusy(isBusy());
         renderFooter();
         renderPicker();
@@ -2093,6 +2142,7 @@ function render({ model, el }) {
     model.on("change:datasets", renderPicker);
     model.on("change:connected", reloadFromModel);
     model.on("change:connect_done", () => {
+        connectingModel = false;
         pickerReopen = false;
         pickDs = "";
         reloadFromModel();
@@ -2116,6 +2166,10 @@ export default { render };
 # Inject SVG icons from the shared UI components module so they stay in
 # sync with the other widgets (e.g. ``perspective_editor``).
 from sempy_labs._ui_components import ICONS as _UI_ICONS  # noqa: E402
+from sempy_labs._ui_components import (  # noqa: E402
+    list_picker_datasets as _list_picker_datasets,
+    list_picker_workspaces as _list_picker_workspaces,
+)
 
 _WIDGET_JS = (
     _WIDGET_JS.replace("__SLLS_ICON_COLUMN__", _UI_ICONS["column"])
@@ -2229,7 +2283,6 @@ def mini_model_manager(
             "Install it with: pip install anywidget"
         ) from e
 
-    import sempy.fabric as fabric
     from IPython.display import display
     from sempy_labs._helper_functions import (
         _pure_python_notebook,
@@ -2251,49 +2304,11 @@ def mini_model_manager(
     else:
         dataset_name, dataset_id = "", ""
 
-    def _pick_columns(df, preferred_ids, preferred_names):
-        columns = list(df.columns)
-        if not columns:
-            return None, None
-        id_column = next((c for c in preferred_ids if c in columns), columns[0])
-        name_column = next((c for c in preferred_names if c in columns), columns[-1])
-        return id_column, name_column
-
     def _list_workspaces_payload():
-        try:
-            dfW = fabric.list_workspaces()
-        except Exception:
-            return [{"id": workspace_id, "name": workspace_name}]
-        id_column, name_column = _pick_columns(
-            dfW,
-            ["Id", "ID", "Workspace Id", "Workspace ID"],
-            ["Name", "Workspace Name"],
-        )
-        if id_column is None or name_column is None:
-            return [{"id": workspace_id, "name": workspace_name}]
-        rows = [
-            {"id": str(row[id_column]), "name": str(row[name_column])}
-            for _, row in dfW.iterrows()
-        ]
-        return sorted(rows, key=lambda item: item["name"].lower())
+        return _list_picker_workspaces(workspace_id, workspace_name)
 
     def _list_datasets_payload(target_workspace_id):
-        try:
-            dfD = fabric.list_datasets(workspace=target_workspace_id)
-        except Exception:
-            return []
-        id_column, name_column = _pick_columns(
-            dfD,
-            ["Dataset Id", "Dataset ID", "Id"],
-            ["Dataset Name", "Name"],
-        )
-        if id_column is None or name_column is None:
-            return []
-        rows = [
-            {"id": str(row[id_column]), "name": str(row[name_column])}
-            for _, row in dfD.iterrows()
-        ]
-        return sorted(rows, key=lambda item: item["name"].lower())
+        return _list_picker_datasets(target_workspace_id)
 
     def _read_model(target_dataset_id, target_workspace_id):
         with connect_semantic_model(
