@@ -1,7 +1,7 @@
 import re
 import yaml
 from uuid import UUID
-from typing import List, Optional, Union, IO, Any, Dict
+from typing import List, Optional, Any, Dict, Literal
 from sempy_labs.semantic_model._helper import convert_sql_to_dax
 from sempy_labs._helper_functions import (
     resolve_item_id,
@@ -9,7 +9,6 @@ from sempy_labs._helper_functions import (
 )
 from sempy_labs._snowflake import (
     list_snowflake_columns,
-    list_snowflake_tables,
 )
 
 
@@ -110,41 +109,29 @@ def _convert_snowflake_data_type(data_type: Optional[str]) -> str:
 
 
 def convert_from_snowflake(
-    yaml_file: Union[str, IO],
+    yaml_file: str,
     account: str,
     token: str,
-    name: Optional[str] = None,
-    sources: Optional[List[dict]] = None,
+    source_item: str | UUID,
+    source_type: Literal["Lakehouse", "Warehouse"] = "Lakehouse",
     workspace: Optional[str | UUID] = None,
-    resolve_sources: bool = True,
-) -> Dict[str, Any]:
+) -> dict:
     """
     Convert a Snowflake semantic view YAML definition into the model_map format.
 
     Parameters
     ----------
-    yaml_file : str | typing.IO
-        Either a YAML string or a file-like object containing a Snowflake
-        semantic view definition (see
+    yaml_file : str
+        A YAML string containing a Snowflake semantic view definition (see
         ``sempy_labs.semantic_model._snowflake_schema.yaml``).
-    name : str, default=None
-        The name to assign to the resulting model. If None, falls back to the
-        top-level ``name`` of the Snowflake semantic view.
-    sources : list[dict], default=None
-        A list of dictionaries (matching ``sempy_labs.semantic_model._model_map.source_map``)
-        used to resolve each table's ``source`` string (``database.schema.table``)
-        to a Fabric ``sourceItemId`` / ``sourceWorkspaceId``. Each entry must include
-        ``sourceName``, ``sourceItem``, ``sourceItemType``, and ``sourceWorkspace``.
+    source_item : str | uuid.UUID
+        The source item ID or name.
+    source_type : Literal["Lakehouse", "Warehouse"], default="Lakehouse"
+        The type of the source item.
     workspace : str | uuid.UUID, default=None
         The workspace name or ID.
         Defaults to None which resolves to the workspace of the attached lakehouse
         or if no lakehouse attached, resolves to the workspace of the notebook.
-    resolve_sources : bool, default=True
-        When True, validate that each table's source is present in
-        ``sources`` and resolve the workspace/item to Fabric IDs. When False,
-        skip validation and resolution and leave ``sourceItemId`` /
-        ``sourceWorkspaceId`` as empty strings.
-
     Returns
     -------
     dict
@@ -158,26 +145,10 @@ def convert_from_snowflake(
 
     data = data or {}
 
-    # Resolve the ``sources`` list into a lookup keyed by source name.
-    resolved_sources: Dict[str, Dict[str, str]] = {}
-    if resolve_sources:
-        for entry in sources or []:
-            source_name = entry.get("sourceName")
-            if not source_name:
-                continue
-            workspace = entry.get("sourceWorkspace") or None
-            item = entry.get("sourceItem") or None
-            item_type = entry.get("sourceItemType") or None
+    source_workspace_id = resolve_workspace_id(workspace)
+    source_item_id = resolve_item_id(item=source_item, type=source_type, workspace=source_workspace_id)
 
-            workspace_id = resolve_workspace_id(workspace)
-            item_id = resolve_item_id(item=item, type=item_type, workspace=workspace_id)
-
-            resolved_sources[source_name] = {
-                "sourceItemId": item_id,
-                "sourceWorkspaceId": workspace_id,
-            }
-
-    model_name = name or data.get("name", "") or ""
+    model_name = data.get("name", "") or ""
     model_description = data.get("description", "") or ""
 
     sf_tables = data.get("tables") or []
@@ -196,20 +167,6 @@ def convert_from_snowflake(
         tt = rel.get("right_table", "") or ""
         if ft and tt:
             rel_hints.append({"fromTable": ft, "toTable": tt})
-
-    # Validate that every table's source is present in the ``sources`` list.
-    if resolve_sources:
-        table_sources = [
-            _build_source_name(t.get("base_table"))
-            for t in sf_tables
-            if t.get("base_table")
-        ]
-        missing_sources = [s for s in table_sources if s and s not in resolved_sources]
-        if missing_sources:
-            raise ValueError(
-                "The following table 'source' values are not present in the "
-                f"'sources' parameter: {sorted(set(missing_sources))}"
-            )
 
     # Build column maps for use by ``convert_sql_to_dax``:
     #   * ``column_map`` (global): maps ``table.column`` and bare ``column``
@@ -447,12 +404,8 @@ def convert_from_snowflake(
                 "tableName": table_name,
                 "description": t.get("description", "") or "",
                 "sourceName": source_name,
-                "sourceItemId": resolved_sources.get(source_name, {}).get(
-                    "sourceItemId", ""
-                ),
-                "sourceWorkspaceId": resolved_sources.get(source_name, {}).get(
-                    "sourceWorkspaceId", ""
-                ),
+                "sourceItemId": source_item_id,
+                "sourceWorkspaceId": source_workspace_id,
                 "columns": columns,
                 "measures": measures,
             }

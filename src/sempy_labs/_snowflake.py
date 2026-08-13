@@ -28,7 +28,7 @@ def list_snowflake_tables(
     df = _create_dataframe(columns=columns)
 
     headers = _get_snowflake_headers(token)
-    url = f"{account}/api/v2/databases/{database}/schemas/{schema}/tables"
+    url = f"https://{account}/api/v2/databases/{database}/schemas/{schema}/tables"
     if table:
         url += f"/{table}"
     result = _base_api(request=url, headers=headers, client="snowflake").json()
@@ -79,7 +79,7 @@ def list_snowflake_columns(
 
     headers = _get_snowflake_headers(token)
     response = _base_api(
-        request=f"{account}/api/v2/databases/{database}/schemas/{schema}/tables/{table}",
+        request=f"https://{account}/api/v2/databases/{database}/schemas/{schema}/tables/{table}",
         headers=headers,
         client="snowflake",
     )
