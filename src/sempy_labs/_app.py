@@ -247,6 +247,27 @@ _TOOLS: tuple = (
             "Track down a difference which only appears in one environment.",
         ),
     },
+    {
+        "key": "lakehouse_manager",
+        "name": "Lakehouse Manager",
+        "description": "Browse a lakehouse and recover soft-deleted tables, folders or files.",
+        "tags": ("Lakehouse", "Direct Lake"),
+        "icon": "warehouse",
+        "module": "sempy_labs.lakehouse._lakehouse_manager",
+        "function": "lakehouse_manager",
+        "does": (
+            "Browse a lakehouse's tables, folders and files with their size, "
+            "file count and last modified time.",
+            "Flag OneLake shortcuts and soft-deleted objects.",
+            "Recover an object which was deleted within the last 7 days.",
+            "Run table maintenance - optimize, V-Order and vacuum - on a " "table.",
+        ),
+        "when": (
+            "Restore a table, folder or file someone deleted by accident.",
+            "Audit what a lakehouse actually contains, and how big it is.",
+            "Compact and V-Order a table feeding a Direct Lake model.",
+        ),
+    },
 )
 
 _TOOLS_BY_KEY = {tool["key"]: tool for tool in _TOOLS}

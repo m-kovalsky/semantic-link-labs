@@ -42,6 +42,7 @@ from ._schemas import (
     create_schema,
 )
 
+
 __all__ = [
     "get_lakehouse_columns",
     "get_lakehouse_tables",
