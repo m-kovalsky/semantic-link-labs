@@ -31,17 +31,20 @@ _TOOLS: tuple = (
         "function": "dax_perf_optimizer",
         "does": (
             "Run a DAX query and capture server timings - formula engine vs "
-            "storage engine, storage engine queries and cache hits.",
-            "Compare query variants side by side to see which one wins.",
+            "storage engine.",
+            "Scan report(s) and capture the DAX queries by cycling through each page.",
             "Assemble a query from columns, measures and filters with the "
             "Query Builder, without writing DAX.",
-            "Flag optimization opportunities from the query plan, the timings "
-            "and the model statistics.",
+            "Use natural language to generate a DAX query.",
+            "View top slowest queries via querying Workspace Monitoring.",
+            "Identify and address performance bottlenecks in your DAX queries.",
+            "Shows semantic model object lineage in a tree view or node graph.",
         ),
         "when": (
             "Find out why a visual or a query is slow.",
-            "Prove that a rewritten measure is actually faster.",
             "Check whether a model change removed a bottleneck.",
+            "Identify and improve the slowest queries in your reports.",
+            "Identify and improve the slowest queries to hit your semantic model (via Workspace Monitoring).",
         ),
     },
     {
