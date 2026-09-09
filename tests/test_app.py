@@ -41,6 +41,14 @@ def test_getting_started_opens_a_modal_summarizing_every_tool():
     assert 'event.key === "Escape"' in js
 
 
+def test_the_brand_flask_bubbles_on_hover():
+    assert "slls-app-brand-bubble" in _app._BRAND_BUBBLES_HTML
+    assert _app._BRAND_BUBBLES_HTML in _app._WIDGET_JS
+    assert ".slls-app-brand:hover .slls-app-brand-bubble {" in _app._WIDGET_CSS
+    assert "@keyframes slls-app-bubble {" in _app._WIDGET_CSS
+    assert "prefers-reduced-motion" in _app._WIDGET_CSS
+
+
 def test_categories_start_with_all_and_cover_every_tag():
     categories = _app._category_payload()
 

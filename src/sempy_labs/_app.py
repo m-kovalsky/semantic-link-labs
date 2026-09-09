@@ -178,7 +178,6 @@ _TOOLS: tuple = (
         "does": (
             "Converts an import or DirectQuery model into a Direct Lake model.",
             "Identifies and summarizes unsupported objects which will not be migrated.",
-
         ),
         "when": (
             "Convert an existing import or DirectQuery model into a Direct Lake model.",
@@ -482,6 +481,7 @@ _WIDGET_CSS = (
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    position: relative;
     width: 36px;
     height: 36px;
     flex: 0 0 auto;
@@ -492,6 +492,46 @@ _WIDGET_CSS = (
     color: var(--ui-accent);
 }
 .slls-app-brand svg { display: block; width: 20px; height: 20px; }
+/* Bubbles rise inside the flask while the mark is hovered. The overlay shares
+   the mark's 24-unit viewBox, so the circles are placed in flask coordinates. */
+.slls-app-brand-bubbles {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    overflow: visible;
+}
+.slls-app-brand-bubble {
+    fill: currentColor;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+}
+.slls-app-brand:hover .slls-app-brand-bubble {
+    animation: slls-app-bubble 1.6s ease-in-out infinite;
+}
+.slls-app-brand:hover .slls-app-brand-bubble:nth-child(2) {
+    animation-duration: 1.9s;
+    animation-delay: 0.35s;
+}
+.slls-app-brand:hover .slls-app-brand-bubble:nth-child(3) {
+    animation-duration: 1.4s;
+    animation-delay: 0.7s;
+}
+.slls-app-brand:hover .slls-app-brand-bubble:nth-child(4) {
+    animation-duration: 2.1s;
+    animation-delay: 1s;
+}
+@keyframes slls-app-bubble {
+    0% { opacity: 0; transform: translateY(0) scale(0.35); }
+    25% { opacity: 0.95; }
+    70% { opacity: 0.7; }
+    100% { opacity: 0; transform: translateY(-6.5px) scale(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .slls-app-brand:hover .slls-app-brand-bubble { animation: none; }
+}
 .slls-app-brand-name {
     font-size: 16px;
     font-weight: 600;
@@ -919,7 +959,7 @@ function render({ model, el }) {
 
     const brand = document.createElement("span");
     brand.className = "slls-app-brand";
-    brand.innerHTML = `__SLLS_ICON_BRAND__`;
+    brand.innerHTML = `__SLLS_ICON_BRAND____SLLS_BRAND_BUBBLES__`;
     left.appendChild(brand);
 
     const brandName = document.createElement("span");
@@ -1490,6 +1530,20 @@ _LINKS_HTML = (
     "</ul>"
 )
 
+# Overlay on the brand mark: circles placed in the flask's own coordinates
+# (24-unit viewBox), which bubble out of the mouth while the mark is hovered.
+# The overlay does not clip, so above the rim a bubble is free of the neck's
+# 3.2-unit width and can grow enough to read at a 20px mark.
+_BRAND_BUBBLES_HTML = (
+    '<svg class="slls-app-brand-bubbles" viewBox="0 0 24 24" width="20" '
+    'height="20" aria-hidden="true">'
+    '<circle class="slls-app-brand-bubble" cx="12" cy="3.4" r="1.3"/>'
+    '<circle class="slls-app-brand-bubble" cx="10.6" cy="4.2" r="0.95"/>'
+    '<circle class="slls-app-brand-bubble" cx="13.4" cy="4" r="0.8"/>'
+    '<circle class="slls-app-brand-bubble" cx="11.3" cy="2.5" r="0.65"/>'
+    "</svg>"
+)
+
 _WIDGET_CSS += _ui_scoped_attribution_css(".slls-app")
 _WIDGET_CSS += _ui_scoped_button_press_css(".slls-app")
 _WIDGET_CSS += "\n" + _ui_fullscreen_css(
@@ -1520,6 +1574,7 @@ _WIDGET_JS = (
     .replace("__SLLS_ICON_FULLSCREEN__", _UI_ICONS["fullscreen"])
     .replace("__SLLS_ICON_FULLSCREEN_EXIT__", _UI_ICONS["fullscreen_exit"])
     .replace("__SLLS_ICON_BRAND__", _UI_ICONS["semantic_link_labs"])
+    .replace("__SLLS_BRAND_BUBBLES__", _BRAND_BUBBLES_HTML)
     .replace("__SLLS_ICON_BOOK__", _UI_ICONS["book"])
     .replace("__SLLS_ICON_CLOSE__", _UI_ICONS["close"])
     .replace("__SLLS_ICON_ARROW_LEFT__", _UI_ICONS["arrow_left"])
