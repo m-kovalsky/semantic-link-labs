@@ -20,6 +20,27 @@ def test_tool_payload_carries_an_svg_icon_per_tool():
         assert tool["name"] and tool["description"] and tool["tags"]
 
 
+def test_every_tool_explains_itself_in_the_getting_started_guide():
+    for tool in _app._tool_payload():
+        assert tool["does"], tool["key"]
+        assert tool["when"], tool["key"]
+
+
+def test_getting_started_opens_a_modal_summarizing_every_tool():
+    js = _app._WIDGET_JS
+
+    assert 'modal.className = "slls-app-modal";' in js
+    assert 'modal.setAttribute("aria-modal", "true");' in js
+    assert "function renderGuide()" in js
+    assert '["What it does", tool.does]' in js
+    assert '["When to use it", tool.when]' in js
+    # Opened from the header button, closed by the X, the backdrop or Escape.
+    assert 'linksBtn.addEventListener("click", () =>' in js
+    assert 'closeGuideBtn.addEventListener("click", () => setGuideOpen(false));' in js
+    assert "if (event.target === modal) setGuideOpen(false);" in js
+    assert 'event.key === "Escape"' in js
+
+
 def test_categories_start_with_all_and_cover_every_tag():
     categories = _app._category_payload()
 

@@ -19,6 +19,7 @@ from sempy_labs._ui_components import (
 
 # Every tool the launcher can open. ``module`` / ``function`` are imported
 # lazily so opening the launcher does not import every tool in the library.
+# ``does`` / ``when`` feed the "Getting started" guide.
 _TOOLS: tuple = (
     {
         "key": "dax_perf_optimizer",
@@ -28,6 +29,20 @@ _TOOLS: tuple = (
         "icon": "dax_performance",
         "module": "sempy_labs.semantic_model._dax_perf",
         "function": "dax_perf_optimizer",
+        "does": (
+            "Run a DAX query and capture server timings - formula engine vs "
+            "storage engine, storage engine queries and cache hits.",
+            "Compare query variants side by side to see which one wins.",
+            "Assemble a query from columns, measures and filters with the "
+            "Query Builder, without writing DAX.",
+            "Flag optimization opportunities from the query plan, the timings "
+            "and the model statistics.",
+        ),
+        "when": (
+            "Find out why a visual or a query is slow.",
+            "Prove that a rewritten measure is actually faster.",
+            "Check whether a model change removed a bottleneck.",
+        ),
     },
     {
         "key": "bpa",
@@ -37,6 +52,17 @@ _TOOLS: tuple = (
         "icon": "shield_check",
         "module": "sempy_labs.semantic_model._bpa",
         "function": "bpa",
+        "does": (
+            "Run the Best Practice Analyzer rules against a semantic model.",
+            "Group the violations by category, severity and object so the "
+            "important ones surface first.",
+            "Edit, disable or add rules, and re-run with your own rule set.",
+        ),
+        "when": (
+            "Review a model before handing it over to report authors.",
+            "Audit a model against your organization's modeling standards.",
+            "Catch DAX, formatting and performance anti-patterns early.",
+        ),
     },
     {
         "key": "vertipaq_analyzer",
@@ -46,6 +72,18 @@ _TOOLS: tuple = (
         "icon": "vertipaq",
         "module": "sempy_labs.semantic_model._vertipaq_analyzer",
         "function": "vertipaq_analyzer",
+        "does": (
+            "Break the model size down by table, column, hierarchy and "
+            "relationship.",
+            "Show cardinality, encoding, compression and dictionary size for "
+            "every column.",
+            "Export the results, including as a .vpax file.",
+        ),
+        "when": (
+            "Find the columns which are driving the model's size.",
+            "Decide what to trim before a refresh or a Direct Lake migration.",
+            "Compare the memory footprint before and after a model change.",
+        ),
     },
     {
         "key": "refresh_manager",
@@ -55,15 +93,36 @@ _TOOLS: tuple = (
         "icon": "sync",
         "module": "sempy_labs.semantic_model._refresh_manager",
         "function": "refresh_manager",
+        "does": (
+            "Refresh a whole model, selected tables, or individual " "partitions.",
+            "Pick the refresh type (full, automatic, calculate, data only and "
+            "more).",
+            "Follow the refresh live and review per-object results and " "errors.",
+        ),
+        "when": (
+            "Reprocess one large table without refreshing the whole model.",
+            "Debug a refresh which failed on a single partition.",
+            "Recalculate the model after editing measures or relationships.",
+        ),
     },
     {
         "key": "lineage_view",
         "name": "Lineage View",
-        "description": "Explore how tables, columns and measures depend on each other.",
+        "description": "Explore which reports depend on a semantic model and determine if they have broken components.",
         "tags": ("Semantic Model",),
         "icon": "workflow",
         "module": "sempy_labs.semantic_model._lineage_view",
         "function": "lineage_view",
+        "does": (
+            "Shows a diagram of the reports which depend on the semantic model.",
+            "Analyzes reports and Excel files for broken semantic model references.",
+            "Fix broken references in reports and Excel files.",
+            "Rebind report(s) to a new semantic model.",
+        ),
+        "when": (
+            "Determine which reports or Excel files have broken semantic model references.",
+            "Connect report(s) to a different semantic model.",
+        ),
     },
     {
         "key": "find_unused_objects",
@@ -73,6 +132,19 @@ _TOOLS: tuple = (
         "icon": "scan_search",
         "module": "sempy_labs.semantic_model._find_unused_objects",
         "function": "find_unused_objects",
+        "does": (
+            "Scan the reports built on a model or Workspace Monitoring and match them against the "
+            "model's objects.",
+            "List the tables, columns, measures and hierarchies which no "
+            "report uses.",
+            "Account for indirect usage through measures, relationships, "
+            "hierarchies and row-level security.",
+        ),
+        "when": (
+            "Shrink a model by removing objects nobody consumes.",
+            "Cut refresh time and memory on a bloated model.",
+            "Clean up before a Direct Lake migration.",
+        ),
     },
     {
         "key": "delta_analyzer",
@@ -82,6 +154,18 @@ _TOOLS: tuple = (
         "icon": "delta_stats",
         "module": "sempy_labs._delta_analyzer",
         "function": "delta_analyzer",
+        "does": (
+            "Inspect the parquet files, row groups and column statistics "
+            "behind a delta table.",
+            "Summarize file counts, row group sizes, V-Order status and "
+            "table history.",
+            "Show which columns cost the most space on disk.",
+        ),
+        "when": (
+            "Diagnose slow Direct Lake queries caused by too many small " "files.",
+            "Decide whether a table needs OPTIMIZE or VACUUM.",
+            "Check the effect of a write pattern on file layout.",
+        ),
     },
     {
         "key": "migrate_to_direct_lake",
@@ -91,6 +175,16 @@ _TOOLS: tuple = (
         "icon": "database_zap",
         "module": "sempy_labs.semantic_model._direct_lake_migration",
         "function": "migrate_to_direct_lake",
+        "does": (
+            "Converts an import or DirectQuery model into a Direct Lake model.",
+            "Identifies and summarizes unsupported objects which will not be migrated.",
+
+        ),
+        "when": (
+            "Convert an existing import or DirectQuery model into a Direct Lake model.",
+            "Prototype a Direct Lake version of a model without rebuilding "
+            "it by hand.",
+        ),
     },
     {
         "key": "mini_model_manager",
@@ -100,6 +194,17 @@ _TOOLS: tuple = (
         "icon": "mini_model",
         "module": "sempy_labs.semantic_model._mini_model_manager",
         "function": "mini_model_manager",
+        "does": (
+            "Clones a semantic model into a smaller semantic model.",
+            "Keeps the cloned model consistent by pulling in the relationships and "
+            "dependencies it needs.",
+            "Cloned model is reduced by removing unneeded tables, columns, and measures.",
+            "Cloned models in Direct Lake can also be shrunk using filters.",
+        ),
+        "when": (
+            "Give a team a focused slice of a large enterprise model.",
+            "Produce a lightweight copy of a model for testing or a demo.",
+        ),
     },
     {
         "key": "perspective_editor",
@@ -109,6 +214,16 @@ _TOOLS: tuple = (
         "icon": "perspective",
         "module": "sempy_labs.semantic_model._perspective_editor",
         "function": "perspective_editor",
+        "does": (
+            "Create, rename and delete perspectives.",
+            "Choose the tables, columns, measures and hierarchies each "
+            "perspective exposes.",
+            "Write the changes back to the semantic model.",
+        ),
+        "when": (
+            "Tailor the field list a given audience sees.",
+            "Fix perspectives which drifted as the model changed.",
+        ),
     },
     {
         "key": "model_comparison",
@@ -118,6 +233,16 @@ _TOOLS: tuple = (
         "icon": "git_compare",
         "module": "sempy_labs.semantic_model._model_comparison",
         "function": "model_comparison",
+        "does": (
+            "Diff two semantic models object by object.",
+            "Show what was added, removed or changed, down to the property " "level.",
+            "Compare DAX expressions and partition sources side by side.",
+        ),
+        "when": (
+            "Review what actually changed between development and " "production.",
+            "Confirm a deployment pipeline moved what you expected.",
+            "Track down a difference which only appears in one environment.",
+        ),
     },
 )
 
@@ -137,6 +262,8 @@ def _tool_payload() -> List[dict]:
             "description": tool["description"],
             "tags": list(tool["tags"]),
             "icon": _UI_ICONS[tool["icon"]],
+            "does": list(tool["does"]),
+            "when": list(tool["when"]),
         }
         for tool in _TOOLS
     ]
@@ -450,19 +577,149 @@ _WIDGET_CSS = (
 }
 
 /* ---------------- Getting started ---------------- */
-.slls-app-links {
+/* A modal over the launcher: an intro plus one section per tool. */
+.slls-app-modal {
     display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.5);
+}
+.slls-app-modal.show { display: flex; }
+.slls-app-dialog {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 900px;
+    max-height: 85vh;
+    border: 1px solid var(--ui-border);
+    border-radius: 12px;
+    background: var(--ui-bg);
+    box-shadow: var(--ui-shadow-lg);
+    overflow: hidden;
+}
+.slls-app-dialog-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 0 0 auto;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--ui-border);
+}
+.slls-app-dialog-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    border-radius: 8px;
+    background: var(--ui-accent-soft);
+    color: var(--ui-accent);
+}
+.slls-app-dialog-icon svg { display: block; width: 22px; height: 22px; }
+.slls-app-dialog-heading { flex: 1 1 auto; min-width: 0; }
+.slls-app-dialog-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--ui-text);
+}
+.slls-app-dialog-sub {
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--ui-text-secondary);
+}
+.slls-app-dialog-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+    background: var(--ui-surface);
+    color: var(--ui-text-secondary);
+    font: inherit;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+}
+.slls-app-dialog-close svg { display: block; width: 18px; height: 18px; }
+.slls-app-dialog-close:hover { background: var(--ui-bg-hover); color: var(--ui-text); }
+.slls-app-dialog-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+}
+.slls-app-guide { display: flex; flex-direction: column; gap: 16px; }
+.slls-app-guide-card {
+    padding: 16px;
+    border: 1px solid var(--ui-border);
+    border-radius: 12px;
+    background: var(--ui-surface);
+}
+.slls-app-guide-head { display: flex; align-items: flex-start; gap: 12px; }
+.slls-app-guide-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+    border-radius: 8px;
+    background: var(--ui-accent-soft);
+    color: var(--ui-accent);
+}
+.slls-app-guide-icon svg { display: block; width: 20px; height: 20px; }
+.slls-app-guide-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.slls-app-guide-name { font-size: 16px; font-weight: 600; color: var(--ui-text); }
+.slls-app-guide-desc {
+    margin-top: 2px;
+    font-size: 12px;
+    line-height: 20px;
+    color: var(--ui-text-secondary);
+}
+.slls-app-guide-cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+}
+.slls-app-guide-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ui-text-tertiary);
+}
+.slls-app-guide-list {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    line-height: 20px;
+    color: var(--ui-text);
+}
+.slls-app-guide-list li { margin-bottom: 4px; }
+.slls-app-links {
     margin-bottom: 20px;
     padding: 16px;
     border: 1px solid var(--ui-border);
     border-radius: 12px;
     background: var(--ui-surface);
-    box-shadow: var(--ui-shadow-sm);
     font-size: 12px;
     line-height: 20px;
     color: var(--ui-text-secondary);
 }
-.slls-app-links.show { display: block; }
 .slls-app-links ul { margin: 8px 0 0; padding-left: 18px; }
 .slls-app-links a { color: var(--ui-accent); text-decoration: none; }
 .slls-app-links a:hover { text-decoration: underline; }
@@ -585,6 +842,7 @@ _WIDGET_CSS = (
 /* A tool is open: the launcher gets out of the way entirely — Back is moved
    into the tool's own header, next to its title. */
 .slls-app.slls-app-tool-open .slls-app-main,
+.slls-app.slls-app-tool-open .slls-app-modal,
 .slls-app.slls-app-tool-open .slls-app-topbar { display: none; }
 /* Fallback bar for a tool with no header to host the Back button. */
 .slls-app.slls-app-tool-open.slls-app-back-parked .slls-app-topbar {
@@ -762,8 +1020,113 @@ function render({ model, el }) {
     const links = document.createElement("div");
     links.className = "slls-app-links";
     links.innerHTML = `__SLLS_LINKS__`;
-    main.appendChild(links);
-    linksBtn.addEventListener("click", () => links.classList.toggle("show"));
+
+    // ---------------- Getting started ----------------
+    const modal = document.createElement("div");
+    modal.className = "slls-app-modal";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-label", "Getting started");
+    modal.innerHTML = `
+        <div class="slls-app-dialog">
+            <div class="slls-app-dialog-head">
+                <span class="slls-app-dialog-icon">__SLLS_ICON_BOOK__</span>
+                <div class="slls-app-dialog-heading">
+                    <div class="slls-app-dialog-title">Getting started</div>
+                    <div class="slls-app-dialog-sub">What each tool does and when to use it</div>
+                </div>
+                <button type="button" class="slls-app-dialog-close" title="Close"
+                    aria-label="Close">__SLLS_ICON_CLOSE__</button>
+            </div>
+            <div class="slls-app-dialog-body"><div class="slls-app-guide"></div></div>
+        </div>`;
+    root.appendChild(modal);
+
+    const dialogBody = modal.querySelector(".slls-app-dialog-body");
+    dialogBody.insertBefore(links, dialogBody.firstChild);
+    const guide = modal.querySelector(".slls-app-guide");
+    const closeGuideBtn = modal.querySelector(".slls-app-dialog-close");
+
+    function renderGuide() {
+        guide.innerHTML = "";
+        for (const tool of model.get("tools") || []) {
+            const card = document.createElement("div");
+            card.className = "slls-app-guide-card";
+
+            const head = document.createElement("div");
+            head.className = "slls-app-guide-head";
+            const icon = document.createElement("span");
+            icon.className = "slls-app-guide-icon";
+            icon.innerHTML = tool.icon || "";
+            head.appendChild(icon);
+
+            const text = document.createElement("div");
+            const title = document.createElement("div");
+            title.className = "slls-app-guide-title";
+            const name = document.createElement("span");
+            name.className = "slls-app-guide-name";
+            name.textContent = tool.name;
+            title.appendChild(name);
+            for (const tag of tool.tags || []) {
+                const pill = document.createElement("span");
+                pill.className = "slls-app-tag";
+                pill.textContent = tag;
+                title.appendChild(pill);
+            }
+            text.appendChild(title);
+            const desc = document.createElement("div");
+            desc.className = "slls-app-guide-desc";
+            desc.textContent = tool.description || "";
+            text.appendChild(desc);
+            head.appendChild(text);
+            card.appendChild(head);
+
+            const cols = document.createElement("div");
+            cols.className = "slls-app-guide-cols";
+            const sections = [
+                ["What it does", tool.does],
+                ["When to use it", tool.when],
+            ];
+            for (const [label, items] of sections) {
+                if (!(items || []).length) continue;
+                const col = document.createElement("div");
+                const heading = document.createElement("div");
+                heading.className = "slls-app-guide-label";
+                heading.textContent = label;
+                col.appendChild(heading);
+                const list = document.createElement("ul");
+                list.className = "slls-app-guide-list";
+                for (const item of items) {
+                    const li = document.createElement("li");
+                    li.textContent = item;
+                    list.appendChild(li);
+                }
+                col.appendChild(list);
+                cols.appendChild(col);
+            }
+            card.appendChild(cols);
+            guide.appendChild(card);
+        }
+    }
+
+    function setGuideOpen(open) {
+        modal.classList.toggle("show", open);
+        if (open) {
+            dialogBody.scrollTop = 0;
+            closeGuideBtn.focus();
+        }
+    }
+    linksBtn.addEventListener("click", () =>
+        setGuideOpen(!modal.classList.contains("show")));
+    closeGuideBtn.addEventListener("click", () => setGuideOpen(false));
+    modal.addEventListener("click", (event) => {
+        if (event.target === modal) setGuideOpen(false);
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && modal.classList.contains("show")) {
+            setGuideOpen(false);
+        }
+    });
 
     // ---------------- Item-type filter ----------------
     const filters = document.createElement("div");
@@ -1009,7 +1372,7 @@ function render({ model, el }) {
     }
 
     function renderView() {
-        links.classList.remove("show");
+        setGuideOpen(false);
         applyView();
         placeBack();
     }
@@ -1101,11 +1464,13 @@ function render({ model, el }) {
         shell().scrollTop = 0;
     });
     model.on("change:tools", renderGrid);
+    model.on("change:tools", renderGuide);
     model.on("change:categories", () => { renderFilters(); renderGrid(); });
 
     renderView();
     renderFilters();
     renderGrid();
+    renderGuide();
     renderBanner();
 }
 export default { render };
@@ -1156,6 +1521,7 @@ _WIDGET_JS = (
     .replace("__SLLS_ICON_FULLSCREEN_EXIT__", _UI_ICONS["fullscreen_exit"])
     .replace("__SLLS_ICON_BRAND__", _UI_ICONS["semantic_link_labs"])
     .replace("__SLLS_ICON_BOOK__", _UI_ICONS["book"])
+    .replace("__SLLS_ICON_CLOSE__", _UI_ICONS["close"])
     .replace("__SLLS_ICON_ARROW_LEFT__", _UI_ICONS["arrow_left"])
     .replace("__SLLS_ATTRIBUTION__", _ui_render_attribution_html())
     .replace("__SLLS_LINKS__", _LINKS_HTML)
