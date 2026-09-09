@@ -49,6 +49,30 @@ def test_the_brand_flask_bubbles_on_hover():
     assert "prefers-reduced-motion" in _app._WIDGET_CSS
 
 
+def test_spark_only_tools_are_disabled_in_a_pure_python_notebook(monkeypatch):
+    from sempy_labs import _helper_functions
+
+    monkeypatch.setattr(_helper_functions, "_pure_python_notebook", lambda: True)
+    by_key = {tool["key"]: tool for tool in _app._tool_payload()}
+
+    assert by_key["delta_analyzer"]["unavailable"] == _app._SPARK_REQUIRED_NOTE
+    assert not by_key["bpa"]["unavailable"]
+
+    monkeypatch.setattr(_helper_functions, "_pure_python_notebook", lambda: False)
+    by_key = {tool["key"]: tool for tool in _app._tool_payload()}
+
+    assert not by_key["delta_analyzer"]["unavailable"]
+
+
+def test_an_unavailable_tool_cannot_be_opened():
+    js = _app._WIDGET_JS
+
+    assert "card.disabled = !!tool.unavailable;" in js
+    assert "if (tool.unavailable) return;" in js
+    assert 'note.className = "slls-app-card-note";' in js
+    assert ".slls-app-card.is-disabled {" in _app._WIDGET_CSS
+
+
 def test_categories_start_with_all_and_cover_every_tag():
     categories = _app._category_payload()
 

@@ -157,6 +157,7 @@ _TOOLS: tuple = (
         "icon": "delta_stats",
         "module": "sempy_labs._delta_analyzer",
         "function": "delta_analyzer",
+        "requires_spark": True,
         "does": (
             "Inspect the parquet files, row groups and column statistics "
             "behind a delta table.",
@@ -253,6 +254,19 @@ _TOOLS_BY_KEY = {tool["key"]: tool for tool in _TOOLS}
 # Fabric item types, in the order shown in the splash-screen filter.
 _CATEGORY_ORDER = ("Semantic Model", "Direct Lake", "Report", "Lakehouse", "Admin")
 
+_SPARK_REQUIRED_NOTE = "Requires a PySpark notebook."
+
+
+def _unavailable_reason(tool: dict) -> Optional[str]:
+    """Why the tool cannot run in this notebook, or None when it can."""
+
+    if not tool.get("requires_spark"):
+        return None
+
+    from sempy_labs._helper_functions import _pure_python_notebook
+
+    return _SPARK_REQUIRED_NOTE if _pure_python_notebook() else None
+
 
 def _tool_payload() -> List[dict]:
     """The tool catalog as sent to the frontend (icons resolved to SVG)."""
@@ -266,6 +280,7 @@ def _tool_payload() -> List[dict]:
             "icon": _UI_ICONS[tool["icon"]],
             "does": list(tool["does"]),
             "when": list(tool["when"]),
+            "unavailable": _unavailable_reason(tool) or "",
         }
         for tool in _TOOLS
     ]
@@ -753,6 +768,16 @@ _WIDGET_CSS = (
     color: var(--ui-text);
 }
 .slls-app-guide-list li { margin-bottom: 4px; }
+.slls-app-guide-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ui-text-tertiary);
+}
+.slls-app-guide-note svg { display: block; width: 14px; height: 14px; flex: 0 0 auto; }
 .slls-app-links {
     margin-bottom: 20px;
     padding: 16px;
@@ -850,6 +875,33 @@ _WIDGET_CSS = (
     gap: 4px;
     margin-top: auto;
     padding-top: 8px;
+}
+.slls-app-card-note {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ui-text-tertiary);
+}
+.slls-app-card-note svg { display: block; width: 14px; height: 14px; flex: 0 0 auto; }
+/* Requirement not met in this notebook: shown, but inert. */
+.slls-app-card.is-disabled {
+    cursor: not-allowed;
+    box-shadow: none;
+    background: var(--ui-surface-2);
+}
+.slls-app-card.is-disabled:hover {
+    transform: none;
+    border-color: var(--ui-border);
+    box-shadow: none;
+}
+.slls-app-card.is-disabled .slls-app-card-icon,
+.slls-app-card.is-disabled .slls-app-card-text,
+.slls-app-card.is-disabled .slls-app-card-tags { opacity: 0.5; }
+.slls-app-card.is-disabled:hover .slls-app-card-icon {
+    background: var(--ui-accent-soft);
+    color: var(--ui-accent);
 }
 .slls-app-tag {
     border: 1px solid var(--ui-border);
@@ -1148,6 +1200,15 @@ function render({ model, el }) {
                 cols.appendChild(col);
             }
             card.appendChild(cols);
+            if (tool.unavailable) {
+                const note = document.createElement("div");
+                note.className = "slls-app-guide-note";
+                note.innerHTML = `__SLLS_ICON_INFO__`;
+                const noteText = document.createElement("span");
+                noteText.textContent = tool.unavailable;
+                note.appendChild(noteText);
+                card.appendChild(note);
+            }
             guide.appendChild(card);
         }
     }
@@ -1445,8 +1506,13 @@ function render({ model, el }) {
         for (const tool of tools) {
             const card = document.createElement("button");
             card.type = "button";
-            card.className = "slls-app-card";
-            card.setAttribute("aria-label", `Open ${tool.name}`);
+            card.className = "slls-app-card"
+                + (tool.unavailable ? " is-disabled" : "");
+            card.disabled = !!tool.unavailable;
+            card.setAttribute("aria-label", tool.unavailable
+                ? `${tool.name} - ${tool.unavailable}`
+                : `Open ${tool.name}`);
+            if (tool.unavailable) card.title = tool.unavailable;
 
             const icon = document.createElement("span");
             icon.className = "slls-app-card-icon";
@@ -1475,7 +1541,18 @@ function render({ model, el }) {
             }
             card.appendChild(tags);
 
+            if (tool.unavailable) {
+                const note = document.createElement("span");
+                note.className = "slls-app-card-note";
+                note.innerHTML = `__SLLS_ICON_INFO__`;
+                const noteText = document.createElement("span");
+                noteText.textContent = tool.unavailable;
+                note.appendChild(noteText);
+                card.appendChild(note);
+            }
+
             card.addEventListener("click", () => {
+                if (tool.unavailable) return;
                 pendingKey = tool.key;
                 renderView();
                 send({ action: "launch", tool: tool.key });
@@ -1579,6 +1656,7 @@ _WIDGET_JS = (
     .replace("__SLLS_ICON_BRAND__", _UI_ICONS["semantic_link_labs"])
     .replace("__SLLS_BRAND_BUBBLES__", _BRAND_BUBBLES_HTML)
     .replace("__SLLS_ICON_BOOK__", _UI_ICONS["book"])
+    .replace("__SLLS_ICON_INFO__", _UI_ICONS["info"])
     .replace("__SLLS_ICON_CLOSE__", _UI_ICONS["close"])
     .replace("__SLLS_ICON_ARROW_LEFT__", _UI_ICONS["arrow_left"])
     .replace("__SLLS_ATTRIBUTION__", _ui_render_attribution_html())
@@ -1669,6 +1747,14 @@ def app(dark_mode: bool = False):
         tool = _TOOLS_BY_KEY.get(str(data.get("tool") or ""))
         if tool is None:
             widget.status = {"message": "Unknown tool.", "kind": "error"}
+            return
+
+        reason = _unavailable_reason(tool)
+        if reason is not None:
+            widget.status = {
+                "message": f"{tool['name']} is not available here: {reason}",
+                "kind": "error",
+            }
             return
 
         if tool["key"] in mounted:
