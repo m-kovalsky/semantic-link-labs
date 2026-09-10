@@ -176,6 +176,37 @@ def test_the_contents_can_be_shown_as_a_tree_or_a_table():
     assert "(term && childMatch) || expanded.has(node.path)" in js
 
 
+def test_tree_objects_can_be_selected_and_acted_on_in_bulk():
+    js = lhm._LHM_JS
+
+    assert 'check.setAttribute("aria-label", "Select " + node.path);' in js
+    # Containers are groupings, not objects.
+    assert 'return node.type !== "Container" && node.type !== "More";' in js
+    assert 'act("recover", { paths: paths })' in js
+    assert 'act("delete", { paths: paths })' in js
+    # Deleting is confirmed first.
+    assert 'confirmOverlay.style.display = "flex";' in js
+    assert '"delete": _delete' in _source()
+
+
+def test_an_action_can_target_one_object_or_a_selection():
+    assert lhm._action_paths({"path": "Tables/sales"}) == ["Tables/sales"]
+    assert lhm._action_paths({"paths": ["Files/a", "/Files/b/"]}) == [
+        "Files/a",
+        "Files/b",
+    ]
+    assert lhm._action_paths({}) == []
+
+
+def test_the_tree_reads_as_regular_text_and_files_use_a_file_icon():
+    from sempy_labs._ui_components import ICONS
+
+    assert "'Segoe UI'" in lhm._LHM_CSS
+    assert "monospace" not in lhm._LHM_CSS
+    assert ICONS["file"] in lhm._LHM_JS
+    assert ICONS["source"] not in lhm._LHM_JS
+
+
 def test_pickers_are_seeded_before_display():
     source = _source()
     after_display = source[source.index("display(widget)") :]

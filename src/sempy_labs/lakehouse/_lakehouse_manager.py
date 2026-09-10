@@ -368,7 +368,11 @@ _LHM_CSS = (
 .slls-lhm-seg button:hover { color: var(--ui-text); }
 .slls-lhm-seg button.slls-lhm-on { background: var(--ui-accent); color: var(--ui-on-accent); }
 /* ---------------- Tree view ---------------- */
-.slls-lhm-tree { padding: 6px 0; font-size: 13px; }
+.slls-lhm-tree {
+    padding: 6px 0; font-size: 13px;
+    font-family: 'Segoe UI', 'Segoe UI Web (West European)', -apple-system,
+        BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+}
 .slls-lhm-node {
     display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 6px; min-width: 0;
 }
@@ -385,8 +389,15 @@ _LHM_CSS = (
 .slls-lhm-node-icon svg { display: block; width: 15px; height: 15px; }
 .slls-lhm-node-name {
     min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px;
+    font-size: 13px;
 }
+.slls-lhm-node-check { width: 15px; height: 15px; flex: 0 0 auto; margin: 0; accent-color: var(--ui-accent); }
+.slls-lhm-node-check-slot { width: 15px; flex: 0 0 auto; }
+.slls-lhm-selection { display: flex; align-items: center; gap: 8px; }
+.slls-lhm-selected { color: var(--ui-text-secondary); font-size: 12px; white-space: nowrap; }
+.slls-lhm-iconbtn.slls-lhm-danger { border-color: var(--ui-danger-border); color: var(--ui-danger-text); }
+.slls-lhm-iconbtn.slls-lhm-danger:hover:not(:disabled) { border-color: var(--ui-danger); background: var(--ui-danger-bg); color: var(--ui-danger-text); }
+.slls-lhm-run.slls-lhm-danger { border-color: var(--ui-danger); background: var(--ui-danger); color: #ffffff; }
 .slls-lhm-node.slls-lhm-root .slls-lhm-node-name { font-weight: 600; }
 .slls-lhm-node-spacer { flex: 1 1 auto; }
 .slls-lhm-bar {
@@ -618,6 +629,17 @@ function render({ model, el }) {
         pills.appendChild(pill); return { name: name, el: pill };
     });
     let view = "Tree";
+    const selection = document.createElement("div"); selection.className = "slls-lhm-selection";
+    const selectedText = document.createElement("span"); selectedText.className = "slls-lhm-selected";
+    const recoverSelected = document.createElement("button"); recoverSelected.type = "button";
+    recoverSelected.className = "slls-lhm-iconbtn"; recoverSelected.innerHTML = `__ICON_UNDO__`;
+    recoverSelected.title = "Recover the selected objects";
+    recoverSelected.setAttribute("aria-label", recoverSelected.title);
+    const deleteSelected = document.createElement("button"); deleteSelected.type = "button";
+    deleteSelected.className = "slls-lhm-iconbtn slls-lhm-danger"; deleteSelected.innerHTML = `__ICON_TRASH__`;
+    deleteSelected.title = "Delete the selected objects";
+    deleteSelected.setAttribute("aria-label", deleteSelected.title);
+    selection.append(selectedText, recoverSelected, deleteSelected);
     const segment = document.createElement("div"); segment.className = "slls-lhm-seg";
     segment.setAttribute("role", "group"); segment.setAttribute("aria-label", "View");
     const viewButtons = [["Tree", `__ICON_TREE__`], ["Table", `__ICON_TABLE__`]].map(([name, icon]) => {
@@ -628,7 +650,7 @@ function render({ model, el }) {
         button.addEventListener("click", () => { view = name; renderRows(); });
         segment.appendChild(button); return { name: name, el: button };
     });
-    toolbar.append(search, pills, segment);
+    toolbar.append(search, selection, pills, segment);
     const listWrap = document.createElement("div"); listWrap.className = "slls-lhm-list";
     const note = document.createElement("div"); note.className = "slls-lhm-note";
     const noteIcon = document.createElement("span"); const noteText = document.createElement("span");
@@ -686,8 +708,44 @@ function render({ model, el }) {
         act("maintenance", payload);
     });
 
+    // ---------------- Delete confirmation ----------------
+    const confirmOverlay = document.createElement("div"); confirmOverlay.className = "slls-lhm-overlay";
+    confirmOverlay.style.display = "none";
+    const confirmDialog = document.createElement("div"); confirmDialog.className = "slls-lhm-dialog";
+    const confirmHead = document.createElement("div"); confirmHead.className = "slls-lhm-panel-head";
+    const confirmTitle = document.createElement("div");
+    confirmTitle.innerHTML = '<h2 class="slls-lhm-panel-title">Delete objects</h2>'
+        + '<div class="slls-lhm-panel-sub"></div>';
+    const confirmClose = document.createElement("button"); confirmClose.type = "button"; confirmClose.className = "slls-lhm-close";
+    confirmClose.innerHTML = `__ICON_CLOSE__`; confirmClose.title = "Close";
+    confirmClose.setAttribute("aria-label", "Close the delete confirmation");
+    confirmHead.append(confirmTitle, confirmClose);
+    const confirmList = document.createElement("div"); confirmList.className = "slls-lhm-panel-sub";
+    const confirmActions = document.createElement("div"); confirmActions.className = "slls-lhm-dialog-actions";
+    const confirmCancel = document.createElement("button"); confirmCancel.type = "button";
+    confirmCancel.className = "slls-lhm-ghost"; confirmCancel.textContent = "Cancel";
+    const confirmDelete = document.createElement("button"); confirmDelete.type = "button";
+    confirmDelete.className = "slls-lhm-run slls-lhm-danger"; confirmDelete.textContent = "Delete";
+    confirmActions.append(confirmCancel, confirmDelete);
+    confirmDialog.append(confirmHead, confirmList, confirmActions);
+    confirmOverlay.appendChild(confirmDialog); root.appendChild(confirmOverlay);
+
+    function closeConfirm() { confirmOverlay.style.display = "none"; }
+    confirmCancel.addEventListener("click", closeConfirm);
+    confirmClose.addEventListener("click", closeConfirm);
+    confirmOverlay.addEventListener("click", (event) => {
+        if (event.target === confirmOverlay) closeConfirm();
+    });
+    confirmDelete.addEventListener("click", () => {
+        const paths = [...selected];
+        closeConfirm();
+        if (paths.length) act("delete", { paths: paths });
+    });
+
     // ---------------- State ----------------
     let pickerOpen = !(model.get("selected_lakehouse_id") || "") || !(model.get("objects") || []).length;
+    // Tree objects ticked for a bulk recover or delete.
+    const selected = new Set();
 
     function busy() {
         return model.get("loading") === true || model.get("busy") === true
@@ -735,7 +793,9 @@ function render({ model, el }) {
         for (const entry of viewButtons) entry.el.classList.toggle("slls-lhm-on", entry.name === view);
         // The tree already groups by container, so the pills only apply to the table.
         pills.style.display = view === "Tree" ? "none" : "";
+        selection.style.display = view === "Tree" ? "flex" : "none";
         search.placeholder = view === "Tree" ? "Search tree…" : "Search tables and files…";
+        renderSelection();
         listWrap.innerHTML = "";
         if (!(model.get("objects") || []).length) {
             listWrap.appendChild(emptyState(model.get("loading")
@@ -744,6 +804,54 @@ function render({ model, el }) {
         }
         if (view === "Tree") renderTree(); else renderTable();
     }
+
+    // Selectable: everything the user can act on, so not the two containers.
+    function selectable(node) {
+        return node.type !== "Container" && node.type !== "More";
+    }
+
+    function selectedNodes() {
+        const found = [];
+        const walk = (nodes) => {
+            for (const node of nodes) {
+                if (selected.has(node.path)) found.push(node);
+                walk(node.children || []);
+            }
+        };
+        walk(model.get("tree") || []);
+        return found;
+    }
+
+    function renderSelection() {
+        const nodes = selectedNodes();
+        // Selections made before a reload may no longer exist.
+        if (nodes.length !== selected.size) {
+            selected.clear();
+            for (const node of nodes) selected.add(node.path);
+        }
+        selectedText.textContent = nodes.length
+            ? `${nodes.length} item${nodes.length === 1 ? "" : "s"} selected`
+            : "No items selected";
+        const recoverable = nodes.some((node) => node.deleted || node.deleted_files);
+        recoverSelected.disabled = busy() || !recoverable;
+        deleteSelected.disabled = busy() || !nodes.length;
+    }
+
+    recoverSelected.addEventListener("click", () => {
+        const paths = selectedNodes()
+            .filter((node) => node.deleted || node.deleted_files)
+            .map((node) => node.path);
+        if (paths.length) act("recover", { paths: paths });
+    });
+    deleteSelected.addEventListener("click", () => {
+        const nodes = selectedNodes();
+        if (!nodes.length) return;
+        confirmTitle.querySelector(".slls-lhm-panel-sub").textContent =
+            `${nodes.length} object${nodes.length === 1 ? "" : "s"} will be deleted from the lakehouse.`;
+        confirmList.textContent = nodes.slice(0, 10).map((node) => node.path).join(", ")
+            + (nodes.length > 10 ? `, +${nodes.length - 10} more` : "");
+        confirmOverlay.style.display = "flex";
+    });
 
     function emptyState(text) {
         const empty = document.createElement("div"); empty.className = "slls-lhm-empty";
@@ -807,6 +915,20 @@ function render({ model, el }) {
             if (node.type === "More") {
                 const more = document.createElement("span"); more.className = "slls-lhm-node-more";
                 more.textContent = node.name; el.appendChild(more); wrap.appendChild(el); continue;
+            }
+
+            if (selectable(node)) {
+                const check = document.createElement("input"); check.type = "checkbox";
+                check.className = "slls-lhm-node-check"; check.checked = selected.has(node.path);
+                check.setAttribute("aria-label", "Select " + node.path);
+                check.addEventListener("change", () => {
+                    if (check.checked) selected.add(node.path); else selected.delete(node.path);
+                    renderSelection();
+                });
+                el.appendChild(check);
+            } else {
+                const slot = document.createElement("span"); slot.className = "slls-lhm-node-check-slot";
+                el.appendChild(slot);
             }
 
             const icon = document.createElement("span"); icon.className = "slls-lhm-node-icon";
@@ -953,7 +1075,8 @@ function render({ model, el }) {
     });
     root.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
-        if (overlay.style.display !== "none") closeDialog();
+        if (confirmOverlay.style.display !== "none") closeConfirm();
+        else if (overlay.style.display !== "none") closeDialog();
         else if (backdrop.classList.contains("slls-lhm-modal")) { pickerOpen = false; renderState(); }
     });
     search.addEventListener("input", renderRows);
@@ -984,7 +1107,7 @@ export default { render };
     .replace("__ICON_CARET__", _UI_ICONS["chevron_right"])
     .replace("__ICON_SCHEMA__", _UI_ICONS["database"])
     .replace("__ICON_FOLDER__", _UI_ICONS["folder"])
-    .replace("__ICON_FILE__", _UI_ICONS["source"])
+    .replace("__ICON_FILE__", _UI_ICONS["file"])
     .replace("__ICON_TRASH__", _UI_ICONS["trash"])
     .replace("__ICON_LINK__", _UI_ICONS["link"])
     .replace("__ICON_UNDO__", _UI_ICONS["undo"])
@@ -1007,6 +1130,16 @@ def _display_rows(objects: List[dict]) -> List[dict]:
         )
         rows.append(display)
     return rows
+
+
+def _action_paths(data: dict) -> List[str]:
+    """The object paths an action applies to (one row, or a tree selection)."""
+
+    paths = [str(path).strip("/") for path in (data.get("paths") or [])]
+    single = str(data.get("path") or "").strip("/")
+    if single and single not in paths:
+        paths.append(single)
+    return [path for path in paths if path]
 
 
 @log
@@ -1142,25 +1275,67 @@ def lakehouse_manager(
             widget.loading = False
 
     def _recover(data: dict):
-        path = str(data.get("path") or "")
-        if not path:
+        paths = _action_paths(data)
+        if not paths:
             return
         widget.busy = True
         widget.error_message = ""
         widget.status_message = ""
+        failures = []
         try:
             from sempy_labs.lakehouse._blobs import recover_lakehouse_object
 
-            recover_lakehouse_object(
-                file_path=path,
-                lakehouse=widget.selected_lakehouse_id,
-                workspace=widget.selected_workspace_id,
+            for path in paths:
+                try:
+                    recover_lakehouse_object(
+                        file_path=path,
+                        lakehouse=widget.selected_lakehouse_id,
+                        workspace=widget.selected_workspace_id,
+                    )
+                except Exception as e:
+                    failures.append(f"{path}: {e}")
+            widget.status_message = (
+                f"Recovery was requested for {len(paths) - len(failures)} object(s)."
             )
-            widget.status_message = f"Recovery of '{path}' was requested."
         except Exception as e:
-            widget.error_message = f"Could not recover '{path}': {e}"
+            widget.error_message = f"Could not recover the selected objects: {e}"
         finally:
             widget.busy = False
+        if failures:
+            widget.error_message = "Could not recover " + "; ".join(failures)
+        _load_objects({})
+
+    def _delete(data: dict):
+        paths = _action_paths(data)
+        if not paths:
+            return
+        widget.busy = True
+        widget.error_message = ""
+        widget.status_message = ""
+        failures = []
+        try:
+            import notebookutils
+            from sempy_labs._helper_functions import create_abfss_path_from_path
+
+            for path in paths:
+                try:
+                    notebookutils.fs.rm(
+                        create_abfss_path_from_path(
+                            widget.selected_lakehouse_id,
+                            widget.selected_workspace_id,
+                            path,
+                        ),
+                        True,
+                    )
+                except Exception as e:
+                    failures.append(f"{path}: {e}")
+            widget.status_message = f"Deleted {len(paths) - len(failures)} object(s)."
+        except Exception as e:
+            widget.error_message = f"Could not delete the selected objects: {e}"
+        finally:
+            widget.busy = False
+        if failures:
+            widget.error_message = "Could not delete " + "; ".join(failures)
         _load_objects({})
 
     def _maintenance(data: dict):
@@ -1202,6 +1377,7 @@ def lakehouse_manager(
         "open": _load_objects,
         "reload": _load_objects,
         "recover": _recover,
+        "delete": _delete,
         "maintenance": _maintenance,
     }
 
