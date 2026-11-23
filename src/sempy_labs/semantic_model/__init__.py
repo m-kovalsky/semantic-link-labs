@@ -21,6 +21,9 @@ from ._find_unused_objects import (
 from ._refresh_manager import (
     refresh_manager,
 )
+from ._explorer import (
+    semantic_explorer,
+)
 from ._cancel_query import (
     cancel_spid,
     list_sessions,
@@ -38,6 +41,7 @@ __all__ = [
     "migrate_to_direct_lake",
     "find_unused_objects",
     "refresh_manager",
+    "semantic_explorer",
     "cancel_spid",
     "list_sessions",
     "list_commands",

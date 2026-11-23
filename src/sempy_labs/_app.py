@@ -22,6 +22,34 @@ from sempy_labs._ui_components import (
 # ``does`` / ``when`` feed the "Getting started" guide.
 _TOOLS: tuple = (
     {
+        "key": "semantic_explorer",
+        "name": "Semantic Explorer",
+        "description": "Browse and edit a model's tables, columns, measures and hierarchies.",
+        "tags": ("Semantic Model", "Direct Lake"),
+        "icon": "telescope",
+        "module": "sempy_labs.semantic_model._explorer",
+        "function": "semantic_explorer",
+        "does": (
+            "Browse the whole model in one tree - tables, columns, measures, "
+            "hierarchies, partitions, relationships, roles, perspectives, "
+            "expressions, functions and cultures.",
+            "Inspect any object's properties, DAX and Power Query (M), "
+            "annotations, translations and perspective membership.",
+            "Edit in read-write mode: rename, hide, change data types, "
+            "formatting and expressions, with Format DAX, undo / redo and "
+            "staged changes applied on Save.",
+            "Add, duplicate and delete objects; renames automatically update "
+            "the DAX expressions which reference them.",
+            "View an object's TMDL, its dependencies and the model's errors.",
+        ),
+        "when": (
+            "Get oriented in an unfamiliar model and see how objects depend "
+            "on each other.",
+            "Document and clean up measures, folders and metadata.",
+            "Fix objects which are in an error state.",
+        ),
+    },
+    {
         "key": "dax_perf_optimizer",
         "name": "DAX Perf Optimizer",
         "description": "Profile and optimize slow DAX queries.",
