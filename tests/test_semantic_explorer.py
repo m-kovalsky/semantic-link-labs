@@ -293,6 +293,7 @@ def fake_clr(monkeypatch):
     system.Nullable = types.SimpleNamespace(GetUnderlyingType=lambda t: None)
     tom = types.ModuleType("Microsoft.AnalysisServices.Tabular")
     tom.Annotation = lambda: _Obj("Annotation")
+    tom.Function = lambda: _Obj("Function", Expression="")
     tom.TranslatedProperty = types.SimpleNamespace(
         Caption="Caption", Description="Description", DisplayFolder="DisplayFolder"
     )
@@ -651,6 +652,96 @@ def test_field_parameter_create_and_group_column_follow_the_expression(fake_clr)
 
 
 # ---------------------------------------------------------------------------
+# DAXLib packages
+# ---------------------------------------------------------------------------
+def _function(model, name, **annotations):
+    fn = _Obj("Function", Name=name, Expression="old")
+    for key, value in annotations.items():
+        fn.Annotations.Add(_Obj("Annotation", Name=key, Value=value))
+    model.Functions.Add(fn)
+    return fn
+
+
+def _annotations_of(fn):
+    return {a.Name: a.Value for a in fn.Annotations}
+
+
+def test_daxlib_package_install_replaces_only_that_packages_functions(fake_clr):
+    model = _build_model()
+    tom = _tom(model)
+    _function(model, "Pkg.Old", DAXLIB_PackageId="Pkg", DAXLIB_PackageVersion="1.0")
+    # Added by sempy_labs' add_package_to_semantic_model (matched by prefix).
+    legacy = _function(model, "Pkg.Keep", Pkg="1.0")
+    # Name looks like the package but it belongs to another one.
+    _function(model, "Pkg.Foreign", DAXLIB_PackageId="Other")
+    create = {
+        "type": "daxlibPackage",
+        "name": "Pkg",
+        "table": "",
+        "props": {
+            "version": "2.0",
+            "upgradeCompatibility": True,
+            "functions": [
+                {"name": "Pkg.Keep", "definition": "() => 1"},
+                {"name": "Pkg.New", "definition": "() => 2"},
+            ],
+        },
+    }
+
+    sx._apply_changes(tom, [create], [], [])
+
+    assert model.Database.CompatibilityLevel == 1702
+    assert [f.Name for f in model.Functions] == ["Pkg.Keep", "Pkg.Foreign", "Pkg.New"]
+    assert model.Functions["Pkg.Keep"] is legacy
+    assert legacy.Expression == "() => 1"
+    assert _annotations_of(legacy) == {
+        "Pkg": "2.0",
+        "DAXLIB_PackageId": "Pkg",
+        "DAXLIB_PackageVersion": "2.0",
+    }
+    new = model.Functions["Pkg.New"]
+    assert new.Expression == "() => 2" and new.LineageTag
+    assert _annotations_of(new) == {
+        "DAXLIB_PackageId": "Pkg",
+        "DAXLIB_PackageVersion": "2.0",
+    }
+
+
+def test_daxlib_package_requires_a_confirmed_compatibility_upgrade(fake_clr):
+    model = _build_model()
+    tom = _tom(model)
+    create = {
+        "type": "daxlibPackage",
+        "name": "Pkg",
+        "props": {
+            "version": "1.0",
+            "functions": [{"name": "Pkg.A", "definition": "1"}],
+        },
+    }
+
+    with pytest.raises(ValueError, match="compatibility level 1702"):
+        sx._apply_changes(tom, [create], [], [])
+
+    assert model.undone is True
+    assert model.Database.CompatibilityLevel == 1604
+
+
+def test_daxlib_versions_sort_releases_above_prereleases():
+    versions = ["0.1.0-beta", "1.0.0", "0.10.0", "1.0.0-rc.2", "1.0.0-rc.10", "0.2"]
+
+    ordered = sorted(versions, key=sx._daxlib_version_key, reverse=True)
+
+    assert ordered == [
+        "1.0.0",
+        "1.0.0-rc.10",
+        "1.0.0-rc.2",
+        "0.10.0",
+        "0.2",
+        "0.1.0-beta",
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
 def _dep(obj_type, table, obj, ref_type, ref_table, ref):
@@ -691,3 +782,14 @@ def test_dependency_graph_dedupes_nodes_and_normalizes_object_types():
     assert graph["nodes"][4]["key"] == ""
     # Self-references are dropped; the A <-> B cycle is kept for the frontend.
     assert graph["edges"] == [[0, 1], [1, 0], [1, 2], [3, 2], [4, 2]]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "(\n\t\t\tx : INT64\n\t\t) =>\n\t\t\tx * 2\n\n",  # unfenced
+        "\n\t\t(\n\t\t\tx : INT64\n\t\t) =>\n\t\t\tx * 2\n\t\t",  # fenced
+    ],
+)
+def test_daxlib_function_definitions_lose_their_tmdl_indentation(body):
+    assert sx._daxlib_definition(body) == "(\n\tx : INT64\n) =>\n\tx * 2"

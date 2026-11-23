@@ -576,6 +576,106 @@ _WIDGET_CSS = """
 .slls-sx-fpm-obj.readonly .label { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slls-sx-fpm-obj.readonly .ref { padding: 0; font-size: 11.5px; max-width: 45%; }
 .slls-sx-fpm-main .slls-sx-center a { font-size: 12.5px; }
+
+/* DAXLib package manager */
+.slls-sx-modal .slls-sx-dlm-body { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.slls-sx-dlm-toolbar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 16px; border-bottom: 1px solid var(--ui-border);
+}
+.slls-sx-dlm-toolbar .slls-sx-search { width: 320px; max-width: 100%; }
+.slls-sx-dlm-toolbar .slls-sx-select { width: 180px; padding: 6px 8px; }
+.slls-sx-dlm-scroll { flex: 1 1 0; min-height: 0; overflow: auto; }
+.slls-sx-dlm-wrap { max-width: 860px; margin: 0 auto; padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.slls-sx-dlm-wrap .slls-sx-tabs { padding: 0; }
+.slls-sx-tab { display: inline-flex; align-items: center; gap: 6px; }
+.slls-sx-tab svg { width: 14px; height: 14px; }
+.slls-sx-tab .slls-sx-pill { margin-left: 0; }
+.slls-sx-dlm-list { display: flex; flex-direction: column; border: 1px solid var(--ui-border); border-radius: 10px; overflow: hidden; }
+.slls-sx-dlm-row {
+    display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+    background: var(--ui-bg); border-bottom: 1px solid var(--ui-border);
+}
+.slls-sx-dlm-row:last-child { border-bottom: none; }
+.slls-sx-dlm-row.installed { align-items: center; }
+.slls-sx-dlm-open {
+    appearance: none; flex: 1 1 auto; min-width: 0; display: flex; align-items: flex-start; gap: 10px;
+    padding: 2px 4px; margin: -2px -4px; border: none; border-radius: 6px; background: transparent;
+    color: inherit; font: inherit; text-align: left; cursor: pointer; transform: none !important;
+}
+.slls-sx-dlm-row.installed .slls-sx-dlm-open { align-items: center; }
+.slls-sx-dlm-open:hover:not(:disabled) { background: var(--ui-surface-2); }
+.slls-sx-dlm-open:disabled { opacity: 0.55; cursor: progress; }
+.slls-sx-dlm-icon { width: 20px; height: 20px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--ui-text-secondary); }
+.slls-sx-dlm-icon svg { width: 16px; height: 16px; }
+.slls-sx-dlm-icon img { width: 20px; height: 20px; border-radius: 4px; object-fit: contain; }
+.slls-sx-dlm-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.slls-sx-dlm-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.slls-sx-dlm-id { font-family: var(--sx-mono); font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-dlm-row.installed .slls-sx-dlm-id { flex: 1 1 auto; }
+.slls-sx-dlm-desc {
+    font-size: 12px; line-height: 1.45; color: var(--ui-text-secondary);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.slls-sx-dlm-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 11.5px; color: var(--ui-text-tertiary); }
+.slls-sx-dlm-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.slls-sx-dlm-meta svg { width: 12px; height: 12px; }
+.slls-sx-dlm-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.slls-sx-dlm-tag {
+    padding: 0 6px; border: 1px solid var(--ui-border); border-radius: 5px; background: var(--ui-surface-2);
+    font-size: 10.5px; line-height: 17px; color: var(--ui-text-secondary);
+}
+.slls-sx-dlm-side { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; padding-left: 6px; }
+.slls-sx-dlm-ver {
+    padding: 0 6px; border-radius: 5px; background: var(--ui-surface-2); font-size: 11px; line-height: 18px;
+    color: var(--ui-text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0;
+}
+.slls-sx-dlm-count { font-size: 11.5px; color: var(--ui-text-tertiary); white-space: nowrap; flex-shrink: 0; }
+.slls-sx-dlm-dl { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--ui-text-tertiary); }
+.slls-sx-dlm-dl svg { width: 12px; height: 12px; }
+.slls-sx-dlm-owners { display: flex; gap: 4px; }
+.slls-sx-dlm-owners a { display: inline-flex; color: var(--ui-text-tertiary); font-size: 11px; text-decoration: none; }
+.slls-sx-dlm-owners a:hover { color: var(--ui-text); }
+.slls-sx-dlm-owners img { width: 16px; height: 16px; border-radius: 50%; object-fit: cover; }
+.slls-sx-dlm-ok { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--sx-success); flex-shrink: 0; }
+.slls-sx-dlm-ok svg { width: 13px; height: 13px; }
+.slls-sx-dlm-card {
+    display: flex; flex-direction: column; gap: 10px; padding: 14px 16px;
+    border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-bg);
+}
+.slls-sx-dlm-card-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.slls-sx-dlm-name { font-size: 15px; font-weight: 600; }
+.slls-sx-dlm-by { font-size: 12px; color: var(--ui-text-secondary); }
+.slls-sx-dlm-actions { display: flex; align-items: center; gap: 8px; }
+.slls-sx-dlm-actions label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--ui-text-secondary); }
+.slls-sx-dlm-actions .slls-sx-select { width: auto; padding: 5px 8px; }
+.slls-sx-dlm-text { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ui-text-secondary); }
+.slls-sx-dlm-note { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--ui-text-tertiary); }
+.slls-sx-dlm-note code { padding: 0 4px; border-radius: 4px; background: var(--ui-surface-2); font-family: var(--sx-mono); }
+.slls-sx-dlm-status { font-size: 12px; }
+.slls-sx-dlm-status.success { color: var(--sx-success); }
+.slls-sx-dlm-status.error { color: var(--ui-danger-text); }
+.slls-sx-dlm-fn { border-bottom: 1px solid var(--ui-border); background: var(--ui-bg); }
+.slls-sx-dlm-fn:last-child { border-bottom: none; }
+.slls-sx-dlm-fn-head {
+    appearance: none; width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border: none; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transform: none !important;
+}
+.slls-sx-dlm-fn-head:hover { background: var(--ui-surface-2); }
+.slls-sx-dlm-fn-head svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-dlm-fn-head .slls-sx-caret { width: 16px; height: 16px; }
+.slls-sx-dlm-fn-head .slls-sx-caret svg { width: 11px; height: 11px; color: var(--ui-text-tertiary); }
+.slls-sx-dlm-fn-head .name { flex: 1; min-width: 0; font-family: var(--sx-mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-dlm-fn pre {
+    margin: 0; max-height: 320px; overflow: auto; padding: 10px 12px; border-top: 1px solid var(--ui-border);
+    background: var(--ui-bg-tertiary); font-family: var(--sx-mono); font-size: 12px; line-height: 1.55; white-space: pre; tab-size: 4;
+}
+.slls-sx-dlm-section { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ui-text-secondary); }
+.slls-sx-dlm-foot { font-size: 11.5px; color: var(--ui-text-tertiary); }
+.slls-sx-dlm-error { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; text-align: center; color: var(--ui-danger-text); font-size: 12.5px; }
+.slls-sx-dlm-error svg { width: 26px; height: 26px; }
+.slls-sx-dlm-browse { display: inline-flex; align-items: center; gap: 5px; text-decoration: none; }
+.slls-sx-dlm-browse svg { width: 13px; height: 13px; }
 .slls-sx-tmdl-name { font-weight: 600; }
 
 /* Dependencies: toolbar, segmented toggles, tree and node graph */
@@ -1427,6 +1527,12 @@ function render({ model, el }) {
     function pendingItems() {
         const items = [];
         for (const c of staging.creates) {
+            if (c.type === "daxlibPackage") {
+                items.push({ kind: "create", id: c.id, detail: "",
+                    title: `${c.props.installed ? "Update" : "Add"} DAXLib package '${c.name}' (v${c.props.version}, ${plural(c.props.functions.length, "function")})`
+                        + (c.props.upgradeCompatibility ? ` and upgrade to compatibility level ${DAXLIB_MIN_COMPAT}` : "") });
+                continue;
+            }
             const node = syntheticNode(c);
             const title = c.type === "table" ? `Add calculation group '${c.name}'`
                 : c.type === "fieldParameter" ? `Add field parameter '${c.name}'`
@@ -3435,11 +3541,24 @@ function render({ model, el }) {
     // Tools menu + Field parameter manager
     // ------------------------------------------------------------------
     const TOOLS = [
+        { label: "DAXLib package manager", icon: "package", open: () => openDaxLibManager() },
         { label: "Field parameter manager", icon: "field_parameter", open: () => openFieldParameterManager() },
     ];
     // An open tool window redraws itself when the explorer re-renders (mode
     // switch, save, reload).
     let toolRedraw = null;
+    function toolModeSwitch() {
+        const sw = h("button", "slls-sx-mode" + (mode === "write" ? " write" : ""));
+        sw.type = "button";
+        sw.setAttribute("role", "switch");
+        sw.setAttribute("aria-checked", String(mode === "write"));
+        sw.title = mode === "write" ? "Read-write mode (editing enabled)" : "Read-only mode \u2014 click to enable editing";
+        sw.innerHTML = (mode === "write" ? ICON.pencil : ICON.eye) + '<span class="slls-sx-track"></span>';
+        sw.appendChild(document.createTextNode(mode === "write" ? "Edit" : "Read-only"));
+        sw.disabled = saving;
+        sw.addEventListener("click", () => setMode(mode === "write" ? "read" : "write"));
+        return sw;
+    }
     const FP_HIERARCHY_URL = "https://www.youtube.com/watch?v=5G_xSJy5muo";
     const FP_NEW = "\u0000new";
     const fpEscape = (s) => String(s).replace(/"/g, '""');
@@ -3857,21 +3976,526 @@ function render({ model, el }) {
             }
             if (active === FP_NEW && !writable()) active = null;
             clear(m.actions);
-            const sw = h("button", "slls-sx-mode" + (mode === "write" ? " write" : ""));
-            sw.type = "button";
-            sw.setAttribute("role", "switch");
-            sw.setAttribute("aria-checked", String(mode === "write"));
-            sw.title = mode === "write" ? "Read-write mode (editing enabled)" : "Read-only mode \u2014 click to enable editing";
-            sw.innerHTML = (mode === "write" ? ICON.pencil : ICON.eye) + '<span class="slls-sx-track"></span>';
-            sw.appendChild(document.createTextNode(mode === "write" ? "Edit" : "Read-only"));
-            sw.disabled = saving;
-            sw.addEventListener("click", () => setMode(mode === "write" ? "read" : "write"));
-            m.actions.appendChild(sw);
+            m.actions.appendChild(toolModeSwitch());
             clear(m.body);
             const layout = h("div", "slls-sx-fpm");
             layout.append(drawSidebar(list), drawMain());
             m.body.appendChild(layout);
             refreshControls();
+        }
+        draw();
+    }
+
+    // ------------------------------------------------------------------
+    // DAXLib package manager
+    // ------------------------------------------------------------------
+    const DAXLIB_MIN_COMPAT = 1702;
+    let dlCatalog = null;
+    // Semver-ish comparison: numeric parts, then a release outranks a prerelease.
+    function dlCompare(a, b) {
+        const split = (v) => { const s = String(v || ""); const i = s.indexOf("-"); return i < 0 ? [s, ""] : [s.slice(0, i), s.slice(i + 1)]; };
+        const [ca, pa] = split(a);
+        const [cb, pb] = split(b);
+        const na = ca.split(".").map((x) => parseInt(x, 10) || 0);
+        const nb = cb.split(".").map((x) => parseInt(x, 10) || 0);
+        for (let i = 0; i < Math.max(na.length, nb.length); i += 1) {
+            const d = (na[i] || 0) - (nb[i] || 0);
+            if (d) return d > 0 ? 1 : -1;
+        }
+        if (pa === pb) return 0;
+        if (!pa) return 1;
+        if (!pb) return -1;
+        const xa = pa.split(".");
+        const xb = pb.split(".");
+        for (let i = 0; i < Math.max(xa.length, xb.length); i += 1) {
+            if (xa[i] === undefined) return -1;
+            if (xb[i] === undefined) return 1;
+            const ia = /^\d+$/.test(xa[i]);
+            const ib = /^\d+$/.test(xb[i]);
+            if (ia && ib) { const d = Number(xa[i]) - Number(xb[i]); if (d) return d > 0 ? 1 : -1; }
+            else if (ia !== ib) return ia ? -1 : 1;
+            else if (xa[i] !== xb[i]) return xa[i] < xb[i] ? -1 : 1;
+        }
+        return 0;
+    }
+    function dlDownloads(n) {
+        if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+        if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
+        return String(n || 0);
+    }
+    function dlDate(iso) {
+        const d = iso ? new Date(iso) : null;
+        return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
+    }
+    // Packages installed in the saved model, from the functions' annotations:
+    // DAXLIB_PackageId / DAXLIB_PackageVersion, or sempy_labs' annotation named
+    // after the package (holding the version).
+    function dlInstalled() {
+        const out = new Map();
+        for (const f of data.functions || []) {
+            const ann = f.annotations || {};
+            const keys = Object.keys(ann);
+            const find = (name) => keys.find((k) => k.toLowerCase() === name.toLowerCase());
+            let id = "";
+            let version = "";
+            const idKey = find("DAXLIB_PackageId");
+            if (idKey) {
+                id = String(ann[idKey]);
+                const vKey = find("DAXLIB_PackageVersion");
+                version = vKey ? String(ann[vKey]) : "";
+            } else {
+                const k = keys.find((x) => f.name.toLowerCase().startsWith(x.toLowerCase() + "."));
+                if (k) { id = k; version = String(ann[k]); }
+            }
+            if (!id) continue;
+            const e = out.get(id.toLowerCase()) || { packageId: id, version, functionCount: 0, keys: [] };
+            e.functionCount += 1;
+            e.keys.push(f.key);
+            if (!e.version) e.version = version;
+            out.set(id.toLowerCase(), e);
+        }
+        return out;
+    }
+    function dlStaged() { return staging.creates.filter((c) => c.type === "daxlibPackage"); }
+    function dlRows() {
+        const installed = dlInstalled();
+        const staged = new Map(dlStaged().map((c) => [c.name.toLowerCase(), c]));
+        const rows = [];
+        for (const [k, p] of installed) {
+            const s = staged.get(k);
+            rows.push({ packageId: p.packageId, version: s ? s.props.version : p.version,
+                functionCount: s ? s.props.functions.length : p.functionCount, installed: true, staged: !!s });
+        }
+        for (const [k, s] of staged) {
+            if (!installed.has(k)) rows.push({ packageId: s.name, version: s.props.version, functionCount: s.props.functions.length, installed: false, staged: true });
+        }
+        return rows.sort((a, b) => a.packageId.localeCompare(b.packageId, undefined, { sensitivity: "base" }));
+    }
+    // Stages a package version: written on Save, replacing the package's
+    // existing functions. Pending edits / deletes of those functions would be
+    // overwritten, so they are dropped.
+    function dlStage(pkg, upgrade) {
+        if (saving || mode !== "write") return;
+        pushUndo("");
+        const lower = pkg.packageId.toLowerCase();
+        staging.creates = staging.creates.filter((c) => !(c.type === "daxlibPackage" && c.name.toLowerCase() === lower));
+        const inst = dlInstalled().get(lower);
+        const names = new Set(pkg.functions.map((f) => f.name.toLowerCase()));
+        const keys = new Set(inst ? inst.keys : []);
+        for (const f of data.functions || []) if (names.has(f.name.toLowerCase())) keys.add(f.key);
+        for (const [id, e] of Object.entries(staging.edits)) if (keys.has(e.key)) delete staging.edits[id];
+        staging.ops = staging.ops.filter((o) => !keys.has(o.key));
+        const id = ++createSeq + "-" + Date.now().toString(36);
+        staging.creates.push({ id, type: "daxlibPackage", parentKey: "", name: pkg.packageId, props: {
+            version: pkg.version, functions: pkg.functions.map((f) => ({ name: f.name, definition: f.definition })),
+            upgradeCompatibility: !!upgrade, installed: !!inst } });
+        recomputeCascade();
+        afterChange();
+    }
+
+    function openDaxLibManager() {
+        let tab = null;
+        let search = "";
+        let tag = "";
+        let pkg = null;
+        let loading = false;
+        let loadError = null;
+        let catalogError = null;
+        let status = null;
+        let updatingId = null;
+        let seq = 0;
+        const openFns = new Set();
+        const m = modal("DAXLib package manager", "package", { wide: true });
+        m.box.classList.add("slls-sx-fpm-box");
+        m.body.className = "slls-sx-modal-body slls-sx-dlm-body";
+        toolRedraw = () => { if (m.overlay.isConnected) draw(); };
+        m.onClose = () => { toolRedraw = null; };
+        const writable = () => mode === "write" && !saving;
+        const catalogById = () => new Map((dlCatalog || []).map((p) => [p.id.toLowerCase(), p]));
+        const hasUpdate = (row, byId) => {
+            const latest = byId.get(row.packageId.toLowerCase());
+            return !row.staged && !!latest && dlCompare(latest.version, row.version) > 0;
+        };
+
+        const fetchPackage = (id, version, onDone) => {
+            const mine = ++seq;
+            request("daxlib_package", { package: id, version: version || "" }, (res) => {
+                if (mine !== seq || !m.overlay.isConnected) return;
+                onDone(res);
+            });
+        };
+        const load = (id, version) => {
+            if (loading && !version) return;
+            loading = true; loadError = null; status = null;
+            draw();
+            fetchPackage(id, version, (res) => {
+                loading = false;
+                if (res.ok) {
+                    if (!pkg || pkg.packageId !== res.data.packageId) openFns.clear();
+                    pkg = res.data;
+                } else { pkg = null; loadError = res.error || "The package could not be loaded."; }
+                draw();
+            });
+        };
+        const commit = (p, upgrade) => {
+            const existed = dlRows().some((r) => r.packageId.toLowerCase() === p.packageId.toLowerCase() && r.installed);
+            dlStage(p, upgrade);
+            status = { kind: "success", text: `Staged ${existed ? "an update of " : ""}\u201c${p.packageId}\u201d v${p.version} `
+                + `(${plural(p.functions.length, "function")}). Use Save to apply it to the model.` };
+            pkg = null;
+            tab = "installed";
+            draw();
+        };
+        // DAX user-defined functions need compatibility level 1702: confirm the
+        // upgrade first (it is staged with the package and written on Save).
+        const stage = (p) => {
+            if (!writable() || !p.functions.length) return;
+            const level = Number(data.compatibility_level || 0);
+            if (level >= DAXLIB_MIN_COMPAT) { commit(p, false); return; }
+            const c = modal("Compatibility level upgrade required", "alert");
+            c.body.appendChild(h("p", "slls-sx-dlm-text",
+                `DAX user-defined functions require the model to be at compatibility level ${DAXLIB_MIN_COMPAT} or higher. `
+                + `This model is at compatibility level ${level || "unknown"}.`));
+            c.body.appendChild(h("p", "slls-sx-dlm-note",
+                `Staging this package also upgrades the model to compatibility level ${DAXLIB_MIN_COMPAT} when you Save. `
+                + "Compatibility levels can only be increased, not decreased."));
+            const foot = h("div", "slls-sx-modal-foot");
+            const ok = button("slls-sx-btn primary", `Upgrade to ${DAXLIB_MIN_COMPAT} & stage`, "", () => { c.close(); commit(p, true); });
+            foot.append(button("slls-sx-btn", "Cancel", "", () => c.close()), ok);
+            c.box.appendChild(foot);
+            setTimeout(() => ok.focus(), 0);
+        };
+        const update = (id) => {
+            updatingId = id;
+            draw();
+            fetchPackage(id, "", (res) => {
+                updatingId = null;
+                if (res.ok) stage(res.data);
+                else status = { kind: "error", text: res.error || "The package could not be loaded." };
+                draw();
+            });
+        };
+
+        let list = null;
+        function packageIcon(p) {
+            const wrap = h("span", "slls-sx-dlm-icon");
+            wrap.innerHTML = ICON.package;
+            if (p && p.hasIcon && p.version) {
+                const img = document.createElement("img");
+                img.alt = "";
+                img.src = `https://api.daxlib.org/v1/package/${encodeURIComponent(p.id)}/${encodeURIComponent(p.version)}/icon`;
+                img.addEventListener("load", () => { clear(wrap); wrap.appendChild(img); });
+            }
+            return wrap;
+        }
+        function drawInstalled(rows, byId) {
+            const q = search.trim().toLowerCase();
+            const shown = q ? rows.filter((r) => r.packageId.toLowerCase().includes(q)) : rows;
+            if (!shown.length) {
+                const empty = h("div", "slls-sx-empty");
+                if (q) empty.textContent = "No installed packages match your search.";
+                else {
+                    empty.append(document.createTextNode("No DAXLib packages are installed in this model yet. Use "));
+                    const link = h("a", "slls-sx-link", "Browse");
+                    link.addEventListener("click", () => { tab = "browse"; draw(); });
+                    empty.append(link, document.createTextNode(" to add one."));
+                }
+                return empty;
+            }
+            const ul = h("div", "slls-sx-dlm-list");
+            for (const r of shown) {
+                const row = h("div", "slls-sx-dlm-row installed");
+                const open = h("button", "slls-sx-dlm-open");
+                open.type = "button";
+                open.title = "View this package";
+                open.disabled = loading;
+                open.addEventListener("click", () => load(r.packageId));
+                open.append(packageIcon(byId.get(r.packageId.toLowerCase())), h("span", "slls-sx-dlm-id", r.packageId));
+                if (r.staged) {
+                    const p = h("span", "slls-sx-pill warn", "Staged");
+                    p.title = r.installed ? "Staged update \u2014 written on Save" : "Staged add \u2014 written on Save";
+                    open.appendChild(p);
+                }
+                open.append(h("span", "slls-sx-dlm-ver", "v" + (r.version || "?")), h("span", "slls-sx-dlm-count", plural(r.functionCount, "function")));
+                row.appendChild(open);
+                const latest = byId.get(r.packageId.toLowerCase());
+                if (hasUpdate(r, byId)) {
+                    if (writable()) {
+                        const busy = updatingId === r.packageId;
+                        const b = button("slls-sx-btn small primary", `Update to v${latest.version}`, "refresh", () => update(r.packageId),
+                            `Update to v${latest.version} (staged, written on Save)`);
+                        if (busy) b.querySelector("svg").classList.add("slls-sx-spin");
+                        b.disabled = busy || updatingId !== null;
+                        row.appendChild(b);
+                    } else {
+                        const p = h("span", "slls-sx-pill warn", `v${latest.version} available`);
+                        p.title = "Switch to edit mode to update";
+                        row.appendChild(p);
+                    }
+                } else if (!r.staged && latest) {
+                    const ok = h("span", "slls-sx-dlm-ok");
+                    ok.append(iconEl("check_circle", ""), document.createTextNode("Up to date"));
+                    row.appendChild(ok);
+                }
+                ul.appendChild(row);
+            }
+            return ul;
+        }
+        function drawBrowse(installed) {
+            if (catalogError) {
+                const err = h("div", "slls-sx-dlm-error");
+                err.append(iconEl("alert", ""), h("div", "", catalogError));
+                return err;
+            }
+            if (!dlCatalog) {
+                const c = h("div", "slls-sx-center");
+                c.style.padding = "40px 0";
+                const sp = iconEl("refresh", "");
+                sp.querySelector("svg").classList.add("slls-sx-spin");
+                c.append(sp, h("div", "", "Loading packages\u2026"));
+                return c;
+            }
+            const q = search.trim().toLowerCase();
+            const shown = dlCatalog.filter((p) => (!q || p.id.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
+                && (!tag || p.tags.includes(tag)));
+            if (!shown.length) return h("div", "slls-sx-empty", "No packages match your search.");
+            const ul = h("div", "slls-sx-dlm-list");
+            for (const p of shown) {
+                const row = h("div", "slls-sx-dlm-row");
+                const open = h("button", "slls-sx-dlm-open");
+                open.type = "button";
+                open.disabled = loading;
+                open.addEventListener("click", () => load(p.id));
+                const main = h("span", "slls-sx-dlm-main");
+                const title = h("span", "slls-sx-dlm-title");
+                title.appendChild(h("span", "slls-sx-dlm-id", p.id));
+                if (installed.has(p.id.toLowerCase())) title.appendChild(h("span", "slls-sx-pill new", "Installed"));
+                main.appendChild(title);
+                if (p.description) { const d = h("span", "slls-sx-dlm-desc", p.description); d.title = p.description; main.appendChild(d); }
+                const meta = h("span", "slls-sx-dlm-meta");
+                if (p.authors.length) meta.appendChild(h("span", "", "by " + p.authors.join(", ")));
+                const when = dlDate(p.published);
+                if (when) {
+                    const s = h("span", "");
+                    s.title = "Last updated";
+                    s.append(iconEl("calendar", ""), document.createTextNode("Updated " + when));
+                    meta.appendChild(s);
+                }
+                if (meta.childNodes.length) main.appendChild(meta);
+                if (p.tags.length) {
+                    const tags = h("span", "slls-sx-dlm-tags");
+                    for (const t of p.tags.slice(0, 6)) tags.appendChild(h("span", "slls-sx-dlm-tag", t));
+                    main.appendChild(tags);
+                }
+                open.append(packageIcon(p), main);
+                const side = h("div", "slls-sx-dlm-side");
+                side.appendChild(h("span", "slls-sx-dlm-ver", "v" + p.version));
+                const dl = h("span", "slls-sx-dlm-dl");
+                dl.title = `${Number(p.downloads).toLocaleString()} downloads`;
+                dl.append(iconEl("download", ""), document.createTextNode(dlDownloads(p.downloads)));
+                side.appendChild(dl);
+                if (p.owners.length) {
+                    const owners = h("span", "slls-sx-dlm-owners");
+                    for (const o of p.owners) {
+                        const a = h("a", "");
+                        a.href = `https://github.com/${encodeURIComponent(o)}`;
+                        a.target = "_blank";
+                        a.rel = "noreferrer";
+                        a.title = `${o} on GitHub`;
+                        const img = document.createElement("img");
+                        img.alt = o;
+                        img.src = `https://github.com/${encodeURIComponent(o)}.png?size=32`;
+                        img.addEventListener("error", () => { img.remove(); a.textContent = "@" + o; });
+                        a.appendChild(img);
+                        owners.appendChild(a);
+                    }
+                    side.appendChild(owners);
+                }
+                row.append(open, side);
+                ul.appendChild(row);
+            }
+            return ul;
+        }
+        function drawPackage(wrap) {
+            const card = h("div", "slls-sx-dlm-card");
+            const head = h("div", "slls-sx-dlm-card-head");
+            const who = h("div", "slls-sx-dlm-main");
+            who.appendChild(h("span", "slls-sx-dlm-name", pkg.packageId));
+            if (pkg.authors) who.appendChild(h("span", "slls-sx-dlm-by", "by " + pkg.authors));
+            head.appendChild(who);
+            const actions = h("div", "slls-sx-dlm-actions");
+            const label = h("label", "", "Version");
+            const sel = h("select", "slls-sx-select");
+            sel.setAttribute("aria-label", "Version");
+            for (const v of pkg.versions) {
+                const o = h("option", "", v);
+                o.value = v;
+                if (v === pkg.version) o.selected = true;
+                sel.appendChild(o);
+            }
+            sel.disabled = loading;
+            sel.addEventListener("change", () => load(pkg.packageId, sel.value));
+            label.appendChild(sel);
+            actions.appendChild(label);
+            if (writable()) {
+                const n = pkg.functions.length;
+                const b = button("slls-sx-btn primary", `Stage ${plural(n, "function")}`, "plus", () => stage(pkg),
+                    "Stage these functions \u2014 they are written to the model when you Save");
+                b.disabled = loading || !n;
+                actions.appendChild(b);
+            }
+            head.appendChild(actions);
+            card.appendChild(head);
+            const desc = pkg.description || ((dlCatalog || []).find((p) => p.id.toLowerCase() === pkg.packageId.toLowerCase()) || {}).description;
+            if (desc) card.appendChild(h("p", "slls-sx-dlm-text", desc));
+            const note = h("p", "slls-sx-dlm-note");
+            if (writable()) {
+                note.innerHTML = "Staging adds these functions to your unsaved changes; they are written on Save and replace any "
+                    + `existing functions already installed from this package. Functions are named <code>${esc(pkg.packageId)}.*</code>.`;
+            } else {
+                note.append(document.createTextNode("Read-only. "));
+                const link = h("a", "slls-sx-link", "Enable edit mode");
+                link.addEventListener("click", () => setMode("write"));
+                note.append(link, document.createTextNode(" to add this package to the model."));
+            }
+            card.appendChild(note);
+            wrap.appendChild(card);
+            wrap.appendChild(h("div", "slls-sx-dlm-section", `Functions (${pkg.functions.length})`));
+            const fl = h("div", "slls-sx-dlm-list");
+            for (const fn of pkg.functions) {
+                const item = h("div", "slls-sx-dlm-fn");
+                const b = h("button", "slls-sx-dlm-fn-head");
+                b.type = "button";
+                b.setAttribute("aria-expanded", String(openFns.has(fn.name)));
+                const caret = h("span", "slls-sx-caret" + (openFns.has(fn.name) ? " open" : ""));
+                caret.innerHTML = ICON.caret_right;
+                b.append(caret, iconEl("zap", ""), h("span", "name", fn.name));
+                b.addEventListener("click", () => {
+                    if (openFns.has(fn.name)) openFns.delete(fn.name); else openFns.add(fn.name);
+                    const scroller = m.body.querySelector(".slls-sx-dlm-scroll");
+                    const top = scroller ? scroller.scrollTop : 0;
+                    draw();
+                    const next = m.body.querySelector(".slls-sx-dlm-scroll");
+                    if (next) next.scrollTop = top;
+                });
+                item.appendChild(b);
+                if (openFns.has(fn.name)) {
+                    const pre = h("pre", "");
+                    pre.innerHTML = highlight(fn.definition, "dax");
+                    item.appendChild(pre);
+                }
+                fl.appendChild(item);
+            }
+            wrap.appendChild(fl);
+        }
+        function paintList() {
+            if (!list) return;
+            clear(list);
+            const byId = catalogById();
+            const rows = dlRows();
+            if (tab === "installed") list.appendChild(drawInstalled(rows, byId));
+            else list.appendChild(drawBrowse(dlInstalled()));
+        }
+        function draw() {
+            const rows = dlRows();
+            if (tab === null) tab = rows.length ? "installed" : "browse";
+            clear(m.actions);
+            const site = h("a", "slls-sx-btn small slls-sx-dlm-browse");
+            site.href = "https://daxlib.org/packages/";
+            site.target = "_blank";
+            site.rel = "noreferrer";
+            site.append(document.createTextNode("Browse daxlib.org"), iconEl("external_link", ""));
+            m.actions.append(site, toolModeSwitch());
+
+            clear(m.body);
+            list = null;
+            const bar = h("div", "slls-sx-dlm-toolbar");
+            if (pkg || loadError) {
+                bar.appendChild(button("slls-sx-btn small", "Back to packages", "arrow_left", () => {
+                    pkg = null; loadError = null; seq += 1; loading = false; draw();
+                }));
+            } else {
+                const sw = h("div", "slls-sx-search");
+                sw.appendChild(iconEl("search", ""));
+                const input = h("input", "slls-sx-input");
+                input.type = "search";
+                input.placeholder = "Search packages (e.g. DaxLib.SVG)";
+                input.setAttribute("aria-label", "Search packages");
+                input.value = search;
+                input.addEventListener("input", () => { search = input.value; paintList(); });
+                sw.appendChild(input);
+                bar.appendChild(sw);
+                if (tab === "browse") {
+                    const tags = [...new Set((dlCatalog || []).flatMap((p) => p.tags))].sort((a, b) => a.localeCompare(b));
+                    const sel = h("select", "slls-sx-select");
+                    sel.setAttribute("aria-label", "Filter by tag");
+                    const all = h("option", "", "All tags");
+                    all.value = "";
+                    sel.appendChild(all);
+                    for (const t of tags) { const o = h("option", "", t); o.value = t; if (t === tag) o.selected = true; sel.appendChild(o); }
+                    sel.addEventListener("change", () => { tag = sel.value; paintList(); });
+                    bar.appendChild(sel);
+                }
+            }
+            if (loading) {
+                const s = h("span", "slls-sx-dlm-status");
+                s.textContent = "Loading package\u2026";
+                bar.appendChild(s);
+            } else if (status) bar.appendChild(h("span", "slls-sx-dlm-status " + status.kind, status.text));
+            m.body.appendChild(bar);
+
+            const scroll = h("div", "slls-sx-dlm-scroll");
+            const wrap = h("div", "slls-sx-dlm-wrap");
+            scroll.appendChild(wrap);
+            m.body.appendChild(scroll);
+            if (loadError) {
+                const err = h("div", "slls-sx-dlm-error");
+                err.append(iconEl("alert", ""), h("div", "", loadError));
+                wrap.appendChild(err);
+            } else if (pkg) {
+                drawPackage(wrap);
+            } else {
+                const byId = catalogById();
+                const updates = rows.filter((r) => hasUpdate(r, byId)).length;
+                const tabs = h("div", "slls-sx-tabs");
+                tabs.setAttribute("role", "tablist");
+                const mk = (id, text, icon, count, extra) => {
+                    const b = h("button", "slls-sx-tab" + (tab === id ? " active" : ""));
+                    b.type = "button";
+                    b.setAttribute("role", "tab");
+                    b.setAttribute("aria-selected", String(tab === id));
+                    b.append(iconEl(icon, ""), document.createTextNode(text));
+                    if (count !== null) b.appendChild(h("span", "slls-sx-pill", String(count)));
+                    if (extra) b.appendChild(extra);
+                    b.addEventListener("click", () => { tab = id; status = null; draw(); });
+                    return b;
+                };
+                let badge = null;
+                if (updates) {
+                    badge = h("span", "slls-sx-pill warn", plural(updates, "update"));
+                    badge.title = `${plural(updates, "update")} available`;
+                }
+                tabs.append(mk("installed", "Installed", "check_circle", rows.length || null, badge),
+                    mk("browse", "Browse", "package", dlCatalog ? dlCatalog.length : null));
+                wrap.appendChild(tabs);
+                list = h("div", "");
+                wrap.appendChild(list);
+                paintList();
+            }
+            const foot = h("div", "slls-sx-dlm-foot");
+            const a = h("a", "slls-sx-link", "DAXLib.org");
+            a.href = "https://daxlib.org";
+            a.target = "_blank";
+            a.rel = "noreferrer";
+            foot.append(document.createTextNode("Packages are published on "), a, document.createTextNode("."));
+            wrap.appendChild(foot);
+        }
+        if (!dlCatalog) {
+            request("daxlib_catalog", {}, (res) => {
+                if (res.ok) dlCatalog = res.data.packages || [];
+                else catalogError = res.error || "The DAXLib.org package list could not be loaded.";
+                if (m.overlay.isConnected) draw();
+            });
         }
         draw();
     }
@@ -4027,7 +4651,8 @@ _EXPLORER_ICON_NAMES = (
     "sliders", "sun", "moon", "fullscreen", "fullscreen_exit", "pencil", "eye", "eye_off",
     "save", "history", "alert", "close", "trash", "plus", "undo", "redo", "file",
     "workflow", "wand", "expand_diagonal", "user", "telescope", "zoom_in", "zoom_out",
-    "more", "arrow_up", "arrow_down", "external_link", "info",
+    "more", "arrow_up", "arrow_down", "external_link", "info", "package", "calendar",
+    "download", "check_circle", "arrow_left",
 )  # fmt: skip
 
 _WIDGET_CSS = (
@@ -5286,6 +5911,9 @@ def _create_object(tom, spec: dict):
     props = dict(spec.get("props") or {})
     if not name:
         raise ValueError(f"A new {obj_type} needs a name.")
+    if obj_type == "daxlibPackage":
+        _install_daxlib_package(model, name, props)
+        return None
 
     def _table():
         if not model.Tables.ContainsName(table_name):
@@ -5713,6 +6341,299 @@ def _format_dax_expression(expression: str) -> str:
     return formatted[0]
 
 
+# ---------------------------------------------------------------------------
+# DAXLib.org packages
+# ---------------------------------------------------------------------------
+_DAXLIB_QUERY_URL = "https://api.daxlib.org/v1/query"
+_DAXLIB_GITHUB_CONTENTS = "https://api.github.com/repos/daxlib/daxlib/contents/packages"
+_DAXLIB_GITHUB_RAW = "https://raw.githubusercontent.com/daxlib/daxlib/main/packages"
+_DAXLIB_ID_ANNOTATION = "DAXLIB_PackageId"
+_DAXLIB_VERSION_ANNOTATION = "DAXLIB_PackageVersion"
+# DAX user-defined functions require this compatibility level.
+_DAXLIB_MIN_COMPAT = 1702
+_DAXLIB_CACHE_SECONDS = 600
+# Do not toggle ``busy`` (which locks Save / reload) for tool window lookups.
+_BACKGROUND_ACTIONS = ("daxlib_catalog", "daxlib_package")
+_daxlib_cache: Dict[object, Tuple[float, object]] = {}
+
+
+def _daxlib_cached(key, loader):
+    import time
+
+    hit = _daxlib_cache.get(key)
+    if hit and time.time() - hit[0] < _DAXLIB_CACHE_SECONDS:
+        return hit[1]
+    value = loader()
+    _daxlib_cache[key] = (time.time(), value)
+    return value
+
+
+def _daxlib_get(url: str, accept: str = "application/json"):
+    import requests
+
+    return requests.get(
+        url,
+        headers={"User-Agent": "semantic-link-labs", "Accept": accept},
+        timeout=30,
+    )
+
+
+def _daxlib_version_key(version: str):
+    """Sort key for package versions: numeric parts, then release > prerelease."""
+
+    core, _, pre = str(version).partition("-")
+    parts = [int(p) if p.isdigit() else 0 for p in core.split(".")]
+    parts += [0] * (4 - len(parts))
+    pre_parts = tuple(
+        (0, int(p), "") if p.isdigit() else (1, 0, p.lower())
+        for p in pre.split(".")
+        if pre
+    )
+    return (tuple(parts), 0 if pre else 1, pre_parts)
+
+
+def _daxlib_catalog() -> List[dict]:
+    """Every package published to DAXLib.org, most downloaded first."""
+
+    def _load():
+        packages: List[dict] = []
+        seen = set()
+        page = 100
+        for skip in range(0, 5000, page):
+            response = _daxlib_get(f"{_DAXLIB_QUERY_URL}?take={page}&skip={skip}")
+            if not response.ok:
+                raise ValueError(
+                    "The DAXLib.org package list could not be loaded "
+                    f"({response.status_code})."
+                )
+            items = (response.json() or {}).get("data") or []
+            for item in items:
+                package_id = str(item.get("id") or "")
+                if not package_id or package_id.lower() in seen:
+                    continue
+                seen.add(package_id.lower())
+                texts = {
+                    field: [str(x) for x in (item.get(field) or []) if x]
+                    for field in ("authors", "owners", "tags")
+                }
+                packages.append(
+                    {
+                        "id": package_id,
+                        "version": str(item.get("version") or ""),
+                        "downloads": int(item.get("downloads") or 0),
+                        "description": str(item.get("description") or ""),
+                        "published": str(item.get("published") or ""),
+                        "hasIcon": item.get("hasIcon") is True,
+                        "projectUrl": str(item.get("projectUrl") or ""),
+                        **texts,
+                    }
+                )
+            if len(items) < page:
+                break
+        packages.sort(key=lambda p: (-p["downloads"], p["id"].lower()))
+        return packages
+
+    return _daxlib_cached("catalog", _load)
+
+
+def _daxlib_package_from_github(package_name: str, version: Optional[str]) -> dict:
+    """Reads a package from the DAXLib GitHub repository (fallback source)."""
+
+    lower = package_name.lower()
+    shard = lower[0]
+    response = _daxlib_get(
+        f"{_DAXLIB_GITHUB_CONTENTS}/{shard}/{lower}", "application/vnd.github+json"
+    )
+    if response.status_code == 404:
+        versions = []
+    elif not response.ok:
+        raise ValueError(
+            f"The '{package_name}' package could not be looked up "
+            f"({response.status_code})."
+        )
+    else:
+        versions = [
+            str(item.get("name"))
+            for item in response.json() or []
+            if item.get("type") == "dir" and item.get("name")
+        ]
+    versions.sort(key=_daxlib_version_key, reverse=True)
+    if not versions:
+        raise ValueError(f"No versions found for package '{package_name}'")
+    selected = version or versions[0]
+    if selected not in versions:
+        raise ValueError(
+            f"Version '{selected}' not found for package '{package_name}'. "
+            f"Available versions: {', '.join(versions)}"
+        )
+    base = f"{_DAXLIB_GITHUB_RAW}/{shard}/{lower}/{selected}"
+    tmdl = _daxlib_get(f"{base}/lib/functions.tmdl", "text/plain")
+    if not tmdl.ok:
+        raise ValueError(
+            f"Could not read the functions of '{package_name}' version '{selected}'."
+        )
+    manifest = _daxlib_get(f"{base}/manifest.daxlib")
+    return {
+        "tmdl": tmdl.text,
+        "version": selected,
+        "versions": versions,
+        "manifest": manifest.text if manifest.ok else None,
+        "nuspec": None,
+    }
+
+
+def _daxlib_metadata(raw: dict, package_name: str) -> Tuple[str, str, str]:
+    """The package id (canonical casing), description and authors."""
+
+    import xml.etree.ElementTree as ET
+
+    meta = {"id": "", "description": "", "authors": ""}
+    try:
+        manifest = json.loads(raw.get("manifest") or "{}")
+        for field in meta:
+            value = manifest.get(field)
+            meta[field] = ", ".join(value) if isinstance(value, list) else value or ""
+    except Exception:
+        pass
+    if raw.get("nuspec") and not all(meta.values()):
+        try:
+            for el in ET.fromstring(raw["nuspec"]).iter():
+                field = str(el.tag).rsplit("}", 1)[-1]
+                if field in meta and not meta[field] and el.text:
+                    meta[field] = el.text.strip()
+        except Exception:
+            pass
+    return (
+        str(meta["id"] or package_name),
+        str(meta["description"]),
+        str(meta["authors"]),
+    )
+
+
+def _daxlib_definition(body: str) -> str:
+    """Removes the TMDL indentation from a package function's definition."""
+
+    import textwrap
+
+    lines = body.strip("\n").rstrip().split("\n")
+    if lines[0][:1] in (" ", "\t"):
+        return textwrap.dedent("\n".join(lines))
+    # The TMDL parser consumed the first line's indentation; the rest keep it.
+    rest = textwrap.dedent("\n".join(lines[1:]))
+    return lines[0] + ("\n" + rest if len(lines) > 1 else "")
+
+
+def _daxlib_package(package_name: str, version: Optional[str] = None) -> dict:
+    """A package version's functions, metadata and the available versions."""
+
+    from sempy_labs.daxlib._functions import (
+        _download_daxlib_package,
+        extract_functions_list,
+    )
+
+    package_name = str(package_name or "").strip()
+    if not package_name:
+        raise ValueError("A package name is required.")
+    version = str(version or "").strip() or None
+
+    def _load():
+        try:
+            raw = _download_daxlib_package(package_name, version)
+        except ValueError:
+            raise
+        except Exception:
+            # The DAXLib .NET client is unavailable (e.g. outside Fabric).
+            raw = _daxlib_package_from_github(package_name, version)
+        package_id, description, authors = _daxlib_metadata(raw, package_name)
+        functions = [
+            {"name": f["name"], "definition": _daxlib_definition(f["definition"])}
+            for f in extract_functions_list(raw["tmdl"])
+        ]
+        return {
+            "packageId": package_id,
+            "version": raw["version"],
+            "versions": list(raw["versions"]),
+            "description": description,
+            "authors": authors,
+            "functions": functions,
+        }
+
+    return _daxlib_cached(("package", package_name.lower(), version), _load)
+
+
+def _find_annotation(obj, name: str):
+    lower = name.lower()
+    return next((a for a in obj.Annotations if str(a.Name).lower() == lower), None)
+
+
+def _set_annotation(obj, name: str, value: str) -> None:
+    import Microsoft.AnalysisServices.Tabular as TOM
+
+    existing = _find_annotation(obj, name)
+    if existing is not None:
+        existing.Value = value
+        return
+    annotation = TOM.Annotation()
+    annotation.Name = name
+    annotation.Value = value
+    obj.Annotations.Add(annotation)
+
+
+def _daxlib_owner(function, package_id: str) -> bool:
+    """Whether a model function was installed from the given package."""
+
+    tagged = _find_annotation(function, _DAXLIB_ID_ANNOTATION)
+    if tagged is not None:
+        return str(tagged.Value).lower() == package_id.lower()
+    # Installed without DAXLib annotations (e.g. by sempy_labs): by name prefix.
+    return str(function.Name).lower().startswith(package_id.lower() + ".")
+
+
+def _install_daxlib_package(model, package_id: str, props: dict) -> None:
+    """Adds / updates a DAXLib package's functions in the model.
+
+    Functions of the package which are not in this version are removed; the
+    rest are upserted and tagged with the package id and version.
+    """
+
+    import Microsoft.AnalysisServices.Tabular as TOM
+
+    version = str(props.get("version") or "")
+    functions = [f for f in props.get("functions") or [] if f.get("name")]
+    if not version or not functions:
+        raise ValueError(f"The '{package_id}' package has no functions to add.")
+    database = model.Database
+    if int(database.CompatibilityLevel) < _DAXLIB_MIN_COMPAT:
+        if not props.get("upgradeCompatibility"):
+            raise ValueError(
+                "DAX user-defined functions require compatibility level "
+                f"{_DAXLIB_MIN_COMPAT} or higher."
+            )
+        database.CompatibilityLevel = _DAXLIB_MIN_COMPAT
+
+    wanted = {str(f["name"]) for f in functions}
+    for function in list(model.Functions):
+        if str(function.Name) not in wanted and _daxlib_owner(function, package_id):
+            model.Functions.Remove(function)
+    for spec in functions:
+        name = str(spec["name"])
+        if model.Functions.ContainsName(name):
+            function = model.Functions[name]
+            function.Expression = str(spec.get("definition") or "")
+        else:
+            function = TOM.Function()
+            function.Name = name
+            function.Expression = str(spec.get("definition") or "")
+            _new_lineage_tag(function)
+            model.Functions.Add(function)
+        _set_annotation(function, _DAXLIB_ID_ANNOTATION, package_id)
+        _set_annotation(function, _DAXLIB_VERSION_ANNOTATION, version)
+        # sempy_labs' add_package_to_semantic_model tags by the package name.
+        legacy = _find_annotation(function, package_id)
+        if legacy is not None:
+            legacy.Value = version
+
+
 @log
 def semantic_explorer(
     dataset: Optional[str | UUID] = None,
@@ -5885,6 +6806,16 @@ def semantic_explorer(
                 widget.status = {}
                 _reply(data, True)
                 return
+            if action == "daxlib_catalog":
+                _reply(data, True, {"packages": _daxlib_catalog()})
+                return
+            if action == "daxlib_package":
+                _reply(
+                    data,
+                    True,
+                    _daxlib_package(data.get("package"), data.get("version")),
+                )
+                return
 
             if not ctx["dataset_id"]:
                 raise ValueError("Select a semantic model first.")
@@ -5940,7 +6871,8 @@ def semantic_explorer(
                 if action in ("connect", "reload", "save"):
                     widget.status = {"message": f"Error: {e}", "kind": "error"}
         finally:
-            widget.busy = ""
+            if action not in _BACKGROUND_ACTIONS:
+                widget.busy = ""
             if action in ("list_workspaces", "list_datasets", "connect"):
                 widget.picker_loading = False
 
@@ -5948,7 +6880,8 @@ def semantic_explorer(
         data = dict(widget.pending_action or {})
         if not data.get("action"):
             return
-        widget.busy = str(data.get("action"))
+        if data["action"] not in _BACKGROUND_ACTIONS:
+            widget.busy = str(data.get("action"))
         run_widget_task(_handle, (data,))
 
     widget.observe(_on_run, names=["run"])

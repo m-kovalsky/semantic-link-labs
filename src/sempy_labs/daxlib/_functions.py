@@ -21,6 +21,16 @@ def get_daxlib_package_and_version(
     package_name: str, version: str = None
 ) -> Tuple[str, str]:
 
+    package = _download_daxlib_package(package_name=package_name, version=version)
+    return (package["tmdl"], package["version"])
+
+
+def _download_daxlib_package(package_name: str, version: str = None) -> dict:
+    """
+    Downloads a DAXLib.org package; returns its ``tmdl``, selected ``version``,
+    available ``versions`` (newest first) and ``manifest`` / ``nuspec`` text.
+    """
+
     init_dotnet()
 
     from DaxLib.Client import DaxLibClient, ProductInformation
@@ -81,8 +91,22 @@ def get_daxlib_package_and_version(
 
     tmdl_bytes = files.get("lib/functions.tmdl")
     tmdl = tmdl_bytes.decode("utf-8")
+    manifest_bytes = files.get("manifest.daxlib")
+    nuspec_bytes = next(
+        (v for k, v in files.items() if "/" not in k and k.endswith(".nuspec")), None
+    )
 
-    return (tmdl, str(selected_version))
+    return {
+        "tmdl": tmdl,
+        "version": str(selected_version),
+        "versions": [str(v) for v in versions],
+        "manifest": (
+            manifest_bytes.decode("utf-8-sig") if manifest_bytes is not None else None
+        ),
+        "nuspec": (
+            nuspec_bytes.decode("utf-8-sig") if nuspec_bytes is not None else None
+        ),
+    }
 
 
 @log
