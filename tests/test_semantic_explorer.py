@@ -5,6 +5,7 @@ the TOM objects and for the ``System`` / ``Microsoft.AnalysisServices.Tabular``
 modules the explorer imports.
 """
 
+import json
 import sys
 import types
 
@@ -122,6 +123,33 @@ class _Obj:
 
     def GetType(self):
         return _Type(self)
+
+
+class _FakeRelationship(_Obj):
+    """SingleColumnRelationship: the tables follow the columns."""
+
+    def __init__(self):
+        super().__init__("Relationship", FromColumn=None, ToColumn=None)
+
+    @property
+    def FromTable(self):
+        return self.FromColumn.Table
+
+    @property
+    def ToTable(self):
+        return self.ToColumn.Table
+
+
+class _FakeTablePermission:
+    def __init__(self):
+        self.Table = None
+        self.FilterExpression = None
+        self.MetadataPermission = "Default"
+        self.ColumnPermissions = _Coll()
+
+    @property
+    def Name(self):
+        return self.Table.Name
 
 
 class _PerspectiveMember:
@@ -294,6 +322,20 @@ def fake_clr(monkeypatch):
     tom = types.ModuleType("Microsoft.AnalysisServices.Tabular")
     tom.Annotation = lambda: _Obj("Annotation")
     tom.Function = lambda: _Obj("Function", Expression="")
+    tom.SingleColumnRelationship = _FakeRelationship
+    tom.RelationshipEndCardinality = _EnumType(
+        "RelationshipEndCardinality", ["None", "One", "Many"]
+    )
+    tom.CrossFilteringBehavior = _EnumType(
+        "CrossFilteringBehavior", ["OneDirection", "BothDirections", "Automatic"]
+    )
+    tom.MetadataPermission = _EnumType(
+        "MetadataPermission", ["Default", "None", "Read"]
+    )
+    tom.TablePermission = _FakeTablePermission
+    tom.ColumnPermission = lambda: types.SimpleNamespace(
+        Column=None, MetadataPermission=None
+    )
     tom.TranslatedProperty = types.SimpleNamespace(
         Caption="Caption", Description="Description", DisplayFolder="DisplayFolder"
     )
@@ -793,3 +835,111 @@ def test_dependency_graph_dedupes_nodes_and_normalizes_object_types():
 )
 def test_daxlib_function_definitions_lose_their_tmdl_indentation(body):
     assert sx._daxlib_definition(body) == "(\n\tx : INT64\n) =>\n\tx * 2"
+
+
+# ---------------------------------------------------------------------------
+# Relationship and security managers
+# ---------------------------------------------------------------------------
+def test_relationship_create_and_column_edits_resolve_saved_names(fake_clr):
+    model = _build_model()
+    dates = model.Tables["Dates"]
+    sales = model.Tables["Sales"]
+    order_date = _column(sales, "OrderDate", data_type="DateTime")
+    create = {
+        "type": "relationship",
+        "name": "Sales[Region] -> Dates[Date]",
+        "table": "",
+        "props": {
+            "fromTable": "Sales",
+            "fromColumn": "Region",
+            "toTable": "Dates",
+            "toColumn": "Date",
+            "FromCardinality": "Many",
+            "ToCardinality": "One",
+            "CrossFilteringBehavior": "BothDirections",
+            "IsActive": False,
+        },
+    }
+
+    sx._apply_changes(_tom(model), [create], [], [])
+
+    rel = model.Relationships[0]
+    assert rel.FromColumn is sales.Columns["Region"]
+    assert rel.ToColumn is dates.Columns["Date"]
+    assert [str(rel.FromCardinality), str(rel.ToCardinality)] == ["Many", "One"]
+    assert str(rel.CrossFilteringBehavior) == "BothDirections"
+    assert rel.IsActive is False
+
+    edit = {
+        "target": {"type": "relationship", "name": rel.Name},
+        "property": "FromColumn",
+        "value": "OrderDate",
+    }
+    sx._apply_changes(_tom(model), [], [edit], [])
+    assert rel.FromColumn is order_date
+
+    bad = dict(edit, value="Nope")
+    with pytest.raises(ValueError, match=r"'Sales'\[Nope\] column was not found"):
+        sx._apply_changes(_tom(model), [], [bad], [])
+
+
+def test_object_level_security_sets_and_resets_permissions(fake_clr):
+    model = _build_model()
+    role = _Obj("Role", Name="Reader", TablePermissions=_Coll())
+    model.Roles.Add(role)
+    tom = _tom(model)
+
+    sx._apply_edit(
+        tom,
+        role,
+        "Ols",
+        json.dumps(
+            [
+                {"table": "Dates", "column": "", "permission": "None"},
+                {"table": "Sales", "column": "Region", "permission": "None"},
+                {"table": "Missing", "column": "", "permission": "None"},
+            ]
+        ),
+    )
+
+    dates, sales = role.TablePermissions["Dates"], role.TablePermissions["Sales"]
+    assert str(dates.MetadataPermission) == "None"
+    assert str(sales.MetadataPermission) == "Default"
+    [region] = sales.ColumnPermissions
+    assert region.Column is model.Tables["Sales"].Columns["Region"]
+    assert str(region.MetadataPermission) == "None"
+
+    # Keeping an RLS filter keeps its table permission; the rest is removed.
+    sales.FilterExpression = '[Region] = "West"'
+    sx._apply_edit(tom, role, "Ols", "[]")
+    assert [tp.Name for tp in role.TablePermissions] == ["Sales"]
+    assert sales.ColumnPermissions.Count == 0
+
+
+@pytest.mark.parametrize(
+    "stats, expected",
+    [
+        ({"a": (10, 4), "b": (4, 4)}, ("Sales", "Dates", "Many", "One", True)),
+        ({"a": (4, 4), "b": (10, 4)}, ("Dates", "Sales", "Many", "One", True)),
+        ({"a": (4, 4), "b": (4, 4)}, ("Sales", "Dates", "One", "One", True)),
+        ({"a": (10, 4), "b": (10, 4)}, ("Sales", "Dates", "Many", "Many", False)),
+    ],
+)
+def test_relationship_inference_puts_the_unique_column_on_the_one_side(stats, expected):
+    pair = {
+        "from_table": "Sales",
+        "from_column": "Key",
+        "to_table": "Dates",
+        "to_column": "Key",
+    }
+    measured = {("Sales", "Key"): stats["a"], ("Dates", "Key"): stats["b"]}
+
+    result = sx._relationship_inference(pair, measured)
+
+    assert (
+        result["from_table"],
+        result["to_table"],
+        result["from_cardinality"],
+        result["to_cardinality"],
+        result["confident"],
+    ) == expected

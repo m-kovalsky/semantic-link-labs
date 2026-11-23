@@ -26,6 +26,11 @@ _WIDGET_CSS = """
     --sx-success: #16a34a;
     --sx-success-soft: rgba(22, 163, 74, 0.12);
     --sx-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    /* Relationship diagram highlights, key roles and data-source borders. */
+    --sx-hl-mm: #d946ef; --sx-hl-bidi: #f59e0b; --sx-hl-lim: #f43f5e; --sx-hl-nonint: #f97316; --sx-hl-sf: #8b5cf6;
+    --sx-key-pk: #d97706; --sx-key-fk: #0ea5e9;
+    --sx-src-0: #3b82f6; --sx-src-1: #22c55e; --sx-src-2: #f59e0b; --sx-src-3: #a855f7; --sx-src-4: #ec4899;
+    --sx-src-5: #14b8a6; --sx-src-6: #ef4444; --sx-src-7: #6366f1; --sx-src-8: #84cc16; --sx-src-9: #f97316;
     /* Object-type hues for the dependency node graph. */
     --sx-cat-measure: #059669; --sx-cat-column: #2563eb; --sx-cat-hierarchy: #7c3aed;
     --sx-cat-item: #d97706; --sx-cat-table: #ea580c; --sx-cat-role: #e11d48; --sx-cat-other: #64748b;
@@ -676,6 +681,358 @@ _WIDGET_CSS = """
 .slls-sx-dlm-error svg { width: 26px; height: 26px; }
 .slls-sx-dlm-browse { display: inline-flex; align-items: center; gap: 5px; text-decoration: none; }
 .slls-sx-dlm-browse svg { width: 13px; height: 13px; }
+
+/* Shared tool windows */
+.slls-sx-modal .slls-sx-tool-body { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.slls-sx-tool .slls-sx-modal-title { flex: 0 1 auto; }
+.slls-sx-modal-sub {
+    flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--ui-text-secondary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.slls-sx-tool-pending { margin-left: 0; height: 22px; }
+.slls-sx-tool-scroll { flex: 1 1 0; min-height: 0; overflow: auto; }
+.slls-sx-tool-wrap { max-width: 920px; margin: 0 auto; padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.slls-sx-tool-card {
+    display: flex; flex-direction: column; gap: 10px; padding: 14px 16px;
+    border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-bg);
+}
+.slls-sx-tool-card .slls-sx-section-title { margin: 0; }
+.slls-sx-tool-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 11.5px; font-weight: 500; color: var(--ui-text-secondary); }
+.slls-sx-tool-field > span { display: inline-flex; align-items: center; gap: 5px; }
+.slls-sx-tool-field .slls-sx-select, .slls-sx-tool-field .slls-sx-input { font-size: 12.5px; padding: 6px 8px; }
+.slls-sx-tool-toolbar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+    padding: 8px 16px; border-bottom: 1px solid var(--ui-border);
+}
+.slls-sx-tool-toolbar .slls-sx-search { width: 260px; max-width: 100%; }
+.slls-sx-tool-toolbar .slls-sx-tool-field { flex-direction: row; align-items: center; gap: 6px; }
+.slls-sx-tool-toolbar .slls-sx-tool-field .slls-sx-select { width: auto; min-width: 120px; }
+.slls-sx-tool-typefilter { width: 190px; }
+.slls-sx-tool-typefilter .slls-sx-menu { min-width: 220px; right: auto; }
+.slls-sx-tool-typefilter .slls-sx-menu-head { gap: 10px; }
+.slls-sx-tool-typefilter .slls-sx-menu-head span { flex: 1; }
+.slls-sx-tool-count { margin-left: auto; font-size: 12px; color: var(--ui-text-tertiary); font-variant-numeric: tabular-nums; }
+.slls-sx-tool-caret {
+    appearance: none; width: 18px; height: 18px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; border: none; border-radius: 4px; background: transparent; color: var(--ui-text-tertiary); cursor: pointer;
+}
+.slls-sx-tool-caret:hover { background: var(--ui-surface-2); color: var(--ui-text); }
+.slls-sx-tool-caret .slls-sx-caret svg { width: 9px; height: 9px; }
+.slls-sx-tool-check { width: 14px; height: 14px; margin: 0; flex-shrink: 0; accent-color: var(--ui-accent); display: inline-block; }
+.slls-sx-tool-hidden { display: inline-flex; color: var(--ui-text-tertiary); }
+.slls-sx-tool-hidden svg { width: 13px; height: 13px; }
+.slls-sx-tool-error {
+    display: flex; align-items: center; gap: 8px; margin: 8px 16px 0; padding: 8px 12px; font-size: 12.5px;
+    border: 1px solid var(--ui-danger-border); border-radius: 8px; background: var(--ui-danger-bg); color: var(--ui-danger-text);
+}
+.slls-sx-tool-error svg { width: 15px; height: 15px; flex-shrink: 0; }
+.slls-sx-tool-label { font-size: 11.5px; font-weight: 600; color: var(--ui-text-secondary); }
+.slls-sx-mono { font-family: var(--sx-mono); font-size: 12px; }
+.slls-sx-btn.on { border-color: var(--ui-accent); color: var(--ui-accent); background: var(--ui-accent-soft); }
+.slls-sx-iconbtn.danger:hover:not(:disabled) { color: var(--ui-danger-text); background: var(--ui-danger-bg); }
+.slls-sx-tool .slls-sx-dot { display: inline-block; }
+
+/* Relationship manager */
+.slls-sx-rm-form { display: flex; flex-direction: column; gap: 8px; }
+.slls-sx-rm-side { display: grid; grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1.3fr) 120px; align-items: end; gap: 10px; }
+.slls-sx-rm-side-label { padding-bottom: 8px; font-size: 12px; font-weight: 600; color: var(--ui-text-secondary); }
+.slls-sx-rm-types { font-size: 12px; color: var(--ui-text-secondary); }
+.slls-sx-rm-types.warn { color: var(--sx-warn); font-weight: 500; }
+.slls-sx-rm-bottom { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.slls-sx-rm-bottom .slls-sx-tool-field:first-child { width: 220px; }
+.slls-sx-rm-bottom .slls-sx-switch { height: 30px; }
+.slls-sx-rm-bottom .slls-sx-btn { margin-left: auto; }
+.slls-sx-rm-list { display: flex; flex-direction: column; gap: 6px; }
+.slls-sx-rm-new {
+    display: flex; align-items: center; gap: 10px; padding: 7px 10px; font-size: 12.5px;
+    border: 1px solid var(--sx-warn); border-radius: 8px; background: var(--sx-warn-soft);
+}
+.slls-sx-rm-new .slls-sx-pill { margin-left: 0; }
+.slls-sx-rm-new .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-rm-card { border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg); }
+.slls-sx-rm-card.deleted .name { text-decoration: line-through; color: var(--ui-text-tertiary); }
+.slls-sx-rm-card-head { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 4px; }
+.slls-sx-rm-toggle {
+    appearance: none; flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 5px 6px;
+    border: none; border-radius: 6px; background: transparent; color: inherit; font: inherit; font-size: 12.5px;
+    text-align: left; cursor: pointer; transform: none !important;
+}
+.slls-sx-rm-toggle:hover { background: var(--ui-surface-2); }
+.slls-sx-rm-toggle > span.slls-sx-ricon svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-rm-toggle .name { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-rm-toggle .slls-sx-pill { margin-left: 0; }
+.slls-sx-rm-grid {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 24px;
+    padding: 10px 14px 12px; border-top: 1px solid var(--ui-border);
+}
+.slls-sx-rm-row { display: flex; align-items: center; gap: 10px; min-height: 30px; font-size: 12.5px; }
+.slls-sx-rm-row .label { width: 180px; flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--ui-text-secondary); }
+.slls-sx-rm-row .val { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-rm-row .slls-sx-select { flex: 1; min-width: 0; padding: 5px 8px; font-size: 12.5px; }
+
+/* Security manager */
+.slls-sx-sm-role { align-items: flex-start; }
+.slls-sx-sm-role > .slls-sx-ricon { padding-top: 2px; }
+.slls-sx-sm-role-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.slls-sx-sm-role-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.slls-sx-sm-role-top .slls-sx-pill { margin-left: 0; }
+.slls-sx-sm-role .meta { font-size: 11px; color: var(--ui-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-sm-role.deleted .name { text-decoration: line-through; color: var(--ui-text-tertiary); }
+.slls-sx-sm-del {
+    display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex-shrink: 0;
+    border-radius: 5px; color: var(--ui-text-tertiary); opacity: 0;
+}
+.slls-sx-sm-role:hover .slls-sx-sm-del, .slls-sx-sm-role.deleted .slls-sx-sm-del, .slls-sx-sm-del:focus { opacity: 1; }
+.slls-sx-sm-del:hover { background: var(--ui-danger-bg); color: var(--ui-danger-text); }
+.slls-sx-sm-del svg { width: 13px; height: 13px; }
+.slls-sx-sm-general { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.slls-sx-sm-add { display: flex; gap: 8px; }
+.slls-sx-sm-add .slls-sx-input { flex: 1; }
+.slls-sx-sm-members { display: flex; flex-direction: column; border: 1px solid var(--ui-border); border-radius: 8px; overflow: hidden; }
+.slls-sx-sm-member { display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 12px; font-size: 12.5px; border-bottom: 1px solid var(--ui-border); }
+.slls-sx-sm-member:last-child { border-bottom: none; }
+.slls-sx-sm-member svg { width: 14px; height: 14px; color: var(--ui-text-tertiary); }
+.slls-sx-sm-member .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-sm-sechead { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.slls-sx-sm-sechead .slls-sx-section-title { margin: 0; }
+.slls-sx-sm-sechead .slls-sx-seg button .slls-sx-dot { margin-left: 2px; }
+.slls-sx-sm-count { margin-left: auto; font-size: 12px; color: var(--ui-text-tertiary); }
+.slls-sx-sm-rls, .slls-sx-sm-ols { display: flex; flex-direction: column; border: 1px solid var(--ui-border); border-radius: 8px; overflow: hidden; }
+.slls-sx-sm-rls-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-bottom: 1px solid var(--ui-border); }
+.slls-sx-sm-rls-row:last-child, .slls-sx-sm-ols-row:last-child { border-bottom: none; }
+.slls-sx-sm-table { width: 220px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; min-width: 0; }
+.slls-sx-sm-table svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-sm-table .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-sm-rls-row .slls-sx-input { flex: 1; padding: 5px 8px; }
+.slls-sx-sm-code {
+    flex: 1; min-width: 0; font-family: var(--sx-mono); font-size: 12px; color: var(--ui-text-secondary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.slls-sx-sm-olsbar { display: flex; align-items: flex-end; gap: 10px; }
+.slls-sx-sm-olsbar .slls-sx-tool-field { flex-direction: row; align-items: center; gap: 6px; }
+.slls-sx-sm-olsbar .slls-sx-search { flex: 1; }
+.slls-sx-sm-ols-row { display: flex; align-items: center; gap: 7px; padding: 4px 8px; font-size: 12.5px; border-bottom: 1px solid var(--ui-border); }
+.slls-sx-sm-ols-row.col { padding-left: 34px; border-bottom-style: dashed; }
+.slls-sx-sm-ols-row.empty { color: var(--ui-text-tertiary); font-style: italic; }
+.slls-sx-sm-ols-row > .slls-sx-ricon svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-sm-ols-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-sm-ols-row.table .name { font-weight: 500; }
+.slls-sx-sm-ols-row .meta { font-size: 11px; color: var(--ui-text-tertiary); }
+.slls-sx-sm-ols-row .slls-sx-select { width: 110px; padding: 3px 6px; font-size: 12px; }
+.slls-sx-sm-perm { width: 110px; text-align: right; font-size: 12px; color: var(--ui-text-secondary); }
+
+/* Description manager */
+.slls-sx-dm-row {
+    display: grid; grid-template-columns: minmax(240px, 38%) minmax(0, 1fr); align-items: start; gap: 10px;
+    padding: 3px 16px 3px 8px; border-bottom: 1px solid var(--ui-border);
+}
+.slls-sx-dm-row.head {
+    position: sticky; top: 0; z-index: 1; align-items: center; padding-top: 7px; padding-bottom: 7px;
+    background: var(--ui-bg-secondary); font-size: 11.5px; font-weight: 600; color: var(--ui-text-secondary);
+}
+.slls-sx-dm-obj { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 28px; font-size: 12.5px; }
+.slls-sx-dm-row.head .slls-sx-dm-obj { min-height: 0; padding-left: 32px; }
+.slls-sx-dm-obj > .slls-sx-ricon svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-dm-obj .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-dm-text { min-height: 28px; padding: 4px 8px; font-size: 12.5px; }
+.slls-sx-dm-text.changed { border-color: var(--ui-accent); }
+.slls-sx-dm-desc { padding: 5px 0; font-size: 12.5px; color: var(--ui-text); line-height: 1.45; white-space: pre-wrap; }
+.slls-sx-dm-desc.empty { color: var(--ui-text-tertiary); }
+
+/* Translation manager */
+.slls-sx-tm-table { table-layout: fixed; border-collapse: collapse; font-size: 12.5px; }
+.slls-sx-tm-table th {
+    position: sticky; top: 0; z-index: 1; padding: 7px 8px; text-align: left; font-size: 11.5px; font-weight: 600;
+    color: var(--ui-text-secondary); background: var(--ui-bg-secondary); border-bottom: 1px solid var(--ui-border);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.slls-sx-tm-th { display: inline-flex; align-items: center; gap: 8px; padding-left: 24px; }
+.slls-sx-tm-table td { padding: 3px 6px; border-bottom: 1px solid var(--ui-border); vertical-align: middle; overflow: hidden; }
+.slls-sx-tm-input { width: 100%; padding: 4px 7px; font-size: 12.5px; }
+.slls-sx-tm-input:disabled { background: transparent; border-color: transparent; }
+.slls-sx-tm-val, .slls-sx-tm-orig { display: block; padding: 4px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-tm-orig { color: var(--ui-text-secondary); }
+.slls-sx-tm-val.empty, .slls-sx-tm-orig.empty { color: var(--ui-text-tertiary); }
+.slls-sx-modal.slls-sx-tm-dialog { width: min(560px, 100%); }
+.slls-sx-tm-dialog .slls-sx-modal-body { display: flex; flex-direction: column; gap: 10px; }
+.slls-sx-tm-dialog .slls-sx-section-title { margin: 4px 0 0; }
+.slls-sx-tm-dhead { display: flex; align-items: center; gap: 6px; }
+.slls-sx-tm-dhead .slls-sx-section-title { flex: 1; }
+.slls-sx-tm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.slls-sx-tm-chip {
+    appearance: none; padding: 3px 10px; border: 1px solid var(--ui-border-strong); border-radius: 999px;
+    background: var(--ui-bg); color: var(--ui-text-secondary); font: inherit; font-size: 12px; cursor: pointer;
+}
+.slls-sx-tm-chip.on { border-color: var(--ui-accent); background: var(--ui-accent-soft); color: var(--ui-accent); font-weight: 600; }
+.slls-sx-tm-props { display: flex; gap: 16px; font-size: 12.5px; }
+.slls-sx-tm-props label { display: inline-flex; align-items: center; gap: 6px; }
+.slls-sx-tm-props input { margin: 0; accent-color: var(--ui-accent); }
+
+/* Relationship diagram */
+.slls-sx-rd-toolbar { gap: 6px; }
+.slls-sx-rd-chip {
+    appearance: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px;
+    border: 1px solid var(--ui-border-strong); border-radius: 7px; background: var(--ui-bg); color: var(--ui-text-secondary);
+    font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.slls-sx-rd-chip:hover { color: var(--ui-text); background: var(--ui-surface-2); }
+.slls-sx-rd-chip svg { width: 13px; height: 13px; }
+.slls-sx-rd-chip .sw { width: 10px; height: 3px; border-radius: 2px; background: var(--chip); }
+.slls-sx-rd-chip .count {
+    min-width: 16px; padding: 0 5px; border-radius: 999px; background: var(--ui-surface-2);
+    font-size: 10.5px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums;
+}
+.slls-sx-rd-chip.mm { --chip: var(--sx-hl-mm); } .slls-sx-rd-chip.bidi { --chip: var(--sx-hl-bidi); }
+.slls-sx-rd-chip.lim { --chip: var(--sx-hl-lim); } .slls-sx-rd-chip.nonint { --chip: var(--sx-hl-nonint); }
+.slls-sx-rd-chip.sf { --chip: var(--sx-hl-sf); } .slls-sx-rd-chip.miss { --chip: var(--ui-accent); }
+.slls-sx-rd-chip.on { border-color: var(--chip); color: var(--ui-text); background: color-mix(in srgb, var(--chip) 12%, transparent); }
+.slls-sx-rd-chip.on svg { color: var(--chip); }
+.slls-sx-rd-main { flex: 1 1 auto; min-height: 0; display: flex; }
+.slls-sx-rd-side {
+    position: relative; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; min-height: 0;
+    padding: 8px 10px; border-right: 1px solid var(--ui-border); background: var(--ui-bg);
+}
+.slls-sx-rd-side.collapsed { width: 44px; align-items: center; padding: 8px 4px; }
+.slls-sx-rd-rail { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ui-text-tertiary); }
+.slls-sx-rd-side-head { display: flex; align-items: center; gap: 4px; }
+.slls-sx-rd-side-head .slls-sx-pane-label { flex: 1; }
+.slls-sx-rd-side .slls-sx-dlm-note { margin: 0; }
+.slls-sx-rd-tables { flex: 1 1 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 1px; }
+.slls-sx-rd-trow { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 6px; font-size: 12.5px; }
+.slls-sx-rd-trow:hover { background: var(--ui-surface-2); }
+.slls-sx-rd-trow.on { background: var(--ui-accent-soft); }
+.slls-sx-rd-trow > .slls-sx-ricon svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-rd-trow .name {
+    appearance: none; flex: 1; min-width: 0; padding: 0; border: none; background: none; color: inherit; font: inherit;
+    text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transform: none !important;
+}
+.slls-sx-rd-trow .meta { font-size: 11px; color: var(--ui-text-tertiary); font-variant-numeric: tabular-nums; }
+.slls-sx-rd-trow .slls-sx-iconbtn { width: 24px; height: 24px; opacity: 0; }
+.slls-sx-rd-trow:hover .slls-sx-iconbtn { opacity: 1; }
+.slls-sx-rd-side-foot { padding-top: 6px; border-top: 1px solid var(--ui-border); }
+.slls-sx-rd-grip { position: absolute; top: 0; right: -3px; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; }
+.slls-sx-rd-grip:hover { background: var(--ui-accent-soft); }
+.slls-sx-rd-canvas { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; background: var(--ui-bg-secondary); }
+.slls-sx-rd-scroll { position: absolute; inset: 0; overflow: auto; cursor: grab; }
+.slls-sx-rd-scroll.panning { cursor: grabbing; user-select: none; }
+.slls-sx-rd-sizer { position: relative; }
+.slls-sx-rd-layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.slls-sx-rd-svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.slls-sx-rd-edge { --edge: var(--ui-accent); }
+.slls-sx-rd-edge .ln { stroke: var(--edge); stroke-opacity: 0.7; }
+.slls-sx-rd-edge .arrow, .slls-sx-rd-edge .end { fill: var(--edge); }
+.slls-sx-rd-edge .card circle { fill: var(--ui-bg-solid); stroke: var(--edge); stroke-width: 1.25; }
+.slls-sx-rd-edge .card text { fill: var(--ui-text); font-size: 13px; font-weight: 700; font-family: var(--sx-mono); }
+.slls-sx-rd-edge .hit { stroke: transparent; stroke-width: 14; pointer-events: stroke; cursor: pointer; }
+.slls-sx-rd-edge.sf { --edge: var(--sx-hl-sf); } .slls-sx-rd-edge.lim { --edge: var(--sx-hl-lim); }
+.slls-sx-rd-edge.bidi { --edge: var(--sx-hl-bidi); } .slls-sx-rd-edge.mm { --edge: var(--sx-hl-mm); }
+.slls-sx-rd-edge.mm .ln, .slls-sx-rd-edge.bidi .ln, .slls-sx-rd-edge.lim .ln, .slls-sx-rd-edge.sf .ln, .slls-sx-rd-edge.hov .ln { stroke-opacity: 1; }
+.slls-sx-rd-edge.hov { --edge: var(--ui-accent); }
+.slls-sx-rd-edge.new .ln { stroke: var(--sx-warn); }
+.slls-sx-rd-panel {
+    position: absolute; display: flex; flex-direction: column; overflow: hidden; cursor: default;
+    border: 1.5px solid var(--ui-border-strong); border-radius: 10px; background: var(--ui-bg-solid); box-shadow: var(--ui-shadow-sm);
+}
+.slls-sx-rd-panel.src { border-color: var(--src); }
+.slls-sx-rd-panel.src-0 { --src: var(--sx-src-0); } .slls-sx-rd-panel.src-1 { --src: var(--sx-src-1); }
+.slls-sx-rd-panel.src-2 { --src: var(--sx-src-2); } .slls-sx-rd-panel.src-3 { --src: var(--sx-src-3); }
+.slls-sx-rd-panel.src-4 { --src: var(--sx-src-4); } .slls-sx-rd-panel.src-5 { --src: var(--sx-src-5); }
+.slls-sx-rd-panel.src-6 { --src: var(--sx-src-6); } .slls-sx-rd-panel.src-7 { --src: var(--sx-src-7); }
+.slls-sx-rd-panel.src-8 { --src: var(--sx-src-8); } .slls-sx-rd-panel.src-9 { --src: var(--sx-src-9); }
+.slls-sx-rd-panel.snow { border-color: var(--sx-hl-sf); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sx-hl-sf) 22%, transparent); }
+.slls-sx-rd-panel.drop { border-color: var(--ui-accent); box-shadow: 0 0 0 3px var(--ui-accent-soft); }
+.slls-sx-rd-head {
+    flex-shrink: 0; display: flex; align-items: center; gap: 5px; padding: 0 4px 0 2px; cursor: move;
+    border-bottom: 1px solid var(--ui-border); background: var(--ui-bg-secondary); user-select: none;
+}
+.slls-sx-rd-head .kind svg { width: 14px; height: 14px; color: var(--ui-accent); }
+.slls-sx-rd-head .name { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-rd-head .mode { display: inline-flex; color: var(--ui-text-tertiary); }
+.slls-sx-rd-head .mode svg { width: 12px; height: 12px; }
+.slls-sx-rd-head .slls-sx-iconbtn { width: 24px; height: 24px; }
+.slls-sx-rd-head .slls-sx-iconbtn svg { width: 13px; height: 13px; }
+.slls-sx-rd-cols { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 0; }
+.slls-sx-rd-col { display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; }
+.slls-sx-rd-col[draggable="true"] { cursor: grab; }
+.slls-sx-rd-col > span:first-child svg { width: 12px; height: 12px; color: var(--ui-text-tertiary); }
+.slls-sx-rd-col .key.pk svg { color: var(--sx-key-pk); }
+.slls-sx-rd-col .key.fk svg { color: var(--sx-key-fk); }
+.slls-sx-rd-col .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-rd-col .dt { font-size: 10.5px; color: var(--ui-text-tertiary); }
+.slls-sx-rd-col.hl { background: var(--ui-accent-soft); }
+.slls-sx-rd-col.hl .name { color: var(--ui-accent); font-weight: 600; }
+.slls-sx-rd-col.flagged { background: color-mix(in srgb, var(--sx-hl-nonint) 12%, transparent); }
+.slls-sx-rd-col.flagged .dt { color: var(--sx-hl-nonint); font-weight: 600; }
+.slls-sx-rd-none { padding: 2px 10px; font-size: 11.5px; color: var(--ui-text-tertiary); font-style: italic; }
+.slls-sx-rd-resize { position: absolute; right: 1px; bottom: 1px; width: 14px; height: 14px; cursor: nwse-resize; color: var(--ui-text-tertiary); }
+.slls-sx-rd-tip {
+    position: absolute; z-index: 5; width: 280px; padding: 9px 11px; pointer-events: none; font-size: 12px;
+    border: 1px solid var(--ui-border-strong); border-radius: 10px; background: var(--ui-bg-solid); box-shadow: var(--ui-shadow-lg);
+}
+.slls-sx-rd-tip-head { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.slls-sx-rd-tip-head svg { width: 14px; height: 14px; color: var(--ui-accent); }
+.slls-sx-rd-tip-head .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-rd-tip-head .kind { font-weight: 400; font-size: 11px; color: var(--ui-text-tertiary); }
+.slls-sx-rd-tip-head .slls-sx-pill { margin-left: 0; }
+.slls-sx-rd-tip-path { margin-top: 4px; font-family: var(--sx-mono); font-size: 11px; color: var(--ui-text-secondary); overflow-wrap: anywhere; }
+.slls-sx-rd-tip dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 8px 0 0; }
+.slls-sx-rd-tip dt { color: var(--ui-text-tertiary); }
+.slls-sx-rd-tip dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.slls-sx-rd-legend { position: absolute; left: 12px; bottom: 12px; z-index: 3; font-size: 12px; }
+.slls-sx-rd-legend .pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--ui-border-strong);
+    border-radius: 999px; background: var(--ui-bg-solid); box-shadow: var(--ui-shadow-sm); color: var(--ui-text-secondary);
+}
+.slls-sx-rd-legend .pill svg { width: 13px; height: 13px; }
+.slls-sx-rd-legend .dots { display: inline-flex; gap: 3px; }
+.slls-sx-rd-legend .sw { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--src); flex-shrink: 0; }
+.slls-sx-rd-legend .sw.src-0 { --src: var(--sx-src-0); } .slls-sx-rd-legend .sw.src-1 { --src: var(--sx-src-1); }
+.slls-sx-rd-legend .sw.src-2 { --src: var(--sx-src-2); } .slls-sx-rd-legend .sw.src-3 { --src: var(--sx-src-3); }
+.slls-sx-rd-legend .sw.src-4 { --src: var(--sx-src-4); } .slls-sx-rd-legend .sw.src-5 { --src: var(--sx-src-5); }
+.slls-sx-rd-legend .sw.src-6 { --src: var(--sx-src-6); } .slls-sx-rd-legend .sw.src-7 { --src: var(--sx-src-7); }
+.slls-sx-rd-legend .sw.src-8 { --src: var(--sx-src-8); } .slls-sx-rd-legend .sw.src-9 { --src: var(--sx-src-9); }
+.slls-sx-rd-legend .full {
+    display: none; position: absolute; left: 0; bottom: 0; width: 300px; max-height: 280px; overflow: auto; padding: 10px;
+    border: 1px solid var(--ui-border-strong); border-radius: 10px; background: var(--ui-bg-solid); box-shadow: var(--ui-shadow-lg);
+}
+.slls-sx-rd-legend:hover .full { display: block; }
+.slls-sx-rd-legend .item { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.slls-sx-rd-legend .item .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-rd-zoom {
+    position: absolute; right: 12px; bottom: 12px; z-index: 3; display: flex; align-items: center; gap: 2px; padding: 3px;
+    border: 1px solid var(--ui-border-strong); border-radius: 10px; background: var(--ui-bg-solid); box-shadow: var(--ui-shadow-sm);
+    font-size: 12px; color: var(--ui-text-secondary);
+}
+.slls-sx-rd-zoom .slls-sx-input { width: 44px; padding: 3px 4px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+.slls-sx-rd-sidepanel { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--ui-border); background: var(--ui-bg); }
+.slls-sx-rd-sp-head { display: flex; align-items: center; gap: 7px; padding: 8px 10px 8px 14px; border-bottom: 1px solid var(--ui-border); }
+.slls-sx-rd-sp-head > .slls-sx-ricon svg { width: 15px; height: 15px; color: var(--ui-accent); }
+.slls-sx-rd-sp-head .title { flex: 1; font-size: 13px; font-weight: 600; }
+.slls-sx-rd-sp-body { flex: 1 1 0; min-height: 0; overflow: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+.slls-sx-rd-sp-body .slls-sx-tool-error { margin: 0; }
+.slls-sx-rd-tbtn {
+    appearance: none; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 6px;
+    border: none; border-radius: 6px; background: transparent; color: var(--ui-text); font: inherit; font-size: 12.5px;
+    font-weight: 600; cursor: pointer; transform: none !important;
+}
+.slls-sx-rd-tbtn:hover { background: var(--ui-surface-2); }
+.slls-sx-rd-tbtn svg { width: 14px; height: 14px; color: var(--ui-accent); }
+.slls-sx-rd-tbtn .meta { font-weight: 400; font-size: 11px; color: var(--ui-text-tertiary); }
+.slls-sx-rd-chain, .slls-sx-rd-cand { padding: 8px; border: 1px solid var(--ui-border); border-radius: 8px; }
+.slls-sx-rd-chain .roles { font-size: 11px; color: var(--ui-text-tertiary); margin-bottom: 4px; }
+.slls-sx-rd-chain .path { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+.slls-sx-rd-chain .path .arrow { color: var(--ui-text-tertiary); }
+.slls-sx-rd-chain .slls-sx-rd-tbtn svg { color: var(--sx-hl-sf); }
+.slls-sx-rd-sug { padding: 4px 6px 4px 24px; font-size: 12px; }
+.slls-sx-rd-sug .line, .slls-sx-rd-sug .inferred { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.slls-sx-rd-sug .line svg { width: 12px; height: 12px; color: var(--ui-text-tertiary); }
+.slls-sx-rd-sug .slls-sx-pill { margin-left: 0; }
+.slls-sx-rd-sug .inferred { margin-top: 4px; padding: 4px 6px; border-radius: 6px; background: var(--ui-surface-2); }
+.slls-sx-rd-sug .slls-sx-tool-error { margin: 4px 0 0; padding: 4px 8px; }
+.slls-sx-rd-more { padding: 2px 6px 0 24px; font-size: 11.5px; color: var(--ui-text-tertiary); }
+.slls-sx-rd-link-from { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.slls-sx-rd-link-from .slls-sx-pill { margin-left: 0; }
+.slls-sx-modal:has(.slls-sx-rd-link-from) .slls-sx-modal-body { display: flex; flex-direction: column; gap: 10px; }
 .slls-sx-tmdl-name { font-weight: 600; }
 
 /* Dependencies: toolbar, segmented toggles, tree and node graph */
@@ -1008,8 +1365,10 @@ function render({ model, el }) {
         DataType: ["Automatic", "String", "Int64", "Double", "DateTime", "Decimal", "Boolean", "Binary", "Unknown", "Variant"],
         AggregateFunction: ["Default", "None", "Sum", "Min", "Max", "Count", "Average", "DistinctCount"],
         ModelPermission: ["None", "Read", "ReadRefresh", "Refresh", "Administrator"],
+        RelationshipEndCardinality: ["One", "Many", "None"],
+        CrossFilteringBehavior: ["OneDirection", "BothDirections", "Automatic"],
     };
-    const JSON_PROPS = new Set(["Annotations", "Translations", "Perspectives", "Members", "RlsFilters"]);
+    const JSON_PROPS = new Set(["Annotations", "Translations", "Perspectives", "Members", "RlsFilters", "Ols"]);
     const PANE_MIN = 240, PANE_MAX = 640;
     // Starting definition of a new named expression (matches the kernel side).
     const NEW_EXPRESSION = "let\n    Source = \"\"\nin\n    Source";
@@ -1209,6 +1568,15 @@ function render({ model, el }) {
         } else if (c.type === "expression") {
             node.expressions = [{ prop: "Expression", label: "Expression", lang: "m",
                 value: NEW_EXPRESSION }];
+        } else if (c.type === "relationship") {
+            node.from_table = c.props.fromTable; node.from_column = c.props.fromColumn;
+            node.to_table = c.props.toTable; node.to_column = c.props.toColumn;
+            node.props = [
+                P("IsActive", "Active", "Behavior", "bool", { value: true }),
+                P("FromCardinality", "From cardinality", "General", "enum", { enum: enumOf("RelationshipEndCardinality") }),
+                P("ToCardinality", "To cardinality", "General", "enum", { enum: enumOf("RelationshipEndCardinality") }),
+                P("CrossFilteringBehavior", "Cross filtering", "Behavior", "enum", { enum: enumOf("CrossFilteringBehavior") }),
+            ];
         }
         return node;
     }
@@ -1224,6 +1592,20 @@ function render({ model, el }) {
         return index.get(key) || null;
     }
     function editKey(key, prop) { return key + "|" + prop; }
+    // A role's non-default object-level security, sorted so it compares stably.
+    function olsEntries(node) {
+        const out = [];
+        for (const tp of node.table_permissions || []) {
+            if (tp.permission && tp.permission !== "Default") out.push({ table: tp.table, column: "", permission: tp.permission });
+            for (const c of tp.columns || []) {
+                if (c.permission && c.permission !== "Default") out.push({ table: tp.table, column: c.column, permission: c.permission });
+            }
+        }
+        return sortOls(out);
+    }
+    function sortOls(list) {
+        return list.sort((a, b) => (a.table + "\u0000" + a.column).localeCompare(b.table + "\u0000" + b.column));
+    }
     function originalValue(node, prop) {
         if (prop === "Annotations") return JSON.stringify(node.annotations || {});
         if (prop === "Translations") return JSON.stringify(node.translations || {});
@@ -1234,6 +1616,7 @@ function render({ model, el }) {
             for (const tp of node.table_permissions || []) if (tp.filter) map[tp.table] = tp.filter;
             return JSON.stringify(map);
         }
+        if (prop === "Ols") return JSON.stringify(olsEntries(node));
         const row = (node.props || []).find((p) => p.key === prop);
         if (row) return row.value;
         const expr = (node.expressions || []).find((x) => x.prop === prop && !x.target);
@@ -1275,7 +1658,9 @@ function render({ model, el }) {
             const card = (c) => (c === "Many" ? "*" : c === "One" ? "1" : "");
             const marks = `${card(v("FromCardinality"))}:${card(v("ToCardinality"))}`;
             const end = (table, column) => `'${tableDisplayName(table)}'[${columnDisplayName(table, column)}]`;
-            return `${end(node.from_table, node.from_column)} ${marks} ${end(node.to_table, node.to_column)}`;
+            const fromColumn = node.isNew ? node.from_column : (v("FromColumn") || node.from_column);
+            const toColumn = node.isNew ? node.to_column : (v("ToColumn") || node.to_column);
+            return `${end(node.from_table, fromColumn)} ${marks} ${end(node.to_table, toColumn)}`;
         }
         if (viewCulture && ["table", "column", "measure", "hierarchy", "level"].includes(node.type)) {
             const tr = jsonValue(node, "Translations", {})[viewCulture];
@@ -1352,24 +1737,35 @@ function render({ model, el }) {
         if (saving) return;
         const o = opts || {};
         if (!node) return;
-        const c = createFor(node);
         pushUndo(o.coalesce ? editKey(node.key, prop) : "");
+        stageValue(node, prop, newValue, o.label);
+        if (!createFor(node)) recomputeCascade();
+        afterChange(o);
+    }
+    function stageValue(node, prop, newValue, label) {
+        const c = createFor(node);
         if (c) {
             if (prop === "Name") c.name = String(newValue || "");
             else c.props[prop] = newValue;
-        } else {
-            const ek = editKey(node.key, prop);
-            const old = originalValue(node, prop);
-            if (same(old, newValue)) delete staging.edits[ek];
-            else {
-                staging.edits[ek] = {
-                    key: node.key, target: targetOf(node), property: prop, label: o.label || prop,
-                    objectType: node.type, oldValue: old, newValue, userValue: newValue,
-                };
-            }
-            recomputeCascade();
+            return;
         }
-        afterChange(o);
+        const ek = editKey(node.key, prop);
+        const old = originalValue(node, prop);
+        if (same(old, newValue)) delete staging.edits[ek];
+        else {
+            staging.edits[ek] = {
+                key: node.key, target: targetOf(node), property: prop, label: label || prop,
+                objectType: node.type, oldValue: old, newValue, userValue: newValue,
+            };
+        }
+    }
+    // Stages several values as one undo step (e.g. AI-generated descriptions).
+    function stageMany(items) {
+        if (saving || !items.length) return;
+        pushUndo("");
+        for (const it of items) stageValue(it.node, it.prop, it.value, it.label);
+        recomputeCascade();
+        afterChange();
     }
     function currentRenames() {
         const renames = [];
@@ -1606,10 +2002,12 @@ function render({ model, el }) {
             // Typing in a code editor: refresh the tree's unsaved dots lazily.
             if (treeTimer) clearTimeout(treeTimer);
             treeTimer = setTimeout(() => { treeTimer = null; renderTree(); }, 250);
+            refreshToolActions();
             return;
         }
         renderTree();
         renderDetail();
+        redrawTools();
     }
 
     // ------------------------------------------------------------------
@@ -1952,7 +2350,7 @@ function render({ model, el }) {
 
         for (const [folder, label, icon] of FOLDERS) {
             if (typeOn && !typeFilter.has(folder)) continue;
-            const createType = { roles: "role", perspectives: "perspective", expressions: "expression" }[folder];
+            const createType = { roles: "role", perspectives: "perspective", expressions: "expression", relationships: "relationship" }[folder];
             const items = [...(data[folder] || []), ...(createType ? newNodes(createType, "") : [])]
                 .filter((n) => hit(n)).sort(byLabel);
             if (!items.length && (q || !(data[folder] || []).length) && !(mode === "write" && createType && !q && !typeOn)) continue;
@@ -2297,6 +2695,7 @@ function render({ model, el }) {
             if (folder === "roles") items.push(["Add role", "shield_check", () => addObject("role", null)]);
             if (folder === "perspectives") items.push(["Add perspective", "perspective", () => addObject("perspective", null)]);
             if (folder === "expressions") items.push(["Add expression", "code", () => addObject("expression", null)]);
+            if (folder === "relationships") items.push(["Add relationship\u2026", "relationship", () => openRelationshipManager()]);
             return items;
         }
         if (!node) return items;
@@ -3542,11 +3941,32 @@ function render({ model, el }) {
     // ------------------------------------------------------------------
     const TOOLS = [
         { label: "DAXLib package manager", icon: "package", open: () => openDaxLibManager() },
+        { label: "Description manager", icon: "file", open: () => openDescriptionManager() },
         { label: "Field parameter manager", icon: "field_parameter", open: () => openFieldParameterManager() },
+        { label: "Relationship diagram", icon: "network", open: () => openRelationshipDiagram() },
+        { label: "Relationship manager", icon: "git_branch", open: () => openRelationshipManager() },
+        { label: "Security manager", icon: "shield_check", open: () => openSecurityManager() },
+        { label: "Translation manager", icon: "languages", open: () => openTranslationManager() },
     ];
-    // An open tool window redraws itself when the explorer re-renders (mode
-    // switch, save, reload).
-    let toolRedraw = null;
+    // Open tool windows redraw when the explorer re-renders (mode switch,
+    // staged change, save, reload); while typing only their actions refresh.
+    const openTools = new Set();
+    function registerTool(m, redraw, actions) {
+        const entry = {
+            redraw: () => { if (m.overlay.isConnected) redraw(); },
+            actions: () => { if (m.overlay.isConnected && actions) actions(); },
+        };
+        openTools.add(entry);
+        const previous = m.onClose;
+        m.onClose = () => {
+            openTools.delete(entry);
+            if (previous) previous();
+            // Edits typed in the tool skipped the detail pane; catch it up.
+            if (loaded() && treePane.isConnected) { renderTree(); renderDetail(); }
+        };
+    }
+    function redrawTools() { for (const t of [...openTools]) t.redraw(); }
+    function refreshToolActions() { for (const t of [...openTools]) t.actions(); }
     function toolModeSwitch() {
         const sw = h("button", "slls-sx-mode" + (mode === "write" ? " write" : ""));
         sw.type = "button";
@@ -3687,8 +4107,7 @@ function render({ model, el }) {
         const m = modal("Field parameter manager", "field_parameter", { wide: true });
         m.box.classList.add("slls-sx-fpm-box");
         m.body.className = "slls-sx-modal-body slls-sx-fpm-body";
-        toolRedraw = () => { if (m.overlay.isConnected) draw(true); };
-        m.onClose = () => { toolRedraw = null; };
+        registerTool(m, () => draw(true));
         const sig = (f) => [f.type, f.table, f.name, f.label, f.rawRef || "", f.hierarchy || ""].join("\u0001");
         const sameFields = (a, b) => a.length === b.length && a.every((f, i) => sig(f) === sig(b[i]));
         const clone = (list) => list.map((f) => Object.assign({}, f));
@@ -4108,8 +4527,7 @@ function render({ model, el }) {
         const m = modal("DAXLib package manager", "package", { wide: true });
         m.box.classList.add("slls-sx-fpm-box");
         m.body.className = "slls-sx-modal-body slls-sx-dlm-body";
-        toolRedraw = () => { if (m.overlay.isConnected) draw(); };
-        m.onClose = () => { toolRedraw = null; };
+        registerTool(m, () => draw());
         const writable = () => mode === "write" && !saving;
         const catalogById = () => new Map((dlCatalog || []).map((p) => [p.id.toLowerCase(), p]));
         const hasUpdate = (row, byId) => {
@@ -4499,6 +4917,2201 @@ function render({ model, el }) {
         }
         draw();
     }
+    // ------------------------------------------------------------------
+    // Shared tool-window helpers
+    // ------------------------------------------------------------------
+    const cmpText = (a, b) => String(a).localeCompare(String(b), undefined, { sensitivity: "base" });
+    function toolWindow(title, icon, bodyClass) {
+        const m = modal(title, icon, { wide: true });
+        m.box.classList.add("slls-sx-fpm-box", "slls-sx-tool");
+        m.body.className = "slls-sx-modal-body slls-sx-tool-body" + (bodyClass ? " " + bodyClass : "");
+        return m;
+    }
+    function toolSubtitle(m, text) {
+        let sub = m.box.querySelector(".slls-sx-modal-sub");
+        if (!sub) {
+            sub = h("div", "slls-sx-modal-sub");
+            m.box.querySelector(".slls-sx-modal-title").after(sub);
+        }
+        sub.textContent = text;
+        sub.title = text;
+    }
+    // Tool header actions: extra buttons, then (in edit mode) the pending
+    // count, undo and save, then the read-only / edit switch.
+    function toolActions(m, extras) {
+        clear(m.actions);
+        for (const el of extras || []) if (el) m.actions.appendChild(el);
+        if (mode === "write") {
+            const count = pendingCount();
+            const busy = !!model.get("busy") || saving;
+            if (count) {
+                const p = h("span", "slls-sx-pill warn slls-sx-tool-pending", plural(count, "pending change"));
+                p.title = "Staged changes are written to the model when you Save";
+                m.actions.appendChild(p);
+            }
+            const u = button("slls-sx-iconbtn", "", "undo", () => undo(), "Undo");
+            u.disabled = !undoStack.length || busy;
+            const s = button("slls-sx-iconbtn", "", "save", () => save(), count ? `Save ${plural(count, "change")}` : "No changes to save");
+            s.disabled = !count || busy;
+            if (saving) s.querySelector("svg").classList.add("slls-sx-spin");
+            m.actions.append(u, s);
+        }
+        m.actions.appendChild(toolModeSwitch());
+    }
+    // Redraws a tool's body, keeping its scroll positions.
+    function keepScroll(container, fn) {
+        const tops = [...container.querySelectorAll("[data-scroll]")].map((el) => [el.dataset.scroll, el.scrollTop, el.scrollLeft]);
+        fn();
+        for (const [k, top, left] of tops) {
+            const el = container.querySelector(`[data-scroll="${k}"]`);
+            if (el) { el.scrollTop = top; el.scrollLeft = left; }
+        }
+    }
+    function selectEl(options, current, onChange, aria, placeholder) {
+        const sel = h("select", "slls-sx-select");
+        if (aria) sel.setAttribute("aria-label", aria);
+        if (placeholder !== undefined) {
+            const o = new Option(placeholder, "");
+            o.disabled = true;
+            sel.appendChild(o);
+        }
+        for (const opt of options) {
+            const [v, l] = Array.isArray(opt) ? opt : [opt, opt];
+            sel.appendChild(new Option(l, v));
+        }
+        sel.value = current == null ? "" : String(current);
+        sel.addEventListener("change", () => onChange(sel.value));
+        return sel;
+    }
+    function switchEl(on, label, onClick, text) {
+        const sw = h("button", "slls-sx-switch" + (on ? " on" : ""));
+        sw.type = "button";
+        sw.setAttribute("role", "switch");
+        sw.setAttribute("aria-checked", String(!!on));
+        sw.setAttribute("aria-label", label);
+        sw.append(h("span", "slls-sx-track"), document.createTextNode(text !== undefined ? text : (on ? "Yes" : "No")));
+        sw.addEventListener("click", onClick);
+        return sw;
+    }
+    function dirtyDot(on) {
+        const d = h("span", "slls-sx-dot");
+        d.title = "Unsaved change";
+        if (!on) d.style.visibility = "hidden";
+        return d;
+    }
+    function searchBox(placeholder, valueText, onInput) {
+        const sw = h("div", "slls-sx-search");
+        sw.appendChild(iconEl("search", ""));
+        const input = h("input", "slls-sx-input");
+        input.type = "search";
+        input.placeholder = placeholder;
+        input.setAttribute("aria-label", placeholder.replace(/\u2026$/, ""));
+        input.value = valueText;
+        input.addEventListener("input", () => onInput(input.value));
+        sw.appendChild(input);
+        return sw;
+    }
+    function field(label, control) {
+        const f = h("label", "slls-sx-tool-field");
+        f.append(h("span", "", label), control);
+        return f;
+    }
+    function savedTables() { return (data.tables || []).filter((t) => !isDeleted(t)); }
+    function liveColumns(t) { return (t.columns || []).filter((c) => !isDeleted(c)); }
+    function columnType(table, column) {
+        const n = index.get(keyOf("column", table, "", column));
+        return n ? String(value(n, "DataType") || "") : "";
+    }
+    // A multi-select object-type dropdown (selected = shown types).
+    function typeFilterEl(options, selected, emptyLabel, onChange) {
+        const tf = h("div", "slls-sx-typefilter slls-sx-tool-typefilter");
+        const btn = h("button", "slls-sx-typebtn");
+        btn.type = "button";
+        btn.title = "Filter by object type";
+        const summary = () => {
+            if (selected.size === 0) return emptyLabel;
+            if (selected.size === options.length) return "All object types";
+            if (selected.size === 1) return options.find((o) => selected.has(o[0]))[1];
+            return plural(selected.size, "type");
+        };
+        const paintBtn = () => { btn.innerHTML = `<span>${ICON.sliders}${esc(summary())}</span>${ICON.chevron_down}`; };
+        paintBtn();
+        tf.appendChild(btn);
+        let menu = null;
+        const closeMenu = () => { if (menu) { menu.remove(); menu = null; document.removeEventListener("mousedown", outside, true); } };
+        const outside = (ev) => { if (!tf.contains(ev.target)) closeMenu(); };
+        const changed = () => { paintBtn(); onChange(); };
+        btn.addEventListener("click", () => {
+            if (menu) { closeMenu(); return; }
+            menu = h("div", "slls-sx-menu");
+            const mh = h("div", "slls-sx-menu-head");
+            mh.appendChild(h("span", "", "Object types"));
+            const all = h("button", "", "Select all");
+            all.type = "button";
+            const none = h("button", "", "Clear");
+            none.type = "button";
+            const boxes = [];
+            all.addEventListener("click", () => { options.forEach((o) => selected.add(o[0])); boxes.forEach((b) => { b.checked = true; }); changed(); });
+            none.addEventListener("click", () => { selected.clear(); boxes.forEach((b) => { b.checked = false; }); changed(); });
+            mh.append(all, none);
+            menu.appendChild(mh);
+            for (const [id, label, icon] of options) {
+                const item = h("label", "slls-sx-menu-item");
+                const cb = h("input");
+                cb.type = "checkbox";
+                cb.checked = selected.has(id);
+                cb.addEventListener("change", () => { if (cb.checked) selected.add(id); else selected.delete(id); changed(); });
+                boxes.push(cb);
+                item.append(cb, iconEl(icon, ""), document.createTextNode(label));
+                menu.appendChild(item);
+            }
+            tf.appendChild(menu);
+            document.addEventListener("mousedown", outside, true);
+        });
+        return tf;
+    }
+    // The table -> objects tree shared by the description and translation
+    // managers. `kinds` orders a table's children.
+    const OBJ_KINDS = {
+        Table: ["Tables", "table"], Column: ["Columns", "column"], Measure: ["Measures", "measure"],
+        Hierarchy: ["Hierarchies", "hierarchy"], CalculationItem: ["Calculation items", "calculation_item"], Level: ["Levels", "level"],
+    };
+    function objectTree(kinds) {
+        const byN = (a, b) => cmpText(effName(a), effName(b));
+        const out = [];
+        for (const t of savedTables().sort(byLabel)) {
+            const tHidden = isHidden(t);
+            const row = { id: t.key, type: "Table", node: t, hidden: tHidden, children: [] };
+            const leaf = (type, n, hidden) => ({ id: n.key, type, node: n, hidden, children: [] });
+            for (const kind of kinds) {
+                if (kind === "Measure") {
+                    for (const x of [...(t.measures || []), ...newNodes("measure", t.key)].filter((n) => !isDeleted(n)).sort(byN)) {
+                        row.children.push(leaf("Measure", x, tHidden || isHidden(x)));
+                    }
+                } else if (kind === "Column") {
+                    for (const x of [...(t.columns || []), ...newNodes("column", t.key)].filter((n) => !isDeleted(n)).sort(byN)) {
+                        row.children.push(leaf("Column", x, tHidden || isHidden(x)));
+                    }
+                } else if (kind === "CalculationItem") {
+                    for (const x of [...(t.calculation_items || []), ...newNodes("calculationItem", t.key)].filter((n) => !isDeleted(n)).sort(byN)) {
+                        row.children.push(leaf("CalculationItem", x, tHidden));
+                    }
+                } else if (kind === "Hierarchy") {
+                    for (const x of (t.hierarchies || []).filter((n) => !isDeleted(n)).sort(byN)) {
+                        const hh = tHidden || isHidden(x);
+                        const hr = leaf("Hierarchy", x, hh);
+                        for (const lv of x.levels || []) hr.children.push(leaf("Level", lv, hh));
+                        row.children.push(hr);
+                    }
+                }
+            }
+            out.push(row);
+        }
+        return out;
+    }
+    function treeVisible(tree, matches, filtering, expandedIds) {
+        const out = [];
+        const vis = (n) => matches(n) || n.children.some(vis);
+        const walk = (n, depth) => {
+            if (!vis(n)) return;
+            const kids = filtering ? n.children.filter(vis) : n.children;
+            const open = expandedIds.has(n.id);
+            out.push({ n, depth, hasChildren: kids.length > 0, open });
+            if (kids.length && open) for (const k of kids) walk(k, depth + 1);
+        };
+        for (const n of tree) walk(n, 0);
+        return out;
+    }
+    // When filtering, open every ancestor of a matching object.
+    function autoExpand(tree, matches) {
+        const ids = new Set();
+        const visit = (n) => {
+            let any = false;
+            for (const k of n.children) if (visit(k)) any = true;
+            if (any) ids.add(n.id);
+            return matches(n) || any;
+        };
+        tree.forEach(visit);
+        return ids;
+    }
+    function flatTree(tree) {
+        const out = [];
+        const walk = (n) => { out.push(n); n.children.forEach(walk); };
+        tree.forEach(walk);
+        return out;
+    }
+    function objIcon(n) {
+        if (n.type === "Table") return tableIcon(n.node);
+        if (n.type === "Column") return n.node.column_type === "Calculated" ? "calculated_column" : "column";
+        return OBJ_KINDS[n.type][1];
+    }
+    function caretBtn(open, onClick) {
+        const b = h("button", "slls-sx-tool-caret");
+        b.type = "button";
+        b.setAttribute("aria-label", open ? "Collapse" : "Expand");
+        b.setAttribute("aria-expanded", String(open));
+        const c = h("span", "slls-sx-caret" + (open ? " open" : ""));
+        c.innerHTML = ICON.caret_right;
+        b.appendChild(c);
+        b.addEventListener("click", onClick);
+        return b;
+    }
+    // A checkbox whose checked / indeterminate state follows a set of ids.
+    function triCheckbox(ids, selected, title, onToggle) {
+        const cb = h("input", "slls-sx-tool-check");
+        cb.type = "checkbox";
+        const n = ids.filter((id) => selected.has(id)).length;
+        cb.checked = ids.length > 0 && n === ids.length;
+        cb.indeterminate = n > 0 && n < ids.length;
+        cb.disabled = !ids.length;
+        cb.title = title;
+        cb.setAttribute("aria-label", title);
+        cb.addEventListener("change", () => {
+            const on = !(ids.length > 0 && ids.every((id) => selected.has(id)));
+            for (const id of ids) { if (on) selected.add(id); else selected.delete(id); }
+            onToggle();
+        });
+        return cb;
+    }
+
+    // ------------------------------------------------------------------
+    // Relationships: effective (pending-aware) view + staging
+    // ------------------------------------------------------------------
+    const REL_CARDINALITY = ["One", "Many", "None"];
+    const REL_CROSS = ["OneDirection", "BothDirections", "Automatic"];
+    const REL_SECURITY = ["OneDirection", "BothDirections", "None"];
+    const REL_JOIN = ["DateAndTime", "DatePartOnly"];
+    function relView(node) {
+        const v = (p, d) => { const x = value(node, p); return x === null || x === undefined || x === "" ? d : String(x); };
+        return {
+            key: node.key, node, isNew: !!node.isNew,
+            from_table: node.from_table, to_table: node.to_table,
+            from_column: node.isNew ? node.from_column : v("FromColumn", node.from_column),
+            to_column: node.isNew ? node.to_column : v("ToColumn", node.to_column),
+            from_card: v("FromCardinality", "Many"), to_card: v("ToCardinality", "One"),
+            cross: v("CrossFilteringBehavior", "OneDirection"), security: v("SecurityFilteringBehavior", "OneDirection"),
+            rely: !!value(node, "RelyOnReferentialIntegrity"), active: !!value(node, "IsActive"),
+        };
+    }
+    function liveRelationships() {
+        const out = (data.relationships || []).filter((r) => !isDeleted(r)).map(relView);
+        for (const c of staging.creates) if (c.type === "relationship") out.push(relView(syntheticNode(c)));
+        return out;
+    }
+    function stageRelationship(spec) {
+        if (saving || mode !== "write") return;
+        pushUndo("");
+        const id = ++createSeq + "-" + Date.now().toString(36);
+        staging.creates.push({ id, type: "relationship", parentKey: "",
+            name: `'${spec.fromTable}'[${spec.fromColumn}] \u2192 '${spec.toTable}'[${spec.toColumn}]`,
+            props: { fromTable: spec.fromTable, fromColumn: spec.fromColumn, toTable: spec.toTable, toColumn: spec.toColumn,
+                FromCardinality: spec.fromCardinality || "Many", ToCardinality: spec.toCardinality || "One",
+                CrossFilteringBehavior: spec.cross || "OneDirection", IsActive: spec.active !== false } });
+        expanded.add("model");
+        expanded.add("folder:relationships");
+        afterChange();
+    }
+    function unstageCreate(id) {
+        if (saving) return;
+        pushUndo("");
+        staging.creates = staging.creates.filter((c) => c.id !== id && c.parentKey !== "new:" + id);
+        afterChange();
+    }
+    function columnOptions(tableName) {
+        const t = tableByName.get(tableName);
+        if (!t) return [];
+        return liveColumns(t).sort(byLabel).map((c) => {
+            const dt = value(c, "DataType");
+            return [c.name, dt ? `${effName(c)} \u00b7 ${dt}` : effName(c)];
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Relationship manager
+    // ------------------------------------------------------------------
+    function openRelationshipManager() {
+        const m = toolWindow("Relationship manager", "git_branch");
+        let search = "";
+        const open = new Set();
+        const draft = { fromTable: "", fromColumn: "", fromCardinality: "Many", toTable: "", toColumn: "", toCardinality: "One",
+            cross: "OneDirection", active: true };
+        let list = null;
+        const eligible = () => savedTables().filter((t) => t.kind !== "calculation_group").sort(byLabel).map((t) => [t.name, effName(t)]);
+        const write = () => mode === "write" && !saving;
+
+        function addForm() {
+            const card = h("div", "slls-sx-tool-card");
+            card.appendChild(h("div", "slls-sx-section-title", "Add a relationship"));
+            const grid = h("div", "slls-sx-rm-form");
+            const side = (label, tKey, cKey, cardKey) => {
+                const row = h("div", "slls-sx-rm-side");
+                row.appendChild(h("span", "slls-sx-rm-side-label", label));
+                row.appendChild(field("Table", selectEl(eligible(), draft[tKey], (v) => { draft[tKey] = v; draft[cKey] = ""; draw(); }, `${label} table`, "Select\u2026")));
+                const dt = draft[cKey] ? columnType(draft[tKey], draft[cKey]) : "";
+                const cs = selectEl(columnOptions(draft[tKey]), draft[cKey], (v) => { draft[cKey] = v; draw(); }, `${label} column`, "Select\u2026");
+                cs.disabled = !draft[tKey];
+                row.appendChild(field(dt ? `Column \u00b7 ${dt}` : "Column", cs));
+                row.appendChild(field("Cardinality", selectEl(REL_CARDINALITY, draft[cardKey], (v) => { draft[cardKey] = v; }, `${label} cardinality`)));
+                return row;
+            };
+            grid.append(side("From", "fromTable", "fromColumn", "fromCardinality"), side("To", "toTable", "toColumn", "toCardinality"));
+            card.appendChild(grid);
+            if (draft.fromColumn && draft.toColumn) {
+                const a = columnType(draft.fromTable, draft.fromColumn) || "unknown";
+                const b = columnType(draft.toTable, draft.toColumn) || "unknown";
+                const mismatch = a !== "unknown" && b !== "unknown" && a !== b;
+                card.appendChild(h("div", "slls-sx-rm-types" + (mismatch ? " warn" : ""),
+                    `Column data types: ${a} \u2192 ${b}${mismatch ? " \u00b7 types don't match" : ""}`));
+            }
+            const bottom = h("div", "slls-sx-rm-bottom");
+            bottom.appendChild(field("Cross filtering behavior", selectEl(REL_CROSS, draft.cross, (v) => { draft.cross = v; }, "Cross filtering behavior")));
+            const act = switchEl(draft.active, "Active", () => { draft.active = !draft.active; draw(); });
+            bottom.appendChild(field("Active", act));
+            const add = button("slls-sx-btn primary", "Add", "plus", () => {
+                stageRelationship({ fromTable: draft.fromTable, fromColumn: draft.fromColumn, toTable: draft.toTable, toColumn: draft.toColumn,
+                    fromCardinality: draft.fromCardinality, toCardinality: draft.toCardinality, cross: draft.cross, active: draft.active });
+                draft.fromColumn = ""; draft.toColumn = "";
+                draw();
+            });
+            add.disabled = !(draft.fromTable && draft.fromColumn && draft.toTable && draft.toColumn);
+            bottom.appendChild(add);
+            card.appendChild(bottom);
+            return card;
+        }
+        function relCard(r) {
+            const node = r.node;
+            const deleted = isDeleted(node);
+            const card = h("div", "slls-sx-rm-card" + (deleted ? " deleted" : ""));
+            const head = h("div", "slls-sx-rm-card-head");
+            const toggle = h("button", "slls-sx-rm-toggle");
+            toggle.type = "button";
+            toggle.setAttribute("aria-expanded", String(open.has(r.key)));
+            const caret = h("span", "slls-sx-caret" + (open.has(r.key) ? " open" : ""));
+            caret.innerHTML = ICON.caret_right;
+            toggle.append(caret, iconEl("relationship", ""), h("span", "name", displayLabel(node)));
+            if (isDirty(node) && !deleted) toggle.appendChild(dirtyDot(true));
+            if (!relView(node).active) toggle.appendChild(h("span", "slls-sx-pill", "Inactive"));
+            if (deleted) toggle.appendChild(h("span", "slls-sx-pill danger", "Deleted"));
+            toggle.addEventListener("click", () => { if (open.has(r.key)) open.delete(r.key); else open.add(r.key); draw(); });
+            head.appendChild(toggle);
+            if (write()) {
+                head.appendChild(deleted
+                    ? button("slls-sx-iconbtn", "", "undo", () => toggleOp(node, "delete"), "Restore relationship")
+                    : button("slls-sx-iconbtn danger", "", "trash", () => toggleOp(node, "delete"), "Delete relationship"));
+            }
+            card.appendChild(head);
+            if (!open.has(r.key)) return card;
+            const v = relView(node);
+            const grid = h("div", "slls-sx-rm-grid");
+            const editable = write() && !deleted;
+            const row = (label, prop, current, kind, options) => {
+                const cell = h("div", "slls-sx-rm-row");
+                const lab = h("span", "label", label);
+                if (prop) lab.appendChild(dirtyDot(!!staging.edits[editKey(node.key, prop)]));
+                cell.appendChild(lab);
+                let ctl;
+                if (!editable || !prop) {
+                    ctl = h("span", "val", kind === "bool" ? (current ? "Yes" : "No") : (current || "\u2014"));
+                    if (kind === "column") ctl.textContent = columnDisplayName(options, current);
+                } else if (kind === "bool") {
+                    ctl = switchEl(current, label, () => setValue(node, prop, !current, { label }));
+                } else if (kind === "column") {
+                    ctl = selectEl(columnOptions(options), current, (nv) => setValue(node, prop, nv, { label }), label);
+                } else {
+                    ctl = selectEl(options, current, (nv) => setValue(node, prop, nv, { label }), label);
+                }
+                cell.appendChild(ctl);
+                grid.appendChild(cell);
+            };
+            row("Name", "", node.name);
+            row("Active", "IsActive", v.active, "bool");
+            row("From column", "FromColumn", v.from_column, "column", v.from_table);
+            row("From data type", "", columnType(v.from_table, v.from_column));
+            row("To column", "ToColumn", v.to_column, "column", v.to_table);
+            row("To data type", "", columnType(v.to_table, v.to_column));
+            row("From cardinality", "FromCardinality", v.from_card, "select", REL_CARDINALITY);
+            row("To cardinality", "ToCardinality", v.to_card, "select", REL_CARDINALITY);
+            row("Cross filtering behavior", "CrossFilteringBehavior", v.cross, "select", REL_CROSS);
+            row("Security filtering behavior", "SecurityFilteringBehavior", v.security, "select", REL_SECURITY);
+            row("Rely on referential integrity", "RelyOnReferentialIntegrity", v.rely, "bool");
+            row("Join on date behavior", "JoinOnDateBehavior", String(value(node, "JoinOnDateBehavior") || "DateAndTime"), "select", REL_JOIN);
+            card.appendChild(grid);
+            return card;
+        }
+        function paintList() {
+            if (!list) return;
+            clear(list);
+            const q = search.trim().toLowerCase();
+            const staged = staging.creates.filter((c) => c.type === "relationship");
+            for (const c of staged) {
+                const n = syntheticNode(c);
+                const v = relView(n);
+                const row = h("div", "slls-sx-rm-new");
+                row.appendChild(h("span", "slls-sx-pill new", "New"));
+                const fromDt = columnType(v.from_table, v.from_column);
+                const toDt = columnType(v.to_table, v.to_column);
+                row.appendChild(h("span", "name",
+                    `'${tableDisplayName(v.from_table)}'[${columnDisplayName(v.from_table, v.from_column)}]${fromDt ? ` (${fromDt})` : ""} \u2192 `
+                    + `'${tableDisplayName(v.to_table)}'[${columnDisplayName(v.to_table, v.to_column)}]${toDt ? ` (${toDt})` : ""}`
+                    + ` \u00b7 ${v.from_card}:${v.to_card} \u00b7 ${v.cross}${v.active ? "" : " \u00b7 inactive"}`));
+                if (write()) row.appendChild(button("slls-sx-iconbtn", "", "close", () => unstageCreate(c.id), "Remove staged relationship"));
+                list.appendChild(row);
+            }
+            const rels = (data.relationships || []).filter((r) => !q || displayLabel(r).toLowerCase().includes(q)).sort(byLabel);
+            for (const r of rels) list.appendChild(relCard(relView(r)));
+            if (!(data.relationships || []).length && !staged.length) list.appendChild(h("div", "slls-sx-empty", "No relationships in this model."));
+            else if (!rels.length && q) list.appendChild(h("div", "slls-sx-empty", `No relationships match \u201c${search}\u201d.`));
+        }
+        function draw() {
+            const total = (data.relationships || []).length;
+            const staged = staging.creates.filter((c) => c.type === "relationship").length;
+            toolSubtitle(m, plural(total, "relationship") + (staged ? ` \u00b7 ${staged} new` : ""));
+            toolActions(m);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                const scroll = h("div", "slls-sx-tool-scroll");
+                scroll.dataset.scroll = "main";
+                const wrap = h("div", "slls-sx-tool-wrap");
+                scroll.appendChild(wrap);
+                if (write()) wrap.appendChild(addForm());
+                else {
+                    const info = h("div", "slls-sx-fpm-info");
+                    info.append(iconEl("info", ""), h("span", "", "Read-only. Switch to edit mode to add, change or delete relationships."));
+                    wrap.appendChild(info);
+                }
+                wrap.appendChild(searchBox("Search relationships\u2026", search, (v) => { search = v; paintList(); }));
+                list = h("div", "slls-sx-rm-list");
+                wrap.appendChild(list);
+                paintList();
+                m.body.appendChild(scroll);
+            });
+        }
+        registerTool(m, draw, () => toolActions(m));
+        draw();
+    }
+
+    // ------------------------------------------------------------------
+    // Security manager
+    // ------------------------------------------------------------------
+    const OLS_PERMISSIONS = ["Default", "Read", "None"];
+    const MODEL_PERMISSIONS = ["None", "Read", "ReadRefresh", "Refresh", "Administrator"];
+    const RLS_DOCS_URL = "https://learn.microsoft.com/fabric/security/service-admin-row-level-security";
+    // Compares two {table: filter} maps, treating blank filters as absent.
+    function canonFilters(map) {
+        return JSON.stringify(Object.keys(map).filter((k) => String(map[k] || "").trim()).sort().map((k) => [k, map[k]]));
+    }
+    function openSecurityManager() {
+        const m = toolWindow("Security manager", "shield_check");
+        let active = null;
+        let memberDraft = "";
+        let view = "rls";
+        let rlsSearch = "";
+        let olsSearch = "";
+        let olsFilter = "all";
+        const openTables = new Set();
+        const write = () => mode === "write" && !saving;
+        const roles = () => [...(data.roles || []), ...newNodes("role", "")].sort((a, b) => cmpText(effName(a), effName(b)));
+        const roleNode = () => roles().find((r) => r.key === active) || null;
+        const members = (r) => jsonValue(r, "Members", []);
+        const filters = (r) => jsonValue(r, "RlsFilters", {});
+        const ols = (r) => jsonValue(r, "Ols", []);
+        const olsKey = (t, c) => (c ? `${t}\u0000${c}` : t);
+        const olsMap = (entries) => new Map(entries.map((o) => [olsKey(o.table, o.column || ""), o.permission]));
+        const rlsTables = () => savedTables().filter((t) => t.kind !== "calculation_group" && t.kind !== "field_parameter").sort(byLabel);
+        let sideNames = new Map();
+
+        function setFilter(r, table, text) {
+            const orig = JSON.parse(originalValue(r, "RlsFilters") || "{}");
+            const next = Object.assign({}, filters(r), { [table]: text });
+            if (!text && !(table in orig)) delete next[table];
+            const nv = canonFilters(next) === canonFilters(orig) ? originalValue(r, "RlsFilters") : JSON.stringify(next);
+            setValue(r, "RlsFilters", nv, { label: "Row-level security", coalesce: true, keepDetail: true });
+        }
+        function setOls(r, table, column, perm) {
+            const map = olsMap(ols(r));
+            const k = olsKey(table, column);
+            if (perm === "Default") map.delete(k); else map.set(k, perm);
+            const next = sortOls([...map.entries()].map(([key, p]) => {
+                const i = key.indexOf("\u0000");
+                return i < 0 ? { table: key, column: "", permission: p } : { table: key.slice(0, i), column: key.slice(i + 1), permission: p };
+            }));
+            setValue(r, "Ols", JSON.stringify(next), { label: "Object-level security" });
+        }
+        function roleSummary(r) {
+            const entries = ols(r);
+            const rls = Object.values(filters(r)).filter((f) => String(f || "").trim()).length;
+            return [`${plural(members(r).length, "member")} \u00b7 ${rls} RLS`,
+                `OLS: ${plural(new Set(entries.map((o) => o.table)).size, "table")}, ${plural(entries.filter((o) => o.column).length, "column")}`];
+        }
+        function drawSidebar() {
+            const side = h("div", "slls-sx-fpm-side");
+            const head = h("div", "slls-sx-fpm-side-head");
+            const list = roles();
+            head.appendChild(h("span", "slls-sx-pane-label", `Roles (${list.length})`));
+            if (write()) {
+                head.appendChild(button("slls-sx-iconbtn", "", "plus", () => {
+                    addObject("role", null);
+                    active = selectedKey;
+                    memberDraft = ""; rlsSearch = ""; olsSearch = ""; openTables.clear();
+                    draw();
+                }, "Create a new role"));
+            }
+            side.appendChild(head);
+            const items = h("div", "slls-sx-fpm-list");
+            items.dataset.scroll = "roles";
+            if (!list.length) items.appendChild(h("div", "slls-sx-empty", "No roles." + (write() ? " Add one to get started." : "")));
+            sideNames = new Map();
+            for (const r of list) {
+                const deleted = isDeleted(r);
+                const b = h("button", "slls-sx-fpm-item slls-sx-sm-role" + (active === r.key ? " active" : "") + (r.isNew ? " new" : "") + (deleted ? " deleted" : ""));
+                b.type = "button";
+                const body = h("span", "slls-sx-sm-role-body");
+                const top = h("span", "slls-sx-sm-role-top");
+                const nameEl = h("span", "name", effName(r));
+                sideNames.set(r.key, nameEl);
+                top.appendChild(nameEl);
+                if (isDirty(r) && !deleted) top.appendChild(dirtyDot(true));
+                if (r.isNew) top.appendChild(h("span", "slls-sx-pill new", "New"));
+                if (deleted) top.appendChild(h("span", "slls-sx-pill danger", "Deleted"));
+                const [l1, l2] = roleSummary(r);
+                body.append(top, h("span", "meta", l1), h("span", "meta", l2));
+                b.append(iconEl("shield_check", ""), body);
+                b.addEventListener("click", () => { active = r.key; memberDraft = ""; draw(); });
+                if (write()) {
+                    const del = h("span", "slls-sx-sm-del");
+                    del.setAttribute("role", "button");
+                    del.title = deleted ? "Restore role" : "Delete role";
+                    del.setAttribute("aria-label", `${deleted ? "Restore" : "Delete"} role ${effName(r)}`);
+                    del.innerHTML = deleted ? ICON.undo : ICON.trash;
+                    del.addEventListener("click", (ev) => {
+                        ev.stopPropagation();
+                        if (deleted) { toggleOp(r, "delete"); return; }
+                        confirmDialog(`Delete the role \u2018${effName(r)}\u2019? Its members, row-level and object-level security will be removed when you Save.`,
+                            "Delete role", () => {
+                                const c = createFor(r);
+                                if (c) unstageCreate(c.id); else toggleOp(r, "delete");
+                            });
+                    });
+                    b.appendChild(del);
+                }
+                items.appendChild(b);
+            }
+            side.appendChild(items);
+            return side;
+        }
+        function drawRls(r, editable, wrap) {
+            const map = filters(r);
+            const orig = JSON.parse(originalValue(r, "RlsFilters") || "{}");
+            const p = h("p", "slls-sx-dlm-note");
+            p.append(document.createTextNode("A DAX filter expression limits which rows a member can see for that table."
+                + (editable ? " Leave a table blank for no filter. " : " ")));
+            const a = h("a", "slls-sx-link slls-sx-fpm-link", "How to implement RLS");
+            a.href = RLS_DOCS_URL; a.target = "_blank"; a.rel = "noreferrer";
+            a.appendChild(iconEl("external_link", ""));
+            p.appendChild(a);
+            wrap.appendChild(p);
+            const listEl = h("div", "slls-sx-sm-rls");
+            const paint = () => {
+                clear(listEl);
+                const q = rlsSearch.trim().toLowerCase();
+                const tables = rlsTables().filter((t) => !q || effName(t).toLowerCase().includes(q));
+                if (!tables.length) listEl.appendChild(h("div", "slls-sx-empty", "No tables match."));
+                for (const t of tables) {
+                    const val = map[t.name] || "";
+                    const row = h("div", "slls-sx-sm-rls-row");
+                    const name = h("span", "slls-sx-sm-table");
+                    const dot = dirtyDot(String(val).trim() !== String(orig[t.name] || "").trim());
+                    name.append(dot, iconEl(tableIcon(t), ""), h("span", "name", effName(t)));
+                    name.title = effName(t);
+                    row.appendChild(name);
+                    if (editable) {
+                        const input = h("input", "slls-sx-input slls-sx-mono");
+                        input.value = val;
+                        input.placeholder = '[Region] = "West"';
+                        input.setAttribute("aria-label", `Row-level security filter for ${effName(t)}`);
+                        input.addEventListener("input", () => {
+                            map[t.name] = input.value;
+                            setFilter(r, t.name, input.value);
+                            dot.style.visibility = input.value.trim() !== String(orig[t.name] || "").trim() ? "" : "hidden";
+                        });
+                        row.appendChild(input);
+                    } else {
+                        const code = h("code", "slls-sx-sm-code", val || "\u2014");
+                        code.title = val;
+                        row.appendChild(code);
+                    }
+                    row.appendChild(button("slls-sx-iconbtn", "", "network", () => openRelationshipDiagram(t.name),
+                        `Show '${effName(t)}' in the relationship diagram to see how row-level security flows to related tables`));
+                    listEl.appendChild(row);
+                }
+            };
+            wrap.appendChild(searchBox("Search tables\u2026", rlsSearch, (v) => { rlsSearch = v; paint(); }));
+            wrap.appendChild(listEl);
+            paint();
+        }
+        function drawOls(r, editable, wrap) {
+            wrap.appendChild(h("p", "slls-sx-dlm-note",
+                "Set a table or column permission to None to hide it from role members (Default = not secured)."));
+            const bar = h("div", "slls-sx-sm-olsbar");
+            const filterSel = selectEl([["all", "All"], ...OLS_PERMISSIONS.map((p) => [p, p])], olsFilter, (v) => { olsFilter = v; paint(); },
+                "Filter object-level security by permission");
+            bar.append(field("Permission", filterSel), searchBox("Search tables\u2026", olsSearch, (v) => { olsSearch = v; paint(); }));
+            wrap.appendChild(bar);
+            const listEl = h("div", "slls-sx-sm-ols");
+            wrap.appendChild(listEl);
+            const permCtl = (table, column, label) => {
+                const cur = olsMap(ols(r)).get(olsKey(table, column)) || "Default";
+                if (!editable) return h("span", "slls-sx-sm-perm", cur);
+                return selectEl(OLS_PERMISSIONS, cur, (v) => setOls(r, table, column, v), label);
+            };
+            function paint() {
+                clear(listEl);
+                const current = olsMap(ols(r));
+                const base = olsMap(JSON.parse(originalValue(r, "Ols") || "[]"));
+                const changed = (t, c) => (current.get(olsKey(t, c)) || "Default") !== (base.get(olsKey(t, c)) || "Default");
+                const q = olsSearch.trim().toLowerCase();
+                let any = false;
+                for (const t of savedTables().sort(byLabel)) {
+                    if (q && !effName(t).toLowerCase().includes(q)) continue;
+                    const cols = liveColumns(t).sort(byLabel);
+                    const tablePerm = current.get(olsKey(t.name, "")) || "Default";
+                    let shown = cols;
+                    const filtered = olsFilter !== "all";
+                    if (filtered) {
+                        shown = cols.filter((c) => (current.get(olsKey(t.name, c.name)) || "Default") === olsFilter);
+                        if (tablePerm !== olsFilter && !shown.length) continue;
+                    }
+                    any = true;
+                    const isOpen = filtered || openTables.has(t.name);
+                    const row = h("div", "slls-sx-sm-ols-row table");
+                    if (filtered) row.appendChild(h("span", "slls-sx-tool-caret"));
+                    else row.appendChild(caretBtn(isOpen, () => { if (openTables.has(t.name)) openTables.delete(t.name); else openTables.add(t.name); paint(); }));
+                    row.append(iconEl(tableIcon(t), ""), h("span", "name", effName(t)), h("span", "meta", `${cols.length} col${cols.length === 1 ? "" : "s"}`),
+                        dirtyDot(changed(t.name, "")), permCtl(t.name, "", `Object-level security for ${effName(t)}`));
+                    listEl.appendChild(row);
+                    if (!isOpen) continue;
+                    if (!shown.length && !filtered) listEl.appendChild(h("div", "slls-sx-sm-ols-row col empty", "No columns."));
+                    for (const c of shown) {
+                        const cr = h("div", "slls-sx-sm-ols-row col");
+                        cr.append(iconEl(c.column_type === "Calculated" ? "calculated_column" : "column", ""), h("span", "name", effName(c)),
+                            dirtyDot(changed(t.name, c.name)), permCtl(t.name, c.name, `Object-level security for ${effName(c)}`));
+                        cr.title = `'${effName(t)}'[${effName(c)}]`;
+                        listEl.appendChild(cr);
+                    }
+                }
+                if (!any) listEl.appendChild(h("div", "slls-sx-empty", `No tables match${olsFilter !== "all" ? ` with a \u201c${olsFilter}\u201d permission` : ""}.`));
+            }
+            paint();
+        }
+        function drawMain() {
+            const main = h("div", "slls-sx-fpm-main");
+            const r = roleNode();
+            if (!r) {
+                const empty = h("div", "slls-sx-center");
+                empty.append(iconEl("shield_check", ""), h("div", "", "Select a role to view or edit its security."));
+                main.appendChild(empty);
+                return main;
+            }
+            const deleted = isDeleted(r);
+            const editable = write() && !deleted;
+            const scroll = h("div", "slls-sx-tool-scroll");
+            scroll.dataset.scroll = "role";
+            const wrap = h("div", "slls-sx-tool-wrap");
+            scroll.appendChild(wrap);
+            if (deleted) {
+                const info = h("div", "slls-sx-fpm-info");
+                info.append(iconEl("trash", ""), h("span", "", "This role is staged for deletion. Restore it to make changes."));
+                wrap.appendChild(info);
+            }
+            const general = h("div", "slls-sx-sm-general");
+            const nameLabel = h("span", "", "Name");
+            nameLabel.appendChild(dirtyDot(!!staging.edits[editKey(r.key, "Name")]));
+            const nameInput = h("input", "slls-sx-input");
+            nameInput.value = effName(r);
+            nameInput.disabled = !editable;
+            nameInput.setAttribute("aria-label", "Role name");
+            nameInput.addEventListener("input", () => {
+                setValue(r, "Name", nameInput.value, { label: "Name", coalesce: true, keepDetail: true });
+                const el = sideNames.get(r.key);
+                if (el) el.textContent = nameInput.value;
+            });
+            const nf = h("label", "slls-sx-tool-field");
+            nf.append(nameLabel, nameInput);
+            const permLabel = h("span", "", "Model permission");
+            permLabel.appendChild(dirtyDot(!!staging.edits[editKey(r.key, "ModelPermission")]));
+            const perm = selectEl(MODEL_PERMISSIONS, String(value(r, "ModelPermission") || "Read"),
+                (v) => setValue(r, "ModelPermission", v, { label: "Model permission" }), "Model permission");
+            perm.disabled = !editable;
+            const pf = h("label", "slls-sx-tool-field");
+            pf.append(permLabel, perm);
+            general.append(nf, pf);
+            wrap.appendChild(general);
+
+            const list = members(r);
+            const mt = h("div", "slls-sx-section-title", `Members (${list.length})`);
+            mt.appendChild(dirtyDot(!!staging.edits[editKey(r.key, "Members")]));
+            wrap.appendChild(mt);
+            if (editable) {
+                const add = h("div", "slls-sx-sm-add");
+                const input = h("input", "slls-sx-input");
+                input.placeholder = "user@contoso.com or group name";
+                input.setAttribute("aria-label", "New member");
+                input.value = memberDraft;
+                const addBtn = button("slls-sx-btn primary", "Add", "plus", () => {
+                    const v = input.value.trim();
+                    if (!v || list.includes(v)) return;
+                    memberDraft = "";
+                    setValue(r, "Members", JSON.stringify([...list, v]), { label: "Members" });
+                });
+                addBtn.disabled = !memberDraft.trim();
+                input.addEventListener("input", () => { memberDraft = input.value; addBtn.disabled = !input.value.trim(); });
+                input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); addBtn.click(); } });
+                add.append(input, addBtn);
+                wrap.appendChild(add);
+            }
+            if (!list.length) wrap.appendChild(h("div", "slls-sx-kv-empty", "No members."));
+            else {
+                const ul = h("div", "slls-sx-sm-members");
+                for (const mem of list) {
+                    const li = h("div", "slls-sx-sm-member");
+                    li.append(iconEl("user", ""), h("span", "name", mem));
+                    li.title = mem;
+                    if (editable) li.appendChild(button("slls-sx-iconbtn", "", "close",
+                        () => setValue(r, "Members", JSON.stringify(list.filter((x) => x !== mem)), { label: "Members" }), "Remove member"));
+                    ul.appendChild(li);
+                }
+                wrap.appendChild(ul);
+            }
+
+            const sec = h("div", "slls-sx-sm-sechead");
+            sec.appendChild(h("div", "slls-sx-section-title", "Table security"));
+            const seg = h("div", "slls-sx-seg");
+            for (const [id, label, title, prop] of [["rls", "RLS", "Row-level security", "RlsFilters"], ["ols", "OLS", "Object-level security", "Ols"]]) {
+                const b = h("button", view === id ? "on" : "", label);
+                b.type = "button";
+                b.title = title;
+                if (staging.edits[editKey(r.key, prop)]) b.appendChild(dirtyDot(true));
+                b.addEventListener("click", () => { view = id; draw(); });
+                seg.appendChild(b);
+            }
+            sec.appendChild(seg);
+            const nFilters = Object.values(filters(r)).filter((f) => String(f || "").trim()).length;
+            sec.appendChild(h("span", "slls-sx-sm-count", view === "rls" ? plural(nFilters, "table filter") : plural(ols(r).length, "secured object")));
+            wrap.appendChild(sec);
+            if (view === "rls") drawRls(r, editable, wrap);
+            else drawOls(r, editable, wrap);
+            main.appendChild(scroll);
+            return main;
+        }
+        function draw() {
+            const list = roles();
+            if (active === null || !list.some((r) => r.key === active)) active = list.length ? list[0].key : null;
+            toolSubtitle(m, "Manage roles, members, row-level and object-level security."
+                + (mode === "write" ? " Changes are staged and applied when you Save." : ""));
+            toolActions(m);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                const layout = h("div", "slls-sx-fpm");
+                layout.append(drawSidebar(), drawMain());
+                m.body.appendChild(layout);
+            });
+        }
+        registerTool(m, draw, () => toolActions(m));
+        draw();
+    }
+
+    // ------------------------------------------------------------------
+    // Description manager
+    // ------------------------------------------------------------------
+    function openDescriptionManager() {
+        const m = toolWindow("Description manager", "file");
+        const KINDS = ["Table", "Measure", "CalculationItem", "Column", "Hierarchy", "Level"];
+        const typeOptions = KINDS.map((k) => [k, OBJ_KINDS[k][0], OBJ_KINDS[k][1]]);
+        const types = new Set(KINDS);
+        let search = "";
+        let hideHidden = false;
+        let expandedIds = new Set();
+        const selected = new Set();
+        let generating = false;
+        let genError = null;
+        let tree = [];
+        let rowsEl = null;
+        let countEl = null;
+        let headCheck = null;
+        const write = () => mode === "write" && !saving;
+        const filtering = () => !!search.trim() || types.size !== KINDS.length || hideHidden;
+        const matches = (n) => {
+            if (!types.has(n.type)) return false;
+            if (hideHidden && n.hidden) return false;
+            const q = search.trim().toLowerCase();
+            if (!q) return true;
+            const hay = `${n.type} ${effName(n.node)} ${value(n.node, "Description") || ""}`.toLowerCase();
+            return hay.includes(q);
+        };
+        const measureIds = (list) => list.filter((n) => n.type === "Measure").map((n) => n.id);
+        const filterChanged = () => { expandedIds = filtering() ? autoExpand(tree, matches) : new Set(); paintRows(); };
+
+        function generate() {
+            const all = flatTree(tree).filter((n) => n.type === "Measure" && selected.has(n.id));
+            if (!all.length || generating) return;
+            generating = true;
+            genError = null;
+            draw();
+            const byKey = new Map(all.map((n) => [`${n.node.table}\u0000${n.node.name}`, n]));
+            request("generate_descriptions", {
+                measures: all.map((n) => ({ table: n.node.table, name: n.node.name, expression: String(value(n.node, "Expression") || "") })),
+            }, (res) => {
+                generating = false;
+                if (!res.ok) genError = res.error || "Descriptions could not be generated.";
+                else {
+                    const items = [];
+                    for (const g of res.data.descriptions || []) {
+                        const n = byKey.get(`${g.table}\u0000${g.name}`);
+                        if (n && g.description) items.push({ node: n.node, prop: "Description", value: g.description, label: "Description" });
+                    }
+                    if (!items.length) genError = "No descriptions were generated.";
+                    selected.clear();
+                    stageMany(items);
+                }
+                if (m.overlay.isConnected) draw();
+            });
+        }
+        function paintRows() {
+            if (!rowsEl) return;
+            clear(rowsEl);
+            const editable = write();
+            const rows = treeVisible(tree, matches, filtering(), expandedIds);
+            const shownMatches = flatTree(tree).filter(matches);
+            if (countEl) countEl.textContent = `${shownMatches.length.toLocaleString()} shown`;
+            if (headCheck) {
+                const fresh = triCheckbox(measureIds(shownMatches), selected,
+                    "Select all measures (matching the current filters) for AI description generation", () => { paintRows(); refreshGenerate(); });
+                headCheck.replaceWith(fresh);
+                headCheck = fresh;
+            }
+            if (!rows.length) { rowsEl.appendChild(h("div", "slls-sx-empty", "No objects match the current filters.")); return; }
+            for (const { n, depth, hasChildren, open } of rows) {
+                const row = h("div", "slls-sx-dm-row");
+                const obj = h("div", "slls-sx-dm-obj");
+                obj.style.paddingLeft = 8 + depth * 18 + "px";
+                obj.appendChild(hasChildren ? caretBtn(open, () => {
+                    if (expandedIds.has(n.id)) expandedIds.delete(n.id); else expandedIds.add(n.id);
+                    paintRows();
+                }) : h("span", "slls-sx-tool-caret"));
+                if (editable) {
+                    if (n.type === "Measure") obj.appendChild(triCheckbox([n.id], selected, "Select for AI description generation", () => { paintRows(); refreshGenerate(); }));
+                    else if (n.type === "Table" && measureIds(n.children).length) {
+                        obj.appendChild(triCheckbox(measureIds(n.children), selected, "Select all measures in this table for AI description generation",
+                            () => { paintRows(); refreshGenerate(); }));
+                    } else obj.appendChild(h("span", "slls-sx-tool-check"));
+                }
+                obj.appendChild(iconEl(objIcon(n), ""));
+                const name = h("span", "name", effName(n.node));
+                name.title = effName(n.node);
+                obj.appendChild(name);
+                const original = String(originalValue(n.node, "Description") || "");
+                const current = String(value(n.node, "Description") || "");
+                const dot = dirtyDot(!!staging.edits[editKey(n.node.key, "Description")]);
+                obj.appendChild(dot);
+                if (n.hidden) { const e = iconEl("eye_off", "slls-sx-tool-hidden"); e.title = "Hidden"; obj.appendChild(e); }
+                row.appendChild(obj);
+                if (editable) {
+                    const ta = h("textarea", "slls-sx-textarea slls-sx-dm-text" + (current !== original && !n.node.isNew ? " changed" : ""));
+                    ta.rows = 1;
+                    ta.value = current;
+                    ta.placeholder = "\u2014";
+                    ta.setAttribute("aria-label", `Description of ${effName(n.node)}`);
+                    ta.addEventListener("input", () => {
+                        setValue(n.node, "Description", ta.value, { label: "Description", coalesce: true, keepDetail: true });
+                        const dirty = !!staging.edits[editKey(n.node.key, "Description")];
+                        dot.style.visibility = dirty ? "" : "hidden";
+                        ta.classList.toggle("changed", dirty);
+                    });
+                    row.appendChild(ta);
+                } else {
+                    const d = h("span", "slls-sx-dm-desc" + (current ? "" : " empty"), current || "\u2014");
+                    if (current) d.title = current;
+                    row.appendChild(d);
+                }
+                rowsEl.appendChild(row);
+            }
+        }
+        let genBtn = null;
+        function refreshGenerate() {
+            if (!genBtn) return;
+            const n = flatTree(tree).filter((x) => x.type === "Measure" && selected.has(x.id)).length;
+            genBtn.lastChild.textContent = n ? `Generate (${n})` : "Generate";
+            genBtn.disabled = generating || !n;
+        }
+        function draw() {
+            tree = objectTree(["Measure", "CalculationItem", "Column", "Hierarchy"]);
+            const live = new Set(flatTree(tree).map((n) => n.id));
+            for (const id of [...selected]) if (!live.has(id)) selected.delete(id);
+            toolSubtitle(m, `${plural(live.size, "object")} in this model`);
+            genBtn = null;
+            if (write()) {
+                genBtn = button("slls-sx-btn", "Generate", "sparkles", generate,
+                    "Auto-generate descriptions for the selected measures using AI (requires an F64 or higher capacity)");
+                if (generating) genBtn.querySelector("svg").classList.add("slls-sx-spin");
+                refreshGenerate();
+            }
+            toolActions(m, [genBtn]);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                if (genError) {
+                    const err = h("div", "slls-sx-tool-error");
+                    err.append(iconEl("alert", ""), h("span", "", genError));
+                    m.body.appendChild(err);
+                }
+                const bar = h("div", "slls-sx-tool-toolbar");
+                bar.appendChild(typeFilterEl(typeOptions, types, "No object types", filterChanged));
+                bar.appendChild(searchBox("Search objects or descriptions\u2026", search, (v) => { search = v; filterChanged(); }));
+                const hh = switchEl(hideHidden, "Hide hidden", () => {
+                    hideHidden = !hideHidden;
+                    hh.classList.toggle("on", hideHidden);
+                    hh.setAttribute("aria-checked", String(hideHidden));
+                    filterChanged();
+                }, "Hide hidden");
+                hh.title = "Hide objects that are hidden in the model";
+                bar.appendChild(hh);
+                bar.appendChild(button("slls-sx-iconbtn", "", "expand_rows", () => {
+                    expandedIds = new Set(flatTree(tree).filter((n) => n.type === "Table" || n.type === "Hierarchy").map((n) => n.id));
+                    paintRows();
+                }, "Expand all"));
+                bar.appendChild(button("slls-sx-iconbtn", "", "collapse_rows", () => { expandedIds = new Set(); paintRows(); }, "Collapse all"));
+                countEl = h("span", "slls-sx-tool-count");
+                bar.appendChild(countEl);
+                m.body.appendChild(bar);
+                const scroll = h("div", "slls-sx-tool-scroll");
+                scroll.dataset.scroll = "rows";
+                const head = h("div", "slls-sx-dm-row head");
+                const ho = h("div", "slls-sx-dm-obj");
+                headCheck = null;
+                if (write()) { headCheck = h("span", "slls-sx-tool-check"); ho.appendChild(headCheck); }
+                ho.appendChild(h("span", "", "Object"));
+                head.append(ho, h("span", "", "Description"));
+                scroll.appendChild(head);
+                rowsEl = h("div", "slls-sx-dm-rows");
+                scroll.appendChild(rowsEl);
+                m.body.appendChild(scroll);
+                paintRows();
+            });
+        }
+        registerTool(m, draw, () => toolActions(m, [genBtn]));
+        draw();
+    }
+
+    // ------------------------------------------------------------------
+    // Translation manager
+    // ------------------------------------------------------------------
+    // Model cultures are region-qualified (e.g. fr-FR); Azure AI Translator
+    // wants a language code.
+    const CULTURE_TO_TRANSLATOR = {
+        "zh-cn": "zh-Hans", "zh-sg": "zh-Hans", "zh-hans": "zh-Hans", "zh-tw": "zh-Hant", "zh-hk": "zh-Hant",
+        "zh-mo": "zh-Hant", "zh-hant": "zh-Hant", "pt-br": "pt", "pt-pt": "pt-pt", "fr-ca": "fr-ca",
+        "sr-cyrl-rs": "sr-Cyrl", "sr-latn-rs": "sr-Latn",
+    };
+    function translatorCode(culture) {
+        const lower = String(culture).trim().toLowerCase();
+        return CULTURE_TO_TRANSLATOR[lower] || lower.split("-")[0];
+    }
+    // Kept for this widget session only (never persisted).
+    const translator = { key: "", region: "" };
+    const TRANS_FIELDS = ["caption", "description", "displayFolder"];
+    // Compares translation maps, treating blank values as absent.
+    function canonTranslations(map) {
+        const out = [];
+        for (const culture of Object.keys(map || {}).sort()) {
+            for (const f of TRANS_FIELDS) {
+                const v = ((map[culture] || {})[f] || "").trim();
+                if (v) out.push([culture, f, v]);
+            }
+        }
+        return JSON.stringify(out);
+    }
+    function stageTranslationItem(node, updates) {
+        const orig = JSON.parse(originalValue(node, "Translations") || "{}");
+        const next = JSON.parse(JSON.stringify(jsonValue(node, "Translations", {})));
+        for (const u of updates) next[u.culture] = Object.assign({}, next[u.culture], { [u.field]: u.value });
+        const nv = canonTranslations(next) === canonTranslations(orig) ? originalValue(node, "Translations") : JSON.stringify(next);
+        return { node, prop: "Translations", value: nv, label: "Translations" };
+    }
+    function openTranslationManager() {
+        const m = toolWindow("Translation manager", "languages");
+        const KINDS = ["Table", "Column", "Measure", "Hierarchy", "Level"];
+        const typeOptions = KINDS.map((k) => [k, OBJ_KINDS[k][0], OBJ_KINDS[k][1]]);
+        const types = new Set();
+        const cultures = () => (data.cultures || []).map((c) => c.name).sort(cmpText);
+        let culture = viewCulture && cultures().includes(viewCulture) ? viewCulture : (cultures()[0] || "");
+        let search = "";
+        let shown = "all";
+        let hideHidden = false;
+        let expandedIds = new Set();
+        const selected = new Set();
+        let tree = [];
+        let tbody = null;
+        let countEl = null;
+        let headCheck = null;
+        const widths = new Map();
+        const write = () => mode === "write" && !saving;
+        const hasFolder = (n) => ["Column", "Measure", "Hierarchy"].includes(n.type);
+        const trOf = (n) => (jsonValue(n.node, "Translations", {})[culture] || {});
+        const translated = (n) => { const t = trOf(n); return !!(t.caption || t.description || t.displayFolder); };
+        const filtering = () => !!search.trim() || types.size > 0 || shown !== "all" || hideHidden;
+        const matches = (n) => {
+            if (types.size && !types.has(n.type)) return false;
+            if (hideHidden && n.hidden) return false;
+            if (shown === "translated" && !translated(n)) return false;
+            if (shown === "missing" && translated(n)) return false;
+            const q = search.trim().toLowerCase();
+            if (!q) return true;
+            const t = trOf(n);
+            return `${n.type} ${effName(n.node)} ${t.caption || ""} ${t.description || ""} ${t.displayFolder || ""}`.toLowerCase().includes(q);
+        };
+        const filterChanged = () => { expandedIds = filtering() ? autoExpand(tree, matches) : new Set(); paintRows(); };
+
+        function cellInput(n, fieldName, placeholder, disabled) {
+            const td = h("td", "");
+            const v = trOf(n)[fieldName] || "";
+            if (!write() || disabled) {
+                const span = h("span", "slls-sx-tm-val" + (v ? "" : " empty"), disabled ? "" : (v || "\u2014"));
+                if (v) span.title = v;
+                td.appendChild(span);
+                return td;
+            }
+            const input = h("input", "slls-sx-input slls-sx-tm-input");
+            input.value = v;
+            input.placeholder = placeholder;
+            input.setAttribute("aria-label", `${{ caption: "Translated name", description: "Translated description", displayFolder: "Translated display folder" }[fieldName]} of ${effName(n.node)}`);
+            input.addEventListener("input", () => {
+                const item = stageTranslationItem(n.node, [{ culture, field: fieldName, value: input.value }]);
+                setValue(n.node, "Translations", item.value, { label: "Translations", coalesce: true, keepDetail: true });
+                const dot = input.closest("tr").querySelector(".slls-sx-dot");
+                if (dot) dot.style.visibility = staging.edits[editKey(n.node.key, "Translations")] ? "" : "hidden";
+            });
+            td.appendChild(input);
+            return td;
+        }
+        function original(text, blank) {
+            const td = h("td", "");
+            const span = h("span", "slls-sx-tm-orig" + (text ? "" : " empty"), blank ? "" : (text || "\u2014"));
+            if (text) span.title = text;
+            td.appendChild(span);
+            return td;
+        }
+        function paintRows() {
+            if (!tbody) return;
+            clear(tbody);
+            const all = flatTree(tree);
+            const matching = all.filter(matches);
+            if (countEl) countEl.textContent = `${matching.length.toLocaleString()} shown`;
+            if (headCheck) {
+                const fresh = triCheckbox(matching.map((n) => n.id), selected, "Select all objects (matching the current filters) to translate",
+                    () => { paintRows(); refreshTranslate(); });
+                headCheck.replaceWith(fresh);
+                headCheck = fresh;
+            }
+            const rows = treeVisible(tree, matches, filtering(), expandedIds);
+            if (!rows.length) {
+                const tr = h("tr", "");
+                const td = h("td", "slls-sx-empty", culture ? "No objects match the current filters." : "This model has no cultures.");
+                td.colSpan = 6;
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                return;
+            }
+            for (const { n, depth, hasChildren, open } of rows) {
+                const tr = h("tr", "");
+                const td = h("td", "");
+                const obj = h("div", "slls-sx-dm-obj");
+                obj.style.paddingLeft = 6 + depth * 18 + "px";
+                obj.appendChild(hasChildren ? caretBtn(open, () => {
+                    if (expandedIds.has(n.id)) expandedIds.delete(n.id); else expandedIds.add(n.id);
+                    paintRows();
+                }) : h("span", "slls-sx-tool-caret"));
+                if (write()) {
+                    const ids = n.type === "Table" ? flatTree([n]).map((x) => x.id) : [n.id];
+                    obj.appendChild(triCheckbox(ids, selected, n.type === "Table" ? "Select all objects in this table to translate" : "Select to translate",
+                        () => { paintRows(); refreshTranslate(); }));
+                }
+                obj.appendChild(iconEl(objIcon(n), ""));
+                const name = h("span", "name", effName(n.node));
+                name.title = effName(n.node);
+                obj.append(name, dirtyDot(!!staging.edits[editKey(n.node.key, "Translations")]));
+                td.appendChild(obj);
+                tr.appendChild(td);
+                tr.appendChild(cellInput(n, "caption", effName(n.node), false));
+                tr.appendChild(original(String(value(n.node, "Description") || "")));
+                tr.appendChild(cellInput(n, "description", "\u2014", false));
+                tr.appendChild(original(hasFolder(n) ? String(value(n.node, "DisplayFolder") || "") : "", !hasFolder(n)));
+                tr.appendChild(cellInput(n, "displayFolder", "\u2014", !hasFolder(n)));
+                tbody.appendChild(tr);
+            }
+        }
+        let trBtn = null;
+        function refreshTranslate() {
+            if (!trBtn) return;
+            const n = flatTree(tree).filter((x) => selected.has(x.id)).length;
+            trBtn.lastChild.textContent = n ? `Translate (${n})` : "Translate";
+            trBtn.disabled = !n || !culture;
+        }
+        function openTranslate() {
+            const rows = flatTree(tree).filter((x) => selected.has(x.id));
+            if (!rows.length) return;
+            const names = cultures();
+            const targets = new Set(culture ? [culture] : []);
+            const props = { caption: true, description: true, displayFolder: true };
+            let busy = false;
+            let error = null;
+            const d = modal("Translate objects", "sparkles");
+            d.box.classList.add("slls-sx-tm-dialog");
+            const paint = () => {
+                clear(d.body);
+                d.body.appendChild(h("div", "slls-sx-dlm-note", `${plural(rows.length, "object")} selected \u00b7 Azure AI Translator`));
+                const th = h("div", "slls-sx-tm-dhead");
+                th.appendChild(h("div", "slls-sx-section-title", "Target languages"));
+                const all = button("slls-sx-btn small", "Select all", "", () => { names.forEach((c) => targets.add(c)); paint(); });
+                const none = button("slls-sx-btn small", "Clear", "", () => { targets.clear(); paint(); });
+                th.append(all, none);
+                d.body.appendChild(th);
+                const chips = h("div", "slls-sx-tm-chips");
+                for (const c of names) {
+                    const b = h("button", "slls-sx-tm-chip" + (targets.has(c) ? " on" : ""), c);
+                    b.type = "button";
+                    b.setAttribute("aria-pressed", String(targets.has(c)));
+                    b.addEventListener("click", () => { if (targets.has(c)) targets.delete(c); else targets.add(c); paint(); });
+                    chips.appendChild(b);
+                }
+                d.body.appendChild(chips);
+                d.body.appendChild(h("div", "slls-sx-section-title", "Properties to translate"));
+                const checks = h("div", "slls-sx-tm-props");
+                for (const [f, label] of [["caption", "Name"], ["description", "Description"], ["displayFolder", "Display folder"]]) {
+                    const l = h("label", "");
+                    const cb = h("input");
+                    cb.type = "checkbox";
+                    cb.checked = props[f];
+                    cb.addEventListener("change", () => { props[f] = cb.checked; paint(); });
+                    l.append(cb, document.createTextNode(label));
+                    checks.appendChild(l);
+                }
+                d.body.appendChild(checks);
+                d.body.appendChild(h("div", "slls-sx-dlm-note", "Description and display folder are only translated for objects where that property is set."));
+                d.body.appendChild(h("div", "slls-sx-section-title", "Azure AI Translator"));
+                const key = h("input", "slls-sx-input");
+                key.type = "password";
+                key.autocomplete = "off";
+                key.placeholder = "Translator subscription key";
+                key.value = translator.key;
+                const region = h("input", "slls-sx-input");
+                region.placeholder = "e.g. westeurope (optional for a global resource)";
+                region.value = translator.region;
+                d.body.append(field("Key", key), field("Region", region));
+                d.body.appendChild(h("div", "slls-sx-dlm-note", "Uses your own Azure AI Translator resource. The key is kept only for this session."));
+                if (error) {
+                    const err = h("div", "slls-sx-tool-error");
+                    err.append(iconEl("alert", ""), h("span", "", error));
+                    d.body.appendChild(err);
+                }
+                const foot = d.box.querySelector(".slls-sx-modal-foot") || h("div", "slls-sx-modal-foot");
+                clear(foot);
+                const go = button("slls-sx-btn primary", "Translate", "sparkles", run);
+                if (busy) go.querySelector("svg").classList.add("slls-sx-spin");
+                const ready = () => !busy && targets.size && key.value.trim() && (props.caption || props.description || props.displayFolder);
+                go.disabled = !ready();
+                key.addEventListener("input", () => { translator.key = key.value; go.disabled = !ready(); });
+                region.addEventListener("input", () => { translator.region = region.value; });
+                foot.append(button("slls-sx-btn", "Cancel", "", () => d.close()), go);
+                d.box.appendChild(foot);
+            };
+            function run() {
+                const fields = TRANS_FIELDS.filter((f) => props[f]);
+                const tasks = [];
+                for (const n of rows) {
+                    const src = {
+                        caption: effName(n.node),
+                        description: String(value(n.node, "Description") || ""),
+                        displayFolder: hasFolder(n) ? String(value(n.node, "DisplayFolder") || "") : "",
+                    };
+                    for (const f of fields) if (src[f].trim()) tasks.push({ n, field: f, text: src[f] });
+                }
+                if (!tasks.length) { error = "Nothing to translate \u2014 the selected properties are blank on the selected objects."; paint(); return; }
+                busy = true;
+                error = null;
+                paint();
+                const targetList = [...targets];
+                request("translate_texts", {
+                    key: translator.key, region: translator.region,
+                    texts: [...new Set(tasks.map((t) => t.text))],
+                    languages: [...new Set(targetList.map(translatorCode))],
+                }, (res) => {
+                    busy = false;
+                    if (!res.ok) { error = res.error || "Translation failed."; if (d.overlay.isConnected) paint(); return; }
+                    const map = res.data.translations || {};
+                    const byNode = new Map();
+                    for (const t of tasks) {
+                        for (const c of targetList) {
+                            const text = (map[t.text] || {})[translatorCode(c).toLowerCase()];
+                            if (!text) continue;
+                            if (!byNode.has(t.n.id)) byNode.set(t.n.id, { node: t.n.node, updates: [] });
+                            byNode.get(t.n.id).updates.push({ culture: c, field: t.field, value: text });
+                        }
+                    }
+                    selected.clear();
+                    d.close();
+                    stageMany([...byNode.values()].map((x) => stageTranslationItem(x.node, x.updates)));
+                });
+            }
+            paint();
+        }
+        function draw() {
+            if (culture && !cultures().includes(culture)) culture = cultures()[0] || "";
+            tree = objectTree(["Column", "Measure", "Hierarchy"]);
+            const all = flatTree(tree);
+            const live = new Set(all.map((n) => n.id));
+            for (const id of [...selected]) if (!live.has(id)) selected.delete(id);
+            toolSubtitle(m, culture ? `${culture} \u00b7 ${all.filter(translated).length.toLocaleString()} of ${plural(all.length, "object")} translated`
+                : "No cultures defined in this model");
+            trBtn = null;
+            if (write()) {
+                trBtn = button("slls-sx-btn", "Translate", "sparkles", openTranslate,
+                    "Translate the selected objects into other languages with Azure AI Translator");
+                refreshTranslate();
+            }
+            toolActions(m, [trBtn]);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                const bar = h("div", "slls-sx-tool-toolbar");
+                const cs = selectEl(cultures().length ? cultures() : [["", "No cultures"]], culture, (v) => { culture = v; draw(); }, "Culture");
+                cs.disabled = !cultures().length;
+                bar.appendChild(field("Culture", cs));
+                bar.appendChild(typeFilterEl(typeOptions, types, "All object types", filterChanged));
+                bar.appendChild(searchBox("Search objects or translations\u2026", search, (v) => { search = v; filterChanged(); }));
+                const seg = h("div", "slls-sx-seg");
+                seg.setAttribute("role", "radiogroup");
+                seg.setAttribute("aria-label", "Translation filter");
+                for (const [id, label] of [["translated", "Only translated"], ["all", "All"], ["missing", "Missing"]]) {
+                    const b = h("button", shown === id ? "on" : "", label);
+                    b.type = "button";
+                    b.setAttribute("role", "radio");
+                    b.setAttribute("aria-checked", String(shown === id));
+                    b.addEventListener("click", () => {
+                        shown = id;
+                        seg.querySelectorAll("button").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); });
+                        filterChanged();
+                    });
+                    seg.appendChild(b);
+                }
+                bar.appendChild(seg);
+                const hh = switchEl(hideHidden, "Hide hidden", () => {
+                    hideHidden = !hideHidden;
+                    hh.classList.toggle("on", hideHidden);
+                    hh.setAttribute("aria-checked", String(hideHidden));
+                    filterChanged();
+                }, "Hide hidden");
+                hh.title = "Hide objects that are hidden in the model";
+                bar.appendChild(hh);
+                bar.appendChild(button("slls-sx-iconbtn", "", "expand_rows", () => {
+                    expandedIds = new Set(all.filter((n) => n.type === "Table" || n.type === "Hierarchy").map((n) => n.id));
+                    paintRows();
+                }, "Expand all"));
+                bar.appendChild(button("slls-sx-iconbtn", "", "collapse_rows", () => { expandedIds = new Set(); paintRows(); }, "Collapse all"));
+                countEl = h("span", "slls-sx-tool-count");
+                bar.appendChild(countEl);
+                m.body.appendChild(bar);
+                const scroll = h("div", "slls-sx-tool-scroll");
+                scroll.dataset.scroll = "rows";
+                const table = h("table", "slls-sx-tm-table");
+                const thead = h("thead", "");
+                const hr = h("tr", "");
+                headCheck = null;
+                [["Object", 300], ["Translated name", 200], ["Original description", 240], ["Translated description", 240],
+                    ["Original display folder", 190], ["Translated display folder", 210]].forEach(([label, w], i) => {
+                    const th = h("th", "");
+                    th.dataset.columnWidth = String(w);
+                    if (i === 0 && write()) {
+                        const wrapEl = h("span", "slls-sx-tm-th");
+                        headCheck = h("span", "slls-sx-tool-check");
+                        wrapEl.append(headCheck, document.createTextNode(label));
+                        th.appendChild(wrapEl);
+                    } else th.textContent = label;
+                    hr.appendChild(th);
+                });
+                thead.appendChild(hr);
+                tbody = h("tbody", "");
+                table.append(thead, tbody);
+                scroll.appendChild(table);
+                m.body.appendChild(scroll);
+                sllsInstallColumnResizers(table, { widths, key: "translations", minWidth: 80 });
+                paintRows();
+            });
+        }
+        registerTool(m, draw, () => toolActions(m, [trBtn]));
+        draw();
+    }
+
+    // ------------------------------------------------------------------
+    // Relationship diagram
+    // ------------------------------------------------------------------
+    const RD = { HEADER_H: 34, ROW_H: 22, BODY_PAD: 8, W: 240, H: 220, MIN_W: 160, MIN_H: 120, MARGIN: 240 };
+    const RD_SOURCE_COLORS = 10;
+    const RD_MODE_ICON = { import: ["Import", "database"], directquery: ["DirectQuery", "cable"], dual: ["Dual", "layers"],
+        directlake: ["Direct Lake", "waves"], push: ["Push", "database"] };
+    const RD_FABRIC_KINDS = { lakehouse: "Lakehouse", warehouse: "Warehouse", kqldatabase: "KQL database",
+        mirroreddatabase: "Mirrored database", eventhouse: "Eventhouse", sqldatabase: "SQL database", workspace: "Workspace" };
+    const rdMark = (card, fallback) => (!card ? fallback : (/one/i.test(card) ? "1" : "*"));
+    const rdPair = (a, b) => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
+    const rdEnd = (table, column) => `'${tableDisplayName(table)}'[${columnDisplayName(table, column)}]`;
+    const rdPath = (r) => `${rdEnd(r.from_table, r.from_column)} \u2192 ${rdEnd(r.to_table, r.to_column)}`;
+    function rdEdgePoint(x, y, w, hh, tx, ty) {
+        const cx = x + w / 2, cy = y + hh / 2, dx = tx - cx, dy = ty - cy;
+        if (dx === 0 && dy === 0) return { x: cx, y: cy };
+        const s = Math.min(w / 2 / Math.abs(dx || 1e-6), hh / 2 / Math.abs(dy || 1e-6));
+        return { x: cx + dx * s, y: cy + dy * s };
+    }
+    function rdArrow(cx, cy, ux, uy, size) {
+        const px = -uy, py = ux, back = size * 0.95, half = size * 0.62, notch = size * 0.3;
+        return [[cx + ux * size, cy + uy * size], [cx - ux * back + px * half, cy - uy * back + py * half],
+            [cx - ux * notch, cy - uy * notch], [cx - ux * back - px * half, cy - uy * back - py * half]].map((p) => p.join(",")).join(" ");
+    }
+    // Import / Dual / Direct Lake tables share the VertiPaq island; each
+    // DirectQuery source is its own. Crossing islands makes a limited relationship.
+    function rdIslands(t) {
+        const out = new Set();
+        const parts = t ? t.partitions || [] : [];
+        if (!parts.length) out.add("vertipaq");
+        for (const p of parts) {
+            const mo = String(p.mode || "").toLowerCase();
+            if (mo === "directquery") out.add("dq:" + (p.data_source || "?"));
+            else if (mo === "dual") { out.add("vertipaq"); out.add("dq:" + (p.data_source || "?")); }
+            else out.add("vertipaq");
+        }
+        return out;
+    }
+    function rdSourceKey(t) {
+        for (const p of (t && t.partitions) || []) {
+            const es = originalValue(p, "Source.ExpressionSource");
+            if (es) return "expr:" + es;
+            if (p.data_source) return "ds:" + p.data_source;
+            const expr = String(originalValue(p, "Expression") || "");
+            const sql = expr.match(/Sql\.Database\(\s*"([^"]+)"\s*,\s*"([^"]+)"/i);
+            if (sql) return `sql:${sql[1]}\u0000${sql[2]}`;
+            const lake = expr.match(/AzureStorage\.DataLake\(\s*"([^"]+)"/i);
+            if (lake) return "lake:" + lake[1];
+            const ids = [...expr.matchAll(/\b([A-Za-z]+)Id\s*=\s*"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"/g)];
+            const item = ids.find((x) => x[1].toLowerCase() !== "workspace");
+            const ws = ids.find((x) => x[1].toLowerCase() === "workspace");
+            if (item) return `${item[1].toLowerCase()}:${ws ? ws[2] : ""}\u0000${item[2]}`;
+            if (ws) return "workspace:" + ws[2];
+            const ref = expr.match(/Source\s*=\s*(#"[^"]+"|[A-Za-z_]\w*)\s*[,\r\n]/);
+            if (ref) return "ref:" + ref[1].replace(/^#"|"$/g, "");
+        }
+        return null;
+    }
+    function rdSourceLabel(key) {
+        const i = key.indexOf(":");
+        const kind = key.slice(0, i), rest = key.slice(i + 1);
+        if (kind === "expr" || kind === "ds" || kind === "ref") return rest;
+        if (kind === "sql") return rest.split("\u0000")[1] || rest.replace("\u0000", " / ");
+        if (kind === "lake") { const seg = rest.split("/").filter(Boolean).pop(); return seg ? `OneLake \u00b7 ${seg.slice(0, 8)}\u2026` : "OneLake"; }
+        const label = RD_FABRIC_KINDS[kind] || kind.charAt(0).toUpperCase() + kind.slice(1);
+        const parts = rest.split("\u0000");
+        const short = (parts[1] || parts[0] || "").slice(0, 8);
+        return short ? `${label} \u00b7 ${short}\u2026` : label;
+    }
+    // Chains of strong one-to-many relationships (Fact -> Dim -> Secondary dim).
+    function rdSnowflake(rels) {
+        const parents = new Map(), inDegree = new Map();
+        const ensure = (t) => { if (!parents.has(t)) parents.set(t, new Set()); if (!inDegree.has(t)) inDegree.set(t, 0); };
+        for (const r of rels) {
+            if (r.from_table === r.to_table) continue;
+            const f = rdMark(r.from_card, "*"), t = rdMark(r.to_card, "1");
+            let child, parent;
+            if (f === "*" && t === "1") { child = r.from_table; parent = r.to_table; }
+            else if (f === "1" && t === "*") { child = r.to_table; parent = r.from_table; }
+            else continue;
+            ensure(child); ensure(parent);
+            if (!parents.get(child).has(parent)) { parents.get(child).add(parent); inDegree.set(parent, inDegree.get(parent) + 1); }
+        }
+        const chains = [];
+        const walk = (node, path, seen) => {
+            if (chains.length >= 200) return;
+            const next = [...parents.get(node)].filter((p) => !seen.has(p));
+            if (!next.length) { if (path.length >= 3) chains.push([...path]); return; }
+            for (const p of next) { seen.add(p); path.push(p); walk(p, path, seen); path.pop(); seen.delete(p); }
+        };
+        for (const node of parents.keys()) if (!inDegree.get(node) && parents.get(node).size) walk(node, [node], new Set([node]));
+        const tables = new Set(), pairs = new Set();
+        for (const c of chains) c.forEach((t, i) => { tables.add(t); if (i) pairs.add(rdPair(c[i - 1], t)); });
+        return { chains, tables, pairs };
+    }
+    // Isolated tables sharing a column (same name and data type) with another table.
+    function rdMissing(tables, rels) {
+        const related = new Set();
+        for (const r of rels) { related.add(r.from_table); related.add(r.to_table); }
+        const relatable = tables.filter((t) => t.kind !== "calculation_group" && t.kind !== "field_parameter");
+        const colInfo = (t, c) => ({ table: t.name, column: c.name, dataType: String(value(c, "DataType") || ""),
+            isKey: !!(value(c, "IsKey") || value(c, "IsUnique")) });
+        const byName = new Map();
+        for (const t of relatable) {
+            for (const c of liveColumns(t)) {
+                if (/^RowNumber/i.test(c.name)) continue;
+                const k = c.name.toLowerCase();
+                if (!byName.has(k)) byName.set(k, []);
+                byName.get(k).push(colInfo(t, c));
+            }
+        }
+        const out = [];
+        for (const t of relatable) {
+            if (related.has(t.name)) continue;
+            const suggestions = [];
+            for (const c of liveColumns(t)) {
+                if (/^RowNumber/i.test(c.name)) continue;
+                const self = colInfo(t, c);
+                for (const o of byName.get(c.name.toLowerCase()) || []) {
+                    if (o.table === t.name) continue;
+                    if (self.dataType && o.dataType && self.dataType.toLowerCase() !== o.dataType.toLowerCase()) continue;
+                    suggestions.push({ column: c.name, otherTable: o.table, otherColumn: o.column, dataType: self.dataType || o.dataType, otherIsKey: o.isKey });
+                }
+            }
+            if (suggestions.length) {
+                suggestions.sort((a, b) => Number(b.otherIsKey) - Number(a.otherIsKey) || cmpText(a.otherTable, b.otherTable) || cmpText(a.column, b.column));
+                out.push({ table: t.name, suggestions });
+            }
+        }
+        return out.sort((a, b) => cmpText(a.table, b.table));
+    }
+    // Force-directed layout keeping related tables together; unrelated ones are
+    // stacked to the right. Panels start collapsed.
+    function rdLayout(tables, rels, relCols) {
+        const set = new Set(tables);
+        const collapsedH = (t) => RD.HEADER_H + Math.max(1, (relCols[t] || []).length) * RD.ROW_H + RD.BODY_PAD;
+        const seen = new Set(), edges = [];
+        for (const r of rels) {
+            if (r.from_table === r.to_table || !set.has(r.from_table) || !set.has(r.to_table)) continue;
+            const k = rdPair(r.from_table, r.to_table);
+            if (seen.has(k)) continue;
+            seen.add(k);
+            edges.push([r.from_table, r.to_table]);
+        }
+        const degree = {};
+        tables.forEach((t) => { degree[t] = 0; });
+        edges.forEach(([a, b]) => { degree[a]++; degree[b]++; });
+        const connected = tables.filter((t) => degree[t] > 0), isolated = tables.filter((t) => !degree[t]);
+        const layout = {}, pos = {}, n = connected.length;
+        connected.forEach((t, i) => {
+            const ang = (2 * Math.PI * i) / Math.max(1, n), radius = n > 1 ? n * 0.6 : 0.001;
+            pos[t] = { x: Math.cos(ang) * radius, y: Math.sin(ang) * radius };
+        });
+        if (n > 1) {
+            const k = 1.1;
+            let temp = n * 0.5;
+            for (let it = 0; it < 500; it++) {
+                const disp = {};
+                connected.forEach((t) => { disp[t] = { x: 0, y: 0 }; });
+                for (let i = 0; i < n; i++) {
+                    for (let j = i + 1; j < n; j++) {
+                        const u = connected[i], v = connected[j];
+                        const dx = pos[u].x - pos[v].x, dy = pos[u].y - pos[v].y, dist = Math.hypot(dx, dy) || 0.01;
+                        const f = (k * k) / dist;
+                        disp[u].x += (dx / dist) * f; disp[u].y += (dy / dist) * f;
+                        disp[v].x -= (dx / dist) * f; disp[v].y -= (dy / dist) * f;
+                    }
+                }
+                for (const [a, b] of edges) {
+                    const dx = pos[a].x - pos[b].x, dy = pos[a].y - pos[b].y, dist = Math.hypot(dx, dy) || 0.01;
+                    const f = (dist * dist) / k;
+                    disp[a].x -= (dx / dist) * f; disp[a].y -= (dy / dist) * f;
+                    disp[b].x += (dx / dist) * f; disp[b].y += (dy / dist) * f;
+                }
+                for (const t of connected) {
+                    const d = disp[t], dl = Math.hypot(d.x, d.y) || 0.01;
+                    pos[t].x += (d.x / dl) * Math.min(dl, temp);
+                    pos[t].y += (d.y / dl) * Math.min(dl, temp);
+                }
+                temp = Math.max(0.01, temp * 0.985);
+            }
+        }
+        if (n) {
+            const minX = Math.min(...connected.map((t) => pos[t].x)), minY = Math.min(...connected.map((t) => pos[t].y));
+            for (const t of connected) layout[t] = { x: (pos[t].x - minX) * 150 + 40, y: (pos[t].y - minY) * 150 + 40, w: RD.W, h: RD.H, collapsed: true };
+            for (let pass = 0; pass < 80; pass++) {
+                let moved = false;
+                for (let i = 0; i < n; i++) {
+                    for (let j = i + 1; j < n; j++) {
+                        const A = layout[connected[i]], B = layout[connected[j]];
+                        const ah = collapsedH(connected[i]), bh = collapsedH(connected[j]);
+                        const ox = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x) + 28;
+                        const oy = Math.min(A.y + ah, B.y + bh) - Math.max(A.y, B.y) + 28;
+                        if (ox > 0 && oy > 0) {
+                            moved = true;
+                            if (ox < oy) { const s = ox / 2; if (A.x <= B.x) { A.x -= s; B.x += s; } else { A.x += s; B.x -= s; } }
+                            else { const s = oy / 2; if (A.y <= B.y) { A.y -= s; B.y += s; } else { A.y += s; B.y -= s; } }
+                        }
+                    }
+                }
+                if (!moved) break;
+            }
+            const sx = Math.min(...connected.map((t) => layout[t].x)), sy = Math.min(...connected.map((t) => layout[t].y));
+            for (const t of connected) { layout[t].x += 40 - sx; layout[t].y += 40 - sy; }
+        }
+        if (isolated.length) {
+            if (!n) {
+                const cols = Math.max(1, Math.ceil(Math.sqrt(isolated.length)));
+                const rowH = Math.max(...isolated.map(collapsedH)) + 28;
+                isolated.forEach((t, i) => { layout[t] = { x: 40 + (i % cols) * (RD.W + 40), y: 40 + Math.floor(i / cols) * rowH, w: RD.W, h: RD.H, collapsed: true }; });
+            } else {
+                const x = Math.max(40, ...connected.map((t) => layout[t].x + layout[t].w)) + 80;
+                let y = 40;
+                for (const t of isolated) { layout[t] = { x, y, w: RD.W, h: RD.H, collapsed: true }; y += collapsedH(t) + 28; }
+            }
+        }
+        return layout;
+    }
+
+    function openRelationshipDiagram(initialFocus) {
+        const m = toolWindow("Relationship diagram", "network", "slls-sx-rd-body");
+        let focused = new Set(initialFocus ? [initialFocus] : []);
+        let zoom = 1;
+        const hl = { mm: false, bidi: false, limited: false, nonInt: false };
+        let sidePanel = null;
+        let reverse = false;
+        let listFilter = "";
+        let sidebarW = 256;
+        let sidebarCollapsed = false;
+        let inferOn = false, inferLoading = false, inferError = null;
+        let inferMap = new Map();
+        let panels = {};
+        let zOrder = [];
+        let layoutSig = null;
+        let hoveredKey = null;
+        let g = null;
+        let els = null;
+        let drag = null;
+        const write = () => mode === "write" && !saving;
+
+        function derive() {
+            const tables = savedTables();
+            const byName = new Map(tables.map((t) => [t.name, t]));
+            const rels = liveRelationships().filter((r) => byName.has(r.from_table) && byName.has(r.to_table));
+            const relCols = {}, neighbors = {};
+            for (const t of tables) { relCols[t.name] = new Set(); neighbors[t.name] = new Set(); }
+            for (const r of rels) {
+                relCols[r.from_table].add(r.from_column);
+                relCols[r.to_table].add(r.to_column);
+                if (r.from_table !== r.to_table) { neighbors[r.from_table].add(r.to_table); neighbors[r.to_table].add(r.from_table); }
+            }
+            for (const k of Object.keys(relCols)) relCols[k] = [...relCols[k]].sort(cmpText);
+            const names = tables.slice().sort(byLabel).map((t) => t.name);
+            let visible = names;
+            if (focused.size) {
+                const vis = new Set();
+                for (const seed of focused) { if (!byName.has(seed)) continue; vis.add(seed); for (const nb of neighbors[seed]) vis.add(nb); }
+                visible = names.filter((t) => vis.has(t));
+            }
+            const keyRole = {}, nonInt = {};
+            for (const r of rels) {
+                const set = (t, c, role) => { const m2 = (keyRole[t] = keyRole[t] || {}); if (m2[c] !== "pk") m2[c] = role; };
+                set(r.from_table, r.from_column, rdMark(r.from_card, "*") === "1" ? "pk" : "fk");
+                set(r.to_table, r.to_column, rdMark(r.to_card, "1") === "1" ? "pk" : "fk");
+                for (const [t, c] of [[r.from_table, r.from_column], [r.to_table, r.to_column]]) {
+                    const dt = columnType(t, c);
+                    if (dt && dt !== "Int64") (nonInt[t] = nonInt[t] || new Set()).add(c);
+                }
+            }
+            const srcKeys = {}, order = [];
+            for (const t of tables) { const k = rdSourceKey(t); if (k) { srcKeys[t.name] = k; if (!order.includes(k)) order.push(k); } }
+            const colorOf = {};
+            if (order.length > 1) for (const [t, k] of Object.entries(srcKeys)) colorOf[t] = order.indexOf(k) % RD_SOURCE_COLORS;
+            return { tables, byName, rels, relCols, neighbors, names, visible, keyRole, nonInt,
+                legend: order.length > 1 ? order.map((k, i) => ({ label: rdSourceLabel(k), color: i % RD_SOURCE_COLORS })) : [],
+                colorOf, snowflake: rdSnowflake(rels), missing: rdMissing(tables, rels) };
+        }
+        const panelH = (t) => {
+            const p = panels[t];
+            return p.collapsed ? RD.HEADER_H + Math.max(1, (g.relCols[t] || []).length) * RD.ROW_H + RD.BODY_PAD : p.h;
+        };
+        function ensureLayout() {
+            const sig = g.visible.join("\u0001");
+            if (sig !== layoutSig) {
+                panels = rdLayout(g.visible, g.rels, g.relCols);
+                zOrder = g.visible.slice();
+                layoutSig = sig;
+            }
+            for (const t of g.visible) if (!panels[t]) { panels[t] = { x: 40, y: 40, w: RD.W, h: RD.H, collapsed: true }; zOrder.push(t); }
+        }
+        function canvasSize() {
+            let w = 1000, hh = 700;
+            for (const t of g.visible) { const p = panels[t]; w = Math.max(w, p.x + p.w); hh = Math.max(hh, p.y + panelH(t)); }
+            return { w: w + RD.MARGIN, h: hh + RD.MARGIN };
+        }
+        function connectors() {
+            const vis = new Set(g.visible);
+            return g.rels.filter((r) => vis.has(r.from_table) && vis.has(r.to_table)).map((r) => {
+                const a = panels[r.from_table], b = panels[r.to_table];
+                const aH = panelH(r.from_table), bH = panelH(r.to_table);
+                const p1 = rdEdgePoint(a.x, a.y, a.w, aH, b.x + b.w / 2, b.y + bH / 2);
+                const p2 = rdEdgePoint(b.x, b.y, b.w, bH, a.x + a.w / 2, a.y + aH / 2);
+                const fromMark = rdMark(r.from_card, "*"), toMark = rdMark(r.to_card, "1");
+                const mm = fromMark === "*" && toMark === "*";
+                const fi = rdIslands(g.byName.get(r.from_table)), ti = rdIslands(g.byName.get(r.to_table));
+                const crosses = ![...fi].some((x) => ti.has(x));
+                return { r, key: r.key, p1, p2, fromMark, toMark, mm, bidi: /both/i.test(r.cross), limited: mm || crosses };
+            });
+        }
+        function paintEdges() {
+            if (!els) return;
+            const size = canvasSize();
+            els.sizer.style.width = size.w * zoom + "px";
+            els.sizer.style.height = size.h * zoom + "px";
+            els.layer.style.width = size.w + "px";
+            els.layer.style.height = size.h + "px";
+            els.svg.setAttribute("width", size.w);
+            els.svg.setAttribute("height", size.h);
+            let out = "";
+            for (const c of connectors()) {
+                const dx = c.p2.x - c.p1.x, dy = c.p2.y - c.p1.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+                const off = Math.min(22, len / 2 - 2);
+                const sf = sidePanel === "snowflake" && g.snowflake.pairs.has(rdPair(c.r.from_table, c.r.to_table));
+                const cls = ["slls-sx-rd-edge", c.key === hoveredKey ? "hov" : "", hl.mm && c.mm ? "mm" : "", hl.bidi && c.bidi ? "bidi" : "",
+                    hl.limited && c.limited ? "lim" : "", sf ? "sf" : "", c.r.active ? "" : "inactive", c.r.isNew ? "new" : ""].filter(Boolean).join(" ");
+                const strong = cls.includes(" hov") || cls.includes(" mm") || cls.includes(" bidi") || cls.includes(" lim") || cls.includes(" sf");
+                const size2 = strong ? 8 : 7, aOff = Math.min(off + 16, len / 2);
+                const toHead = [c.p2.x - ux * aOff, c.p2.y - uy * aOff, ux, uy];
+                const fromHead = [c.p1.x + ux * aOff, c.p1.y + uy * aOff, -ux, -uy];
+                const heads = c.bidi ? [fromHead, toHead] : [reverse ? fromHead : toHead];
+                const mk = (x, y, mark) => `<g class="card"><circle cx="${x}" cy="${y}" r="10"/>`
+                    + `<text x="${x}" y="${y}" dy="${mark === "*" ? "0.5em" : "0.35em"}" text-anchor="middle">${mark}</text></g>`;
+                const title = rdPath(c.r) + (c.r.active ? "" : " (inactive)");
+                out += `<g class="${cls}"><title>${esc(title)}</title>`
+                    + `<line class="ln" x1="${c.p1.x}" y1="${c.p1.y}" x2="${c.p2.x}" y2="${c.p2.y}"`
+                    + ` stroke-width="${c.key === hoveredKey ? 3 : strong ? 2.5 : 1.5}"${c.r.active ? "" : ' stroke-dasharray="5 4"'}/>`
+                    + heads.map((hd) => `<polygon class="arrow" points="${rdArrow(hd[0], hd[1], hd[2], hd[3], size2)}"/>`).join("")
+                    + `<circle class="end" cx="${c.p1.x}" cy="${c.p1.y}" r="${strong ? 4 : 3}"/><circle class="end" cx="${c.p2.x}" cy="${c.p2.y}" r="${strong ? 4 : 3}"/>`
+                    + mk(c.p1.x + ux * off, c.p1.y + uy * off, c.fromMark) + mk(c.p2.x - ux * off, c.p2.y - uy * off, c.toMark)
+                    + `<line class="hit" data-key="${esc(c.key)}" x1="${c.p1.x}" y1="${c.p1.y}" x2="${c.p2.x}" y2="${c.p2.y}"/></g>`;
+            }
+            els.svg.innerHTML = out;
+            paintEdgeTip();
+        }
+        function paintEdgeTip() {
+            if (els.edgeTip) { els.edgeTip.remove(); els.edgeTip = null; }
+            for (const p of els.panelEls.values()) for (const row of p.cols.values()) row.classList.remove("hl");
+            const c = hoveredKey ? connectors().find((x) => x.key === hoveredKey) : null;
+            if (!c) return;
+            for (const [t, col] of [[c.r.from_table, c.r.from_column], [c.r.to_table, c.r.to_column]]) {
+                const p = els.panelEls.get(t);
+                const row = p && p.cols.get(col);
+                if (row) row.classList.add("hl");
+            }
+            const tip = h("div", "slls-sx-rd-tip");
+            const head = h("div", "slls-sx-rd-tip-head");
+            head.append(iconEl("relationship", ""), h("span", "name", c.r.isNew ? "New relationship" : (c.r.node.name || "Relationship")));
+            if (!c.r.active) head.appendChild(h("span", "slls-sx-pill", "Inactive"));
+            tip.appendChild(head);
+            tip.appendChild(h("div", "slls-sx-rd-tip-path", rdPath(c.r)));
+            const dl = h("dl", "");
+            for (const [k, v] of [["Cardinality", `${c.fromMark === "*" ? "Many" : "One"} \u2192 ${c.toMark === "*" ? "Many" : "One"}`],
+                ["Cross filter", c.r.cross], ["Strength", c.limited ? "Limited (weak)" : "Strong"], ["Security", c.r.security],
+                ["Assume referential integrity", c.r.rely ? "Yes" : "No"], ["Active", c.r.active ? "Yes" : "No"]]) {
+                dl.append(h("dt", "", k), h("dd", "", v));
+            }
+            tip.appendChild(dl);
+            tip.style.left = ((c.p1.x + c.p2.x) / 2) * zoom + 14 + "px";
+            tip.style.top = ((c.p1.y + c.p2.y) / 2) * zoom + 14 + "px";
+            els.sizer.appendChild(tip);
+            els.edgeTip = tip;
+        }
+        function showTableTip(t) {
+            hideTableTip();
+            const node = g.byName.get(t), p = panels[t];
+            if (!node || !p) return;
+            const tip = h("div", "slls-sx-rd-tip");
+            const head = h("div", "slls-sx-rd-tip-head");
+            head.append(iconEl(tableIcon(node), ""), h("span", "name", effName(node)), h("span", "kind", TABLE_KIND_LABEL[node.kind] || "Table"));
+            tip.appendChild(head);
+            const parts = node.partitions || [];
+            const key = rdSourceKey(node);
+            const withEntity = parts.find((x) => originalValue(x, "Source.EntityName"));
+            const entity = withEntity ? [originalValue(withEntity, "Source.SchemaName"), originalValue(withEntity, "Source.EntityName")].filter(Boolean).join(".") : "";
+            const counts = new Map();
+            for (const x of parts) { const label = (RD_MODE_ICON[String(x.mode || "").toLowerCase()] || [x.mode || "Unknown"])[0]; counts.set(label, (counts.get(label) || 0) + 1); }
+            const modeText = !parts.length ? "\u2014" : counts.size === 1 ? [...counts.keys()][0] : [...counts].map(([k, n]) => `${k} \u00d7 ${n}`).join(", ");
+            const dl = h("dl", "");
+            dl.append(h("dt", "", "Source"), h("dd", "", key ? rdSourceLabel(key) : (parts[0] ? parts[0].source_type : "\u2014")));
+            if (entity) dl.append(h("dt", "", "Object"), h("dd", "", entity));
+            dl.append(h("dt", "", "Query mode"), h("dd", "", modeText), h("dt", "", "Partitions"), h("dd", "", String(parts.length)));
+            tip.appendChild(dl);
+            tip.style.left = (p.x + p.w) * zoom + 10 + "px";
+            tip.style.top = p.y * zoom + "px";
+            els.sizer.appendChild(tip);
+            els.tableTip = tip;
+        }
+        function hideTableTip() { if (els && els.tableTip) { els.tableTip.remove(); els.tableTip = null; } }
+        function placePanel(t) {
+            const pe = els.panelEls.get(t), p = panels[t];
+            if (!pe) return;
+            pe.el.style.left = p.x + "px";
+            pe.el.style.top = p.y + "px";
+            pe.el.style.width = p.w + "px";
+            pe.el.style.height = panelH(t) + "px";
+        }
+        function bringToFront(t) {
+            zOrder = [...zOrder.filter((x) => x !== t), t];
+            const pe = els.panelEls.get(t);
+            if (pe) els.layer.appendChild(pe.el);
+        }
+        function startDrag(ev, t, kind) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            bringToFront(t);
+            const p = panels[t];
+            drag = { t, kind, x0: ev.clientX, y0: ev.clientY, px: p.x, py: p.y, pw: p.w, ph: p.h };
+            const move = (e) => {
+                const dx = (e.clientX - drag.x0) / zoom, dy = (e.clientY - drag.y0) / zoom;
+                if (drag.kind === "move") { p.x = Math.max(0, drag.px + dx); p.y = Math.max(0, drag.py + dy); }
+                else { p.w = Math.max(RD.MIN_W, drag.pw + dx); p.h = Math.max(RD.MIN_H, drag.ph + dy); }
+                placePanel(t);
+                paintEdges();
+            };
+            const up = () => { drag = null; window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+            window.addEventListener("pointermove", move);
+            window.addEventListener("pointerup", up);
+        }
+        let colDrag = null;
+        function columnRow(t, c, flagged) {
+            const role = (g.keyRole[t] || {})[c.name];
+            const row = h("div", "slls-sx-rd-col" + (flagged ? " flagged" : ""));
+            row.style.height = RD.ROW_H + "px";
+            row.appendChild(iconEl(role ? "key_round" : (c.column_type === "Calculated" ? "calculated_column" : "column"), role ? "key " + role : ""));
+            row.appendChild(h("span", "name", effName(c)));
+            const dt = String(value(c, "DataType") || "");
+            if (dt) row.appendChild(h("span", "dt", dt));
+            row.title = effName(c);
+            if (write()) {
+                row.draggable = true;
+                row.title = `${effName(c)} \u2014 drag onto another table to create a relationship`;
+                row.addEventListener("dragstart", (ev) => {
+                    colDrag = { fromTable: t, fromColumn: c.name, dataType: dt };
+                    ev.dataTransfer.effectAllowed = "link";
+                    ev.dataTransfer.setData("text/plain", `${t}[${c.name}]`);
+                });
+                row.addEventListener("dragend", () => { colDrag = null; els.layer.querySelectorAll(".drop").forEach((x) => x.classList.remove("drop")); });
+            }
+            return row;
+        }
+        function linkDialog(spec) {
+            const d = modal("Create relationship", "relationship");
+            const target = g.byName.get(spec.toTable);
+            const cols = liveColumns(target).sort(byLabel);
+            const lc = spec.fromColumn.toLowerCase();
+            const dtOf = (c) => String(value(c, "DataType") || "");
+            const guess = cols.find((c) => c.name.toLowerCase() === lc && (!spec.dataType || dtOf(c) === spec.dataType))
+                || cols.find((c) => c.name.toLowerCase() === lc) || (spec.dataType && cols.find((c) => dtOf(c) === spec.dataType)) || cols[0];
+            const from = h("div", "slls-sx-rd-link-from");
+            from.append(h("span", "slls-sx-tool-label", "From"),
+                h("span", "slls-sx-mono", `'${tableDisplayName(spec.fromTable)}'[${columnDisplayName(spec.fromTable, spec.fromColumn)}]`));
+            if (spec.dataType) from.appendChild(h("span", "slls-sx-pill", spec.dataType));
+            d.body.appendChild(from);
+            let toColumn = guess ? guess.name : "";
+            let card = "manyOne";
+            d.body.appendChild(field(`To column in '${effName(target)}'`, selectEl(columnOptions(spec.toTable), toColumn, (v) => { toColumn = v; }, "To column")));
+            d.body.appendChild(field("Cardinality", selectEl([["manyOne", "Many to one (*:1)"], ["oneMany", "One to many (1:*)"], ["oneOne", "One to one (1:1)"],
+                ["manyMany", "Many to many (*:*)"]], card, (v) => { card = v; }, "Cardinality")));
+            d.body.appendChild(h("p", "slls-sx-dlm-note", "Staged as a pending change \u2014 commit with Save. The target column is "
+                + "pre-selected by matching name and data type; adjust it or the cardinality above."));
+            const foot = h("div", "slls-sx-modal-foot");
+            const ok = button("slls-sx-btn primary", "Create", "plus", () => {
+                if (!toColumn) return;
+                const [fc, tc] = { manyOne: ["Many", "One"], oneMany: ["One", "Many"], oneOne: ["One", "One"], manyMany: ["Many", "Many"] }[card];
+                d.close();
+                stageRelationship({ fromTable: spec.fromTable, fromColumn: spec.fromColumn, toTable: spec.toTable, toColumn, fromCardinality: fc, toCardinality: tc });
+            });
+            ok.disabled = !cols.length;
+            foot.append(button("slls-sx-btn", "Cancel", "", () => d.close()), ok);
+            d.box.appendChild(foot);
+        }
+        function drawPanel(t) {
+            const node = g.byName.get(t), p = panels[t];
+            const relCols = g.relCols[t] || [];
+            const el = h("div", "slls-sx-rd-panel" + (p.collapsed ? " collapsed" : "")
+                + (sidePanel === "snowflake" && g.snowflake.tables.has(t) ? " snow" : "")
+                + (g.colorOf[t] !== undefined ? ` src src-${g.colorOf[t]}` : ""));
+            const head = h("div", "slls-sx-rd-head");
+            head.style.height = RD.HEADER_H + "px";
+            const stop = (b) => { b.addEventListener("pointerdown", (e) => e.stopPropagation()); return b; };
+            head.appendChild(stop(caretBtn(!p.collapsed, () => { p.collapsed = !p.collapsed; drawPanels(); })));
+            head.appendChild(iconEl(tableIcon(node), "kind"));
+            const name = h("span", "name", effName(node));
+            name.title = `${effName(node)} \u00b7 ${TABLE_KIND_LABEL[node.kind] || "Table"}`;
+            head.appendChild(name);
+            const modes = [...new Set((node.partitions || []).map((x) => String(x.mode || "")).filter((x) => x && x.toLowerCase() !== "default"))].sort();
+            for (const mo of modes) {
+                const meta = RD_MODE_ICON[mo.toLowerCase()] || [mo, "database"];
+                const i = iconEl(meta[1], "mode");
+                i.title = `Storage mode: ${meta[0]}`;
+                i.setAttribute("aria-label", i.title);
+                head.appendChild(i);
+            }
+            head.appendChild(stop(button("slls-sx-iconbtn", "", "focus", () => { focused = new Set([t]); draw(); }, "Focus on this table and its related tables")));
+            head.addEventListener("pointerdown", (e) => startDrag(e, t, "move"));
+            head.addEventListener("mouseenter", () => { if (!drag) showTableTip(t); });
+            head.addEventListener("mouseleave", hideTableTip);
+            el.appendChild(head);
+            const body = h("div", "slls-sx-rd-cols");
+            const cols = new Map();
+            const flagged = hl.nonInt ? g.nonInt[t] : null;
+            const list = p.collapsed ? relCols.map((c) => index.get(keyOf("column", t, "", c))).filter(Boolean) : liveColumns(node);
+            if (!list.length) body.appendChild(h("div", "slls-sx-rd-none", p.collapsed ? "No relationship columns" : "No columns"));
+            for (const c of list) {
+                const row = columnRow(t, c, flagged && flagged.has(c.name));
+                cols.set(c.name, row);
+                body.appendChild(row);
+            }
+            el.appendChild(body);
+            if (!p.collapsed) {
+                const rz = h("div", "slls-sx-rd-resize");
+                rz.title = "Resize";
+                rz.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M11 15L15 11M7 15L15 7"/></svg>';
+                rz.addEventListener("pointerdown", (e) => startDrag(e, t, "resize"));
+                el.appendChild(rz);
+            }
+            el.addEventListener("pointerdown", () => bringToFront(t));
+            if (write()) {
+                el.addEventListener("dragover", (ev) => {
+                    if (colDrag && colDrag.fromTable !== t) { ev.preventDefault(); ev.dataTransfer.dropEffect = "link"; el.classList.add("drop"); }
+                });
+                el.addEventListener("dragleave", () => el.classList.remove("drop"));
+                el.addEventListener("drop", (ev) => {
+                    el.classList.remove("drop");
+                    if (!colDrag || colDrag.fromTable === t) return;
+                    ev.preventDefault();
+                    const spec = Object.assign({ toTable: t }, colDrag);
+                    colDrag = null;
+                    linkDialog(spec);
+                });
+            }
+            els.panelEls.set(t, { el, cols });
+            els.layer.appendChild(el);
+            placePanel(t);
+        }
+        function drawPanels() {
+            els.layer.querySelectorAll(".slls-sx-rd-panel").forEach((x) => x.remove());
+            els.panelEls = new Map();
+            hideTableTip();
+            for (const t of zOrder.filter((x) => g.visible.includes(x))) drawPanel(t);
+            paintEdges();
+        }
+        function drawSidebar(main) {
+            const side = h("div", "slls-sx-rd-side" + (sidebarCollapsed ? " collapsed" : ""));
+            if (!sidebarCollapsed) side.style.width = sidebarW + "px";
+            const reverseBtn = (labelled) => {
+                const b = labelled ? switchEl(reverse, "Reverse arrow direction", () => { reverse = !reverse; draw(); }, "Reverse arrows")
+                    : button("slls-sx-iconbtn" + (reverse ? " on" : ""), "", "arrow_left_right", () => { reverse = !reverse; draw(); }, "Reverse arrow direction");
+                b.title = reverse ? "Direction arrows point to \u2192 from. Click to point from \u2192 to." : "Direction arrows point from \u2192 to. Click to reverse (to \u2192 from).";
+                return b;
+            };
+            const reset = () => button("slls-sx-iconbtn", "", "reset", () => { layoutSig = null; draw(); }, "Reset layout");
+            if (sidebarCollapsed) {
+                side.append(button("slls-sx-iconbtn", "", "panel_expand", () => { sidebarCollapsed = false; draw(); }, "Expand table list"),
+                    h("span", "slls-sx-rd-rail", "Tables"), reverseBtn(false), reset());
+                main.appendChild(side);
+                return;
+            }
+            const head = h("div", "slls-sx-rd-side-head");
+            head.appendChild(h("span", "slls-sx-pane-label", "Tables"));
+            if (focused.size) head.appendChild(button("slls-sx-btn small", `Clear (${focused.size})`, "", () => { focused = new Set(); draw(); }));
+            head.append(reset(), button("slls-sx-iconbtn", "", "panel_collapse", () => { sidebarCollapsed = true; draw(); }, "Collapse table list"));
+            side.appendChild(head);
+            const listEl = h("div", "slls-sx-rd-tables");
+            listEl.dataset.scroll = "tables";
+            const paint = () => {
+                clear(listEl);
+                const q = listFilter.trim().toLowerCase();
+                const names = g.names.filter((t) => !q || effName(g.byName.get(t)).toLowerCase().includes(q));
+                if (!names.length) listEl.appendChild(h("div", "slls-sx-empty", "No tables match."));
+                for (const t of names) {
+                    const node = g.byName.get(t);
+                    const row = h("div", "slls-sx-rd-trow" + (focused.has(t) ? " on" : ""));
+                    const cb = h("input", "slls-sx-tool-check");
+                    cb.type = "checkbox";
+                    cb.checked = focused.has(t);
+                    cb.setAttribute("aria-label", `Focus on ${effName(node)}`);
+                    const toggle = () => { if (focused.has(t)) focused.delete(t); else focused.add(t); draw(); };
+                    cb.addEventListener("change", toggle);
+                    const ic = iconEl(tableIcon(node), "");
+                    ic.title = TABLE_KIND_LABEL[node.kind] || "Table";
+                    const nb = h("button", "name", effName(node));
+                    nb.type = "button";
+                    nb.title = effName(node);
+                    nb.addEventListener("click", toggle);
+                    row.append(cb, ic, nb, h("span", "meta", String(g.neighbors[t].size)),
+                        button("slls-sx-iconbtn", "", "focus", () => { focused = new Set([t]); draw(); }, "Focus only on this table"));
+                    listEl.appendChild(row);
+                }
+            };
+            side.appendChild(searchBox("Search tables\u2026", listFilter, (v) => { listFilter = v; paint(); }));
+            side.appendChild(h("p", "slls-sx-dlm-note", "Select tables to focus on them and their related tables."));
+            side.appendChild(listEl);
+            const foot = h("div", "slls-sx-rd-side-foot");
+            foot.appendChild(reverseBtn(true));
+            side.appendChild(foot);
+            const grip = h("div", "slls-sx-rd-grip");
+            grip.setAttribute("role", "separator");
+            grip.setAttribute("aria-label", "Resize table list");
+            grip.addEventListener("pointerdown", (ev) => {
+                ev.preventDefault();
+                const x0 = ev.clientX, w0 = side.getBoundingClientRect().width;
+                const move = (e) => { sidebarW = Math.min(480, Math.max(200, w0 + e.clientX - x0)); side.style.width = sidebarW + "px"; };
+                const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+                window.addEventListener("pointermove", move);
+                window.addEventListener("pointerup", up);
+            });
+            side.appendChild(grip);
+            paint();
+            main.appendChild(side);
+        }
+        function runInfer() {
+            if (inferOn) { inferOn = false; draw(); return; }
+            const pairs = [];
+            for (const c of g.missing) for (const s of c.suggestions.slice(0, 8)) {
+                pairs.push({ from_table: c.table, from_column: s.column, to_table: s.otherTable, to_column: s.otherColumn });
+            }
+            if (!pairs.length) { inferOn = true; draw(); return; }
+            inferLoading = true;
+            inferError = null;
+            draw();
+            request("infer_relationships", { pairs }, (res) => {
+                inferLoading = false;
+                if (res.ok) {
+                    inferMap = new Map();
+                    (res.data.results || []).forEach((r, i) => {
+                        const p = pairs[i];
+                        if (p) inferMap.set(`${p.from_table}\u0001${p.from_column}\u0001${p.to_table}\u0001${p.to_column}`, r);
+                    });
+                    inferOn = true;
+                } else inferError = res.error || "Inference failed.";
+                if (m.overlay.isConnected) draw();
+            });
+        }
+        function drawSidePanel(main) {
+            if (!sidePanel) return;
+            const panel = h("div", "slls-sx-rd-sidepanel");
+            const head = h("div", "slls-sx-rd-sp-head");
+            const snow = sidePanel === "snowflake";
+            head.append(iconEl(snow ? "snowflake" : "lightbulb", ""), h("span", "title", snow ? "Snowflake schema" : "Missing relationships"),
+                button("slls-sx-iconbtn", "", "close", () => { sidePanel = null; draw(); }, "Close"));
+            panel.appendChild(head);
+            const body = h("div", "slls-sx-rd-sp-body");
+            body.dataset.scroll = "side";
+            const tableBtn = (t) => {
+                const node = g.byName.get(t);
+                const b = h("button", "slls-sx-rd-tbtn");
+                b.type = "button";
+                b.title = `Focus ${effName(node)} on the canvas`;
+                b.append(iconEl(tableIcon(node), ""), h("span", "", effName(node)));
+                b.addEventListener("click", () => { focused = new Set([t]); draw(); });
+                return b;
+            };
+            if (snow) {
+                body.appendChild(h("p", "slls-sx-dlm-note", "Dimensions that relate to a further secondary dimension. Each chain "
+                    + "follows one-to-many relationships from the fact through its normalised dimensions. The tables on these chains "
+                    + "are outlined on the canvas."));
+                if (!g.snowflake.chains.length) body.appendChild(h("div", "slls-sx-empty", "No snowflake patterns found \u2014 every dimension relates directly to a fact (a star schema)."));
+                for (const chain of g.snowflake.chains) {
+                    const item = h("div", "slls-sx-rd-chain");
+                    item.appendChild(h("div", "roles", chain.map((_, i) => (i === 0 ? "Fact" : i === chain.length - 1 ? "Secondary dim" : "Dim")).join(" \u2192 ")));
+                    const path = h("div", "path");
+                    chain.forEach((t, i) => { if (i) path.appendChild(h("span", "arrow", "\u2192")); path.appendChild(tableBtn(t)); });
+                    item.appendChild(path);
+                    body.appendChild(item);
+                }
+            } else {
+                body.appendChild(h("p", "slls-sx-dlm-note", "Tables with no relationship that share a column (same name and data "
+                    + "type) with another table. Calculation groups and field parameters are excluded."));
+                if (g.missing.length) {
+                    const ib = button("slls-sx-btn small" + (inferOn ? " on" : ""), inferLoading ? "Inferring with DAX\u2026"
+                        : inferOn ? "Hide inferred direction & cardinality" : "Infer direction & cardinality (DAX)", inferLoading ? "refresh" : "wand", runInfer,
+                        "Query the model with DAX to infer each relationship's direction and from/to cardinality from real column uniqueness");
+                    if (inferLoading) ib.querySelector("svg").classList.add("slls-sx-spin");
+                    ib.disabled = inferLoading;
+                    ib.setAttribute("aria-pressed", String(inferOn));
+                    body.appendChild(ib);
+                    if (inferError) body.appendChild(h("div", "slls-sx-tool-error", inferError));
+                } else body.appendChild(h("div", "slls-sx-empty", "No isolated tables have a plausible relationship."));
+                for (const c of g.missing) {
+                    const item = h("div", "slls-sx-rd-cand");
+                    const top = tableBtn(c.table);
+                    top.appendChild(h("span", "meta", `${c.suggestions.length} match${c.suggestions.length === 1 ? "" : "es"}`));
+                    item.appendChild(top);
+                    for (const s of c.suggestions.slice(0, 8)) {
+                        const li = h("div", "slls-sx-rd-sug");
+                        const line = h("div", "line");
+                        line.append(h("span", "slls-sx-mono", `[${columnDisplayName(c.table, s.column)}]`), iconEl("link", ""),
+                            h("span", "slls-sx-mono", `'${tableDisplayName(s.otherTable)}'[${columnDisplayName(s.otherTable, s.otherColumn)}]`));
+                        if (s.dataType) line.appendChild(h("span", "slls-sx-pill", s.dataType));
+                        if (s.otherIsKey) line.appendChild(h("span", "slls-sx-pill new", "key"));
+                        li.appendChild(line);
+                        const inf = inferOn ? inferMap.get(`${c.table}\u0001${s.column}\u0001${s.otherTable}\u0001${s.otherColumn}`) : null;
+                        if (inf && inf.error) li.appendChild(h("div", "slls-sx-tool-error", inf.error));
+                        else if (inf) {
+                            const res = h("div", "inferred");
+                            const stat = (t, c, d, n, u) => `'${t}'[${c}]: ${d} distinct / ${n} rows (${u ? "unique" : "not unique"})`;
+                            res.title = `Measured uniqueness \u2014 ${stat(inf.from_table, inf.from_column, inf.from_distinct, inf.from_rows, inf.from_unique)}; `
+                                + `${stat(inf.to_table, inf.to_column, inf.to_distinct, inf.to_rows, inf.to_unique)}.`;
+                            res.append(h("span", "slls-sx-mono", `'${tableDisplayName(inf.from_table)}'[${columnDisplayName(inf.from_table, inf.from_column)}] (${inf.from_cardinality})`),
+                                h("span", "", "\u2192"),
+                                h("span", "slls-sx-mono", `'${tableDisplayName(inf.to_table)}'[${columnDisplayName(inf.to_table, inf.to_column)}] (${inf.to_cardinality})`),
+                                h("span", "slls-sx-pill", inf.label));
+                            if (!inf.confident) res.appendChild(h("span", "slls-sx-pill warn", "unverified"));
+                            if (write()) {
+                                res.appendChild(button("slls-sx-btn small primary", "Create", "plus", () => stageRelationship({
+                                    fromTable: inf.from_table, fromColumn: inf.from_column, toTable: inf.to_table, toColumn: inf.to_column,
+                                    fromCardinality: inf.from_cardinality, toCardinality: inf.to_cardinality,
+                                }), "Create this relationship (staged \u2014 commit with Save)"));
+                            }
+                            li.appendChild(res);
+                        }
+                        item.appendChild(li);
+                    }
+                    if (c.suggestions.length > 8) item.appendChild(h("div", "slls-sx-rd-more", `+${c.suggestions.length - 8} more\u2026`));
+                    body.appendChild(item);
+                }
+            }
+            panel.appendChild(body);
+            main.appendChild(panel);
+        }
+        function drawCanvas(main) {
+            const wrapEl = h("div", "slls-sx-rd-canvas");
+            const scroller = h("div", "slls-sx-rd-scroll");
+            scroller.dataset.scroll = "canvas";
+            const sizer = h("div", "slls-sx-rd-sizer");
+            const layer = h("div", "slls-sx-rd-layer");
+            layer.style.transform = `scale(${zoom})`;
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("class", "slls-sx-rd-svg");
+            layer.appendChild(svg);
+            sizer.appendChild(layer);
+            scroller.appendChild(sizer);
+            wrapEl.appendChild(scroller);
+            els = { scroller, sizer, layer, svg, panelEls: new Map(), edgeTip: null, tableTip: null };
+            svg.addEventListener("mouseover", (ev) => {
+                const k = ev.target.getAttribute && ev.target.getAttribute("data-key");
+                if (k && k !== hoveredKey) { hoveredKey = k; paintEdges(); }
+            });
+            svg.addEventListener("mouseout", (ev) => {
+                const k = ev.target.getAttribute && ev.target.getAttribute("data-key");
+                if (k && hoveredKey === k) { hoveredKey = null; paintEdges(); }
+            });
+            svg.addEventListener("contextmenu", (ev) => {
+                const k = ev.target.getAttribute && ev.target.getAttribute("data-key");
+                const r = k && g.rels.find((x) => x.key === k);
+                if (!r || !write()) return;
+                ev.preventDefault();
+                showMenu(ev.clientX, ev.clientY, [[r.active ? "Make inactive" : "Make active", r.active ? "unlink" : "link",
+                    () => setValue(r.node, "IsActive", !r.active, { label: "Active" })]]);
+            });
+            scroller.addEventListener("pointerdown", (ev) => {
+                if (ev.target.closest(".slls-sx-rd-panel") || (ev.target.getAttribute && ev.target.getAttribute("data-key"))) return;
+                ev.preventDefault();
+                const x0 = ev.clientX, y0 = ev.clientY, l0 = scroller.scrollLeft, t0 = scroller.scrollTop;
+                scroller.classList.add("panning");
+                const move = (e) => { scroller.scrollLeft = l0 - (e.clientX - x0); scroller.scrollTop = t0 - (e.clientY - y0); };
+                const up = () => { scroller.classList.remove("panning"); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+                window.addEventListener("pointermove", move);
+                window.addEventListener("pointerup", up);
+            });
+            if (g.legend.length) {
+                const legend = h("div", "slls-sx-rd-legend");
+                const pill = h("div", "pill");
+                pill.append(iconEl("database", ""), h("span", "", plural(g.legend.length, "source")));
+                const dots = h("span", "dots");
+                g.legend.slice(0, 8).forEach((s) => dots.appendChild(h("span", `sw src-${s.color}`)));
+                pill.appendChild(dots);
+                const full = h("div", "full");
+                full.appendChild(h("div", "slls-sx-pane-label", "Sources"));
+                for (const s of g.legend) {
+                    const li = h("div", "item");
+                    li.append(h("span", `sw src-${s.color}`), h("span", "label", s.label));
+                    li.title = s.label;
+                    full.appendChild(li);
+                }
+                legend.append(pill, full);
+                wrapEl.appendChild(legend);
+            }
+            const zoomBox = h("div", "slls-sx-rd-zoom");
+            const zin = h("input", "slls-sx-input");
+            zin.value = String(Math.round(zoom * 100));
+            zin.setAttribute("aria-label", "Zoom percentage");
+            zin.title = "Enter a zoom percentage";
+            const setZoom = (z) => {
+                const keepX = (scroller.scrollLeft + scroller.clientWidth / 2) / zoom, keepY = (scroller.scrollTop + scroller.clientHeight / 2) / zoom;
+                zoom = Math.min(2.5, Math.max(0.3, Math.round(z * 100) / 100));
+                layer.style.transform = `scale(${zoom})`;
+                zin.value = String(Math.round(zoom * 100));
+                paintEdges();
+                scroller.scrollLeft = keepX * zoom - scroller.clientWidth / 2;
+                scroller.scrollTop = keepY * zoom - scroller.clientHeight / 2;
+            };
+            zin.addEventListener("keydown", (ev) => { if (ev.key === "Enter") zin.blur(); });
+            zin.addEventListener("change", () => { const n = parseInt(zin.value, 10); if (Number.isFinite(n)) setZoom(n / 100); else zin.value = String(Math.round(zoom * 100)); });
+            zoomBox.append(button("slls-sx-iconbtn", "", "zoom_in", () => setZoom(zoom * 1.2), "Zoom in"), zin, h("span", "", "%"),
+                button("slls-sx-iconbtn", "", "zoom_out", () => setZoom(zoom / 1.2), "Zoom out"));
+            wrapEl.appendChild(zoomBox);
+            main.appendChild(wrapEl);
+        }
+        function chip(label, cls, on, onClick, title, count, icon) {
+            const b = h("button", `slls-sx-rd-chip ${cls}` + (on ? " on" : ""));
+            b.type = "button";
+            b.title = title;
+            b.setAttribute("aria-pressed", String(!!on));
+            if (icon) b.appendChild(iconEl(icon, ""));
+            else b.appendChild(h("span", "sw"));
+            b.appendChild(document.createTextNode(label));
+            if (count) b.appendChild(h("span", "count", String(count)));
+            b.addEventListener("click", onClick);
+            return b;
+        }
+        function draw() {
+            g = derive();
+            if (focused.size && ![...focused].some((t) => g.byName.has(t))) focused = new Set();
+            ensureLayout();
+            toolSubtitle(m, focused.size ? `Focused on ${plural(focused.size, "table")} \u00b7 showing ${g.visible.length} of ${g.names.length}`
+                : `${plural(g.names.length, "table")} \u00b7 ${plural(g.rels.length, "relationship")}`);
+            toolActions(m, [button("slls-sx-btn", "Relationship manager", "git_branch", () => openRelationshipManager(), "Open the relationship manager")]);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                const bar = h("div", "slls-sx-tool-toolbar slls-sx-rd-toolbar");
+                if (focused.size) bar.appendChild(button("slls-sx-btn small", "Clear focus", "close", () => { focused = new Set(); draw(); }, "Show all tables"));
+                const nonIntCount = Object.values(g.nonInt).reduce((s, x) => s + x.size, 0);
+                const toggleHighlight = (flag, cls) => {
+                    hl[flag] = !hl[flag];
+                    paintEdges();
+                    bar.querySelector("." + cls).classList.toggle("on", hl[flag]);
+                };
+                bar.append(
+                    chip("Many-to-many", "mm", hl.mm, () => toggleHighlight("mm", "mm"), "Highlight many-to-many relationships"),
+                    chip("Bi-directional", "bidi", hl.bidi, () => toggleHighlight("bidi", "bidi"), "Highlight bi-directional (BothDirections) relationships"),
+                    chip("Limited", "lim", hl.limited, () => toggleHighlight("limited", "lim"),
+                        "Highlight limited (weak) relationships: many-to-many cardinality or cross-island (different storage source groups)"),
+                    chip("Non-Int64 keys", "nonint", hl.nonInt, () => { hl.nonInt = !hl.nonInt; draw(); },
+                        "Highlight relationship columns whose data type is not Int64 (whole-number keys give the best storage and query performance)", nonIntCount),
+                    chip("Snowflake", "sf", sidePanel === "snowflake", () => { sidePanel = sidePanel === "snowflake" ? null : "snowflake"; draw(); },
+                        "Identify snowflake-schema chains (Fact \u2192 Dim \u2192 Secondary dim): colour the tables and list each pattern", g.snowflake.chains.length, "snowflake"),
+                    chip("Find missing relationships", "miss", sidePanel === "missing", () => { sidePanel = sidePanel === "missing" ? null : "missing"; draw(); },
+                        "Find tables that have no relationship but plausibly could (matching column name + data type)", g.missing.length, "lightbulb"));
+                if (write()) bar.appendChild(h("span", "slls-sx-tool-count", "Drag a column onto another table to create a relationship \u00b7 right-click a line to (de)activate it"));
+                m.body.appendChild(bar);
+                const main = h("div", "slls-sx-rd-main");
+                drawSidebar(main);
+                drawCanvas(main);
+                drawSidePanel(main);
+                m.body.appendChild(main);
+                drawPanels();
+            });
+        }
+        registerTool(m, draw, () => toolActions(m, [m.actions.querySelector(".slls-sx-btn")]));
+        draw();
+    }
     function openHistory() {
         const m = modal("Change history", "history");
         const draw = () => {
@@ -4588,7 +7201,7 @@ function render({ model, el }) {
         renderPicker();
         renderBody();
         renderStatus();
-        if (toolRedraw) toolRedraw();
+        redrawTools();
     }
 
     function onModelData() {
@@ -4634,12 +7247,14 @@ from sempy_labs._ui_components import (  # noqa: E402
     SEARCH_SELECT_CSS as _UI_SEARCH_SELECT_CSS,
     SEARCH_SELECT_JS as _UI_SEARCH_SELECT_JS,
     SYNTAX_HIGHLIGHT_VARS as _UI_SYNTAX_VARS,
+    TABLE_COLUMN_RESIZE_JS as _UI_TABLE_COLUMN_RESIZE_JS,
     fullscreen_css as _ui_fullscreen_css,
     fullscreen_setup_js as _ui_fullscreen_setup_js,
     render_attribution_html as _ui_render_attribution_html,
     scoped_attribution_css as _ui_scoped_attribution_css,
     scoped_button_press_css as _ui_scoped_button_press_css,
     scoped_header_css as _ui_scoped_header_css,
+    scoped_table_column_resize_css as _ui_scoped_table_column_resize_css,
 )
 
 _EXPLORER_ICON_NAMES = (
@@ -4652,7 +7267,9 @@ _EXPLORER_ICON_NAMES = (
     "save", "history", "alert", "close", "trash", "plus", "undo", "redo", "file",
     "workflow", "wand", "expand_diagonal", "user", "telescope", "zoom_in", "zoom_out",
     "more", "arrow_up", "arrow_down", "external_link", "info", "package", "calendar",
-    "download", "check_circle", "arrow_left",
+    "download", "check_circle", "arrow_left", "network", "key_round", "focus", "lightbulb",
+    "snowflake", "languages", "unlink", "arrow_left_right", "cable", "layers", "waves", "git_branch",
+    "link", "reset", "user", "sparkles",
 )  # fmt: skip
 
 _WIDGET_CSS = (
@@ -4665,6 +7282,7 @@ _WIDGET_CSS = (
     + _ui_scoped_button_press_css(".slls-sx")
     + _ui_scoped_attribution_css(".slls-sx")
     + "\n"
+    + _ui_scoped_table_column_resize_css(".slls-sx")
     + _ui_fullscreen_css(".slls-sx", "slls-sx-fs", bg_var="var(--ui-bg-solid)")
 )
 
@@ -4672,6 +7290,8 @@ _WIDGET_JS = (
     _ui_fullscreen_setup_js()
     + "\n"
     + _UI_SEARCH_SELECT_JS
+    + "\n"
+    + _UI_TABLE_COLUMN_RESIZE_JS
     + "\n"
     + _WIDGET_JS.replace(
         "__SLLS_EXPLORER_ICONS__",
@@ -5233,6 +7853,11 @@ def _partition_node(table_name: str, partition, ctx: dict) -> dict:
     source_type = str(partition.SourceType)
     node["source_type"] = source_type
     node["mode"] = str(partition.Mode)
+    if source_type == "Query":
+        try:
+            node["data_source"] = str(partition.Source.DataSource.Name)
+        except Exception:
+            pass
     if source_type in ("M", "Calculated"):
         _set_expressions(node, Expression=partition.Source.Expression)
     _record_error(ctx["errors"], node, partition)
@@ -5706,6 +8331,17 @@ def _apply_edit(tom, obj, prop: str, value) -> None:
             tp.FilterExpression = filter_expression or None
         return
 
+    if prop == "Ols" and obj_type == "Role":
+        _set_object_level_security(model, obj, _json_value(value, []))
+        return
+
+    if prop in ("FromColumn", "ToColumn") and obj_type == "Relationship":
+        table = obj.FromTable if prop == "FromColumn" else obj.ToTable
+        if not table.Columns.ContainsName(str(value)):
+            raise ValueError(f"The '{table.Name}'[{value}] column was not found.")
+        setattr(obj, prop, table.Columns[str(value)])
+        return
+
     if prop == "FormatStringExpression":
         if value:
             definition = TOM.FormatStringDefinition()
@@ -5735,6 +8371,96 @@ def _apply_edit(tom, obj, prop: str, value) -> None:
         return
 
     _set_property(obj, prop, value)
+
+
+def _set_object_level_security(model, role, entries: list) -> None:
+    """Sets a role's table / column metadata permissions (OLS).
+
+    ``entries`` lists every non-default permission as ``{table, column,
+    permission}`` (no column = the table itself); anything not listed is reset
+    to ``Default``.
+    """
+
+    import System
+    import Microsoft.AnalysisServices.Tabular as TOM
+
+    def _permission(name):
+        return System.Enum.Parse(TOM.MetadataPermission, str(name or "Default"))
+
+    wanted: Dict[str, Dict[str, str]] = {}
+    for entry in entries:
+        table = str(entry.get("table") or "")
+        if not table or not model.Tables.ContainsName(table):
+            continue
+        perm = str(entry.get("permission") or "Default")
+        wanted.setdefault(table, {})[str(entry.get("column") or "")] = perm
+
+    for table in model.Tables:
+        name = str(table.Name)
+        perms = wanted.get(name, {})
+        has_tp = role.TablePermissions.ContainsName(name)
+        if not perms and not has_tp:
+            continue
+        if has_tp:
+            tp = role.TablePermissions[name]
+        else:
+            tp = TOM.TablePermission()
+            tp.Table = table
+            role.TablePermissions.Add(tp)
+        tp.MetadataPermission = _permission(perms.get("", "Default"))
+        columns = {c: p for c, p in perms.items() if c}
+        for cp in list(tp.ColumnPermissions):
+            column = str(cp.Column.Name)
+            if column in columns:
+                cp.MetadataPermission = _permission(columns.pop(column))
+            else:
+                tp.ColumnPermissions.Remove(cp)
+        for column, perm in columns.items():
+            if not table.Columns.ContainsName(column):
+                continue
+            cp = TOM.ColumnPermission()
+            cp.Column = table.Columns[column]
+            cp.MetadataPermission = _permission(perm)
+            tp.ColumnPermissions.Add(cp)
+        if (
+            not perms
+            and not tp.FilterExpression
+            and tp.ColumnPermissions.Count == 0
+            and str(tp.MetadataPermission) == "Default"
+        ):
+            role.TablePermissions.Remove(tp)
+
+
+def _new_relationship(model, props: dict):
+    """Creates a single-column relationship from a staged spec."""
+
+    import uuid
+    import System
+    import Microsoft.AnalysisServices.Tabular as TOM
+
+    def _column(table_key: str, column_key: str):
+        table_name = str(props.get(table_key) or "")
+        column_name = str(props.get(column_key) or "")
+        if not model.Tables.ContainsName(table_name):
+            raise ValueError(f"The '{table_name}' table was not found.")
+        table = model.Tables[table_name]
+        if not table.Columns.ContainsName(column_name):
+            raise ValueError(f"The '{table_name}'[{column_name}] column was not found.")
+        return table.Columns[column_name]
+
+    rel = TOM.SingleColumnRelationship()
+    rel.Name = str(uuid.uuid4())
+    rel.FromColumn = _column("fromTable", "fromColumn")
+    rel.ToColumn = _column("toTable", "toColumn")
+    for prop, enum, default in (
+        ("FromCardinality", TOM.RelationshipEndCardinality, "Many"),
+        ("ToCardinality", TOM.RelationshipEndCardinality, "One"),
+        ("CrossFilteringBehavior", TOM.CrossFilteringBehavior, "OneDirection"),
+    ):
+        setattr(rel, prop, System.Enum.Parse(enum, str(props.get(prop) or default)))
+    rel.IsActive = props.get("IsActive") is not False
+    model.Relationships.Add(rel)
+    return rel
 
 
 def _unique_name(base: str, exists) -> str:
@@ -5914,6 +8640,8 @@ def _create_object(tom, spec: dict):
     if obj_type == "daxlibPackage":
         _install_daxlib_package(model, name, props)
         return None
+    if obj_type == "relationship":
+        return _new_relationship(model, props)
 
     def _table():
         if not model.Tables.ContainsName(table_name):
@@ -6342,6 +9070,202 @@ def _format_dax_expression(expression: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tool helpers: AI descriptions, translation, relationship inference
+# ---------------------------------------------------------------------------
+def _generate_measure_descriptions(workspace_id: str, measures: List[dict]) -> list:
+    """Generates measure descriptions with the Fabric Copilot completions API.
+
+    Each measure is sent on its own (``{table, name, expression}``); returns
+    ``{table, name, description}`` for the measures that got a description.
+    """
+
+    from sempy_labs._helper_functions import _base_api
+
+    results = []
+    for m in measures:
+        name = str(m.get("name") or "")
+        if not name:
+            continue
+        payload = {
+            "scenarioDefinition": {
+                "generateModelItemDescriptions": {
+                    "modelItems": [
+                        {
+                            "urn": name,
+                            "type": 1,
+                            "name": name,
+                            "expression": str(m.get("expression") or ""),
+                        }
+                    ],
+                },
+            },
+            "workspaceId": workspace_id,
+            "artifactInfo": {"artifactType": "SemanticModel"},
+        }
+        response = _base_api(
+            request="explore/v202304/nl2nl/completions",
+            client="internal",
+            method="post",
+            payload=payload,
+        )
+        items = (response.json() or {}).get("modelItems") or []
+        description = next(
+            (str(i.get("description")) for i in items if i.get("description")), ""
+        )
+        if description.strip():
+            results.append(
+                {
+                    "table": str(m.get("table") or ""),
+                    "name": name,
+                    "description": description.strip(),
+                }
+            )
+    return results
+
+
+_TRANSLATOR_URL = "https://api.cognitive.microsofttranslator.com/translate"
+
+
+def _translate_texts(key: str, region: str, texts: List[str], languages: list):
+    """Translates texts with Azure AI Translator.
+
+    Returns ``{text: {language (lower-case): translation}}``.
+    """
+
+    import requests
+
+    key = str(key or "").strip()
+    if not key:
+        raise ValueError("An Azure AI Translator key is required.")
+    texts = list(dict.fromkeys(str(t) for t in texts if str(t or "").strip()))
+    languages = list(dict.fromkeys(str(x) for x in languages if str(x or "").strip()))
+    headers = {"Ocp-Apim-Subscription-Key": key, "Content-Type": "application/json"}
+    if str(region or "").strip():
+        headers["Ocp-Apim-Subscription-Region"] = str(region).strip()
+    result: Dict[str, Dict[str, str]] = {}
+    if not texts or not languages:
+        return result
+    # The service accepts up to 1,000 texts (50,000 characters) per request.
+    batch: List[str] = []
+
+    def _send(chunk: List[str]) -> None:
+        response = requests.post(
+            _TRANSLATOR_URL,
+            params=[("api-version", "3.0")] + [("to", x) for x in languages],
+            headers=headers,
+            json=[{"Text": t} for t in chunk],
+            timeout=60,
+        )
+        if not response.ok:
+            raise ValueError(
+                f"Translation failed ({response.status_code}): {response.text[:300]}"
+            )
+        for text, item in zip(chunk, response.json() or []):
+            for tr in item.get("translations") or []:
+                result.setdefault(text, {})[str(tr.get("to", "")).lower()] = str(
+                    tr.get("text") or ""
+                )
+
+    size = 0
+    for text in texts:
+        if batch and (len(batch) >= 100 or size + len(text) > 9000):
+            _send(batch)
+            batch, size = [], 0
+        batch.append(text)
+        size += len(text)
+    if batch:
+        _send(batch)
+    return result
+
+
+def _dax_table(name: str) -> str:
+    return "'" + str(name).replace("'", "''") + "'"
+
+
+def _dax_column(table: str, column: str) -> str:
+    return f"{_dax_table(table)}[{str(column).replace(']', ']]')}]"
+
+
+def _relationship_inference(pair: dict, stats: Dict[Tuple[str, str], tuple]) -> dict:
+    """Infers a relationship's direction and cardinality from column uniqueness."""
+
+    a = (str(pair.get("from_table")), str(pair.get("from_column")))
+    b = (str(pair.get("to_table")), str(pair.get("to_column")))
+    if a not in stats or b not in stats:
+        return {
+            "from_table": a[0],
+            "from_column": a[1],
+            "to_table": b[0],
+            "to_column": b[1],
+            "error": "Could not measure column statistics for this pair.",
+        }
+    (a_rows, a_distinct), (b_rows, b_distinct) = stats[a], stats[b]
+    a_unique = a_rows > 0 and a_rows == a_distinct
+    b_unique = b_rows > 0 and b_rows == b_distinct
+    if b_unique and not a_unique:
+        sides, cards, label, confident = (a, b), ("Many", "One"), "Many-to-one", True
+    elif a_unique and not b_unique:
+        sides, cards, label, confident = (b, a), ("Many", "One"), "Many-to-one", True
+    elif a_unique and b_unique:
+        sides, cards, label, confident = (a, b), ("One", "One"), "One-to-one", True
+    else:
+        sides, cards, label, confident = (a, b), ("Many", "Many"), "Many-to-many", False
+    f, t = sides
+    return {
+        "from_table": f[0],
+        "from_column": f[1],
+        "to_table": t[0],
+        "to_column": t[1],
+        "from_cardinality": cards[0],
+        "to_cardinality": cards[1],
+        "label": label,
+        "confident": confident,
+        "from_rows": stats[f][0],
+        "from_distinct": stats[f][1],
+        "from_unique": stats[f][0] > 0 and stats[f][0] == stats[f][1],
+        "to_rows": stats[t][0],
+        "to_distinct": stats[t][1],
+        "to_unique": stats[t][0] > 0 and stats[t][0] == stats[t][1],
+    }
+
+
+def _infer_relationships(dataset_id: str, workspace_id: str, pairs: List[dict]):
+    """Measures each pair's columns with one DAX query and infers cardinality."""
+
+    import sempy.fabric as fabric
+
+    combos: List[Tuple[str, str]] = []
+    for p in pairs:
+        for side in ("from", "to"):
+            combo = (str(p.get(f"{side}_table")), str(p.get(f"{side}_column")))
+            if combo[0] and combo[1] and combo not in combos:
+                combos.append(combo)
+    if not combos:
+        return []
+    rows = [
+        f'ROW("Idx", {i}, "Rows", COUNTROWS({_dax_table(t)}), '
+        f'"Distinct", DISTINCTCOUNT({_dax_column(t, c)}))'
+        for i, (t, c) in enumerate(combos)
+    ]
+    query = "EVALUATE " + (
+        rows[0] if len(rows) == 1 else "UNION(" + ", ".join(rows) + ")"
+    )
+    df = fabric.evaluate_dax(
+        dataset=dataset_id, dax_string=query, workspace=workspace_id
+    )
+    stats: Dict[Tuple[str, str], tuple] = {}
+    for values in df.itertuples(index=False):
+        try:
+            idx = int(values[0])
+        except (TypeError, ValueError):
+            continue
+        if 0 <= idx < len(combos):
+            num = [0 if v != v or v is None else int(v) for v in values[1:3]]
+            stats[combos[idx]] = (num[0], num[1])
+    return [_relationship_inference(p, stats) for p in pairs]
+
+
+# ---------------------------------------------------------------------------
 # DAXLib.org packages
 # ---------------------------------------------------------------------------
 _DAXLIB_QUERY_URL = "https://api.daxlib.org/v1/query"
@@ -6353,7 +9277,13 @@ _DAXLIB_VERSION_ANNOTATION = "DAXLIB_PackageVersion"
 _DAXLIB_MIN_COMPAT = 1702
 _DAXLIB_CACHE_SECONDS = 600
 # Do not toggle ``busy`` (which locks Save / reload) for tool window lookups.
-_BACKGROUND_ACTIONS = ("daxlib_catalog", "daxlib_package")
+_BACKGROUND_ACTIONS = (
+    "daxlib_catalog",
+    "daxlib_package",
+    "generate_descriptions",
+    "translate_texts",
+    "infer_relationships",
+)
 _daxlib_cache: Dict[object, Tuple[float, object]] = {}
 
 
@@ -6816,6 +9746,15 @@ def semantic_explorer(
                     _daxlib_package(data.get("package"), data.get("version")),
                 )
                 return
+            if action == "translate_texts":
+                translated = _translate_texts(
+                    data.get("key"),
+                    data.get("region"),
+                    list(data.get("texts") or []),
+                    list(data.get("languages") or []),
+                )
+                _reply(data, True, {"translations": translated})
+                return
 
             if not ctx["dataset_id"]:
                 raise ValueError("Select a semantic model first.")
@@ -6844,6 +9783,18 @@ def semantic_explorer(
             elif action == "format_dax":
                 formatted = _format_dax_expression(str(data.get("expression") or ""))
                 _reply(data, True, {"formatted": formatted})
+            elif action == "generate_descriptions":
+                generated = _generate_measure_descriptions(
+                    ctx["workspace_id"], list(data.get("measures") or [])
+                )
+                _reply(data, True, {"descriptions": generated})
+            elif action == "infer_relationships":
+                inferred = _infer_relationships(
+                    ctx["dataset_id"],
+                    ctx["workspace_id"],
+                    list(data.get("pairs") or []),
+                )
+                _reply(data, True, {"results": inferred})
             elif action == "save":
                 with connect_semantic_model(
                     dataset=ctx["dataset_id"],
