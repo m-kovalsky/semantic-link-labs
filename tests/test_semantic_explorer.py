@@ -576,27 +576,30 @@ def _dep(obj_type, table, obj, ref_type, ref_table, ref):
     }
 
 
-def test_dependency_trees_follow_both_directions_and_stop_at_cycles():
+def test_dependency_graph_dedupes_nodes_and_normalizes_object_types():
     rows = [
         _dep("MEASURE", "Sales", "A", "MEASURE", "Sales", "B"),
         _dep("MEASURE", "Sales", "B", "MEASURE", "Sales", "A"),
         _dep("MEASURE", "Sales", "B", "CALC_COLUMN", "Sales", "Amount"),
         _dep("CALC_TABLE", "Dates", "Dates", "COLUMN", "Sales", "Amount"),
-    ]
-    forward, reverse, nodes = sx._dependency_edges(rows)
-    a = sx._explorer_key("measure", "Sales", name="A")
-    amount = sx._explorer_key("column", "Sales", name="Amount")
-
-    depends_on = sx._dependency_tree(a, forward, nodes)
-    assert [n["name"] for n in depends_on] == ["B"]
-    b_children = depends_on[0]["children"]
-    assert [(n["name"], n.get("cycle", False)) for n in b_children] == [
-        ("Amount", False),
-        ("A", True),
+        _dep("ROWS_ALLOWED", "Sales", "West", "COLUMN", "Sales", "Amount"),
+        _dep("MEASURE", "Sales", "A", "MEASURE", "Sales", "A"),
     ]
 
-    referenced_by = sx._dependency_tree(amount, reverse, nodes)
-    assert {(n["type"], n["name"]) for n in referenced_by} == {
-        ("measure", "B"),
-        ("table", "Dates"),
-    }
+    graph = sx._dependency_graph(rows)
+
+    nodes = [(n["type"], n["table"], n["name"]) for n in graph["nodes"]]
+    assert nodes == [
+        ("measure", "Sales", "A"),
+        ("measure", "Sales", "B"),
+        # A calculated column and a column reference are the same object.
+        ("column", "Sales", "Amount"),
+        ("table", "", "Dates"),
+        ("Rows Allowed", "Sales", "West"),
+    ]
+    assert graph["nodes"][2]["key"] == sx._explorer_key(
+        "column", "Sales", name="Amount"
+    )
+    assert graph["nodes"][4]["key"] == ""
+    # Self-references are dropped; the A <-> B cycle is kept for the frontend.
+    assert graph["edges"] == [[0, 1], [1, 0], [1, 2], [3, 2], [4, 2]]

@@ -25,6 +25,9 @@ _WIDGET_CSS = """
     --sx-success: #16a34a;
     --sx-success-soft: rgba(22, 163, 74, 0.12);
     --sx-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    /* Object-type hues for the dependency node graph. */
+    --sx-cat-measure: #059669; --sx-cat-column: #2563eb; --sx-cat-hierarchy: #7c3aed;
+    --sx-cat-item: #d97706; --sx-cat-table: #ea580c; --sx-cat-role: #e11d48; --sx-cat-other: #64748b;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
         "Helvetica Neue", Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -41,6 +44,10 @@ _WIDGET_CSS = """
     position: relative;
     overflow: hidden;
     font-size: 13px;
+}
+.slls-sx.slls-sx-dark {
+    --sx-cat-measure: #34d399; --sx-cat-column: #60a5fa; --sx-cat-hierarchy: #a78bfa;
+    --sx-cat-item: #fbbf24; --sx-cat-table: #fb923c; --sx-cat-role: #fb7185; --sx-cat-other: #94a3b8;
 }
 .slls-sx.slls-sx-dark { __SLLS_DARK_VARS__ --sx-warn: #f59e0b; --sx-warn-soft: rgba(245, 158, 11, 0.18); --sx-success: #22c55e; --sx-success-soft: rgba(34, 197, 94, 0.16); }
 @media (prefers-color-scheme: dark) {
@@ -102,11 +109,6 @@ _WIDGET_CSS = """
 .slls-sx-btn.small { height: 26px; padding: 0 9px; font-size: 12px; }
 .slls-sx-btn.small.icon { width: 26px; padding: 0; }
 .slls-sx-btn.errors.has { color: var(--ui-danger-text); border-color: var(--ui-danger-border); background: var(--ui-danger-bg); }
-.slls-sx-badge {
-    min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 11px; font-weight: 600;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: var(--ui-accent); color: var(--ui-on-accent); font-variant-numeric: tabular-nums;
-}
 .slls-sx-iconbtn {
     appearance: none; display: inline-flex; align-items: center; justify-content: center;
     width: 26px; height: 26px; border-radius: 6px; border: none; background: transparent;
@@ -136,6 +138,17 @@ _WIDGET_CSS = """
 }
 .slls-sx-mode.write .slls-sx-track { background: var(--sx-warn); }
 .slls-sx-mode.write .slls-sx-track::after { transform: translateX(12px); }
+/* True / false property toggle */
+.slls-sx-switch {
+    appearance: none; display: inline-flex; align-items: center; gap: 8px; padding: 2px 0;
+    border: none; background: transparent; color: var(--ui-text-secondary); font: inherit; font-size: 12.5px;
+    cursor: pointer;
+}
+.slls-sx-switch.on { color: var(--ui-text); }
+.slls-sx-switch.on .slls-sx-track { background: var(--ui-accent); }
+.slls-sx-switch.on .slls-sx-track::after { transform: translateX(12px); }
+.slls-sx-switch:focus-visible { outline: none; }
+.slls-sx-switch:focus-visible .slls-sx-track { box-shadow: 0 0 0 3px var(--ui-accent-soft); }
 
 /* Picker */
 .slls-sx-picker { padding: 26px 24px; display: flex; justify-content: center; }
@@ -311,14 +324,22 @@ _WIDGET_CSS = """
 .slls-sx-detail-body { flex: 1 1 0; min-height: 0; overflow: auto; padding: 12px 14px 18px; display: flex; flex-direction: column; gap: 10px; }
 
 .slls-sx-card { border: 1px solid var(--ui-border); border-radius: var(--sx-radius); background: var(--ui-bg); }
-.slls-sx-card-head {
-    appearance: none; width: 100%; display: flex; align-items: center; gap: 6px; padding: 9px 12px;
-    border: none; background: transparent; color: var(--ui-text-tertiary); cursor: pointer; text-align: left;
+.slls-sx-card-head { display: flex; align-items: center; gap: 6px; padding-right: 12px; }
+.slls-sx-card-toggle {
+    appearance: none; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px;
+    padding: 9px 0 9px 12px; border: none; background: transparent; color: var(--ui-text-tertiary);
+    cursor: pointer; text-align: left; font-family: inherit;
     font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
 }
-.slls-sx-card-head:hover { color: var(--ui-text); }
-.slls-sx-card-head .slls-sx-caret { width: 14px; height: 14px; }
-.slls-sx-card-head .slls-sx-count { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.slls-sx-card-toggle:hover { color: var(--ui-text); }
+/* Full-width controls keep the shared press darkening but not its shrink: a
+   wide button scaled about its centre pulls its edges (where the caret sits)
+   out from under the pointer, so the release misses and the click is lost. */
+.slls-sx button.slls-sx-card-toggle:not(:disabled):active,
+.slls-sx button.slls-sx-menu-item:not(:disabled):active,
+.slls-sx button.slls-sx-typebtn:not(:disabled):active { transform: none; }
+.slls-sx-card-toggle .slls-sx-caret { width: 14px; height: 14px; }
+.slls-sx-card-toggle .slls-sx-count { text-transform: none; letter-spacing: 0; font-weight: 500; }
 .slls-sx-card-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .slls-sx-card-body { padding: 0 12px 11px; }
 .slls-sx-props { display: grid; grid-template-columns: minmax(130px, 34%) 1fr; gap: 3px 12px; align-items: center; }
@@ -334,7 +355,6 @@ _WIDGET_CSS = """
 .slls-sx-pvalue .no { color: var(--ui-text-tertiary); }
 .slls-sx-pvalue.error { color: var(--ui-danger-text); }
 .slls-sx-pvalue .slls-sx-input, .slls-sx-pvalue .slls-sx-select, .slls-sx-pvalue .slls-sx-textarea { padding: 4px 8px; }
-.slls-sx-pvalue input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var(--ui-accent); }
 .slls-sx-pvalue a, .slls-sx-link { color: var(--ui-accent); cursor: pointer; text-decoration: none; }
 .slls-sx-pvalue a:hover, .slls-sx-link:hover { text-decoration: underline; }
 
@@ -457,6 +477,70 @@ _WIDGET_CSS = """
 }
 .slls-sx-section-title:not(:first-child) { margin-top: 18px; }
 .slls-sx-ctx { position: fixed; z-index: 2147483600; }
+.slls-sx-counts .sep { margin: 0 3px; opacity: 0.6; }
+.slls-sx-tmdl-name { font-weight: 600; }
+
+/* Dependencies: toolbar, segmented toggles, tree and node graph */
+.slls-sx-dep-toolbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 16px; border-bottom: 1px solid var(--ui-border);
+}
+.slls-sx-dep-hint {
+    flex: 1 1 160px; min-width: 0; font-size: 12px; color: var(--ui-text-secondary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.slls-sx-seg {
+    display: inline-flex; gap: 2px; padding: 2px; flex-shrink: 0;
+    border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface-2);
+}
+.slls-sx-seg button {
+    appearance: none; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+    border: none; border-radius: 6px; background: transparent; color: var(--ui-text-secondary);
+    font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.slls-sx-seg button:hover { color: var(--ui-text); }
+.slls-sx-seg button.on { background: var(--ui-accent); color: var(--ui-on-accent); }
+.slls-sx-seg button svg { width: 13px; height: 13px; }
+.slls-sx-dep-root { font-weight: 600; }
+.slls-sx-dep-row .slls-sx-pill { margin-left: 4px; }
+.slls-sx-dep-row .slls-sx-caret { width: 16px; height: 16px; }
+.slls-sx-modal.graph .slls-sx-graph-body { padding: 0; position: relative; overflow: hidden; }
+.slls-sx-graph { position: absolute; inset: 0; overflow: auto; background: var(--ui-bg-tertiary); cursor: grab; }
+.slls-sx-graph.panning { cursor: grabbing; user-select: none; }
+.slls-sx-graph-sizer { position: relative; }
+.slls-sx-graph-layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.slls-sx-graph-inner { position: absolute; }
+.slls-sx-graph-edges {
+    position: absolute; inset: 0; overflow: visible; pointer-events: none; color: var(--ui-text-tertiary);
+}
+.slls-sx-gnode {
+    position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    padding: 5px 9px; text-align: left; font-family: inherit; color: var(--ui-text); cursor: pointer;
+    border: 1px solid color-mix(in srgb, var(--cat) 50%, transparent); border-radius: 8px;
+    background: color-mix(in srgb, var(--cat) 10%, var(--ui-bg)); box-shadow: var(--ui-shadow-sm);
+    transition: box-shadow 120ms ease;
+}
+.slls-sx-gnode:hover { box-shadow: 0 0 0 2px var(--ui-accent-soft), var(--ui-shadow-sm); }
+.slls-sx-gnode.root { border: 2px solid var(--cat); cursor: default; }
+.slls-sx-gnode-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.slls-sx-gnode-icon { display: inline-flex; color: var(--cat); }
+.slls-sx-gnode-icon svg { width: 14px; height: 14px; }
+.slls-sx-gnode-label { font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-gnode-type {
+    font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ui-text-tertiary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.slls-sx-zoom {
+    position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; align-items: center;
+    gap: 2px; padding: 3px; border: 1px solid var(--ui-border); border-radius: 8px;
+    background: var(--ui-bg-solid); box-shadow: var(--ui-shadow-md);
+}
+.slls-sx-zoom-pct { display: flex; align-items: center; font-size: 11.5px; font-weight: 600; color: var(--ui-text-secondary); }
+.slls-sx-zoom-pct input {
+    width: 30px; border: none; background: transparent; text-align: right; color: var(--ui-text);
+    font: inherit; outline: none;
+}
+.slls-sx-graph-empty { position: absolute; left: 0; white-space: nowrap; font-size: 12.5px; color: var(--ui-text-tertiary); pointer-events: none; }
 .slls-sx-prompt-row { display: flex; flex-direction: column; gap: 6px; }
 """
 
@@ -729,6 +813,8 @@ function render({ model, el }) {
     };
     const JSON_PROPS = new Set(["Annotations", "Translations", "Perspectives", "Members", "RlsFilters"]);
     const PANE_MIN = 240, PANE_MAX = 640;
+    // Starting definition of a new named expression (matches the kernel side).
+    const NEW_EXPRESSION = "let\n    Source = \"\"\nin\n    Source";
 
     // ------------------------------------------------------------------
     // State
@@ -917,7 +1003,7 @@ function render({ model, el }) {
             node.props.push(P("ModelPermission", "Model permission", "General", "enum", { enum: enumOf("ModelPermission"), value: "Read" }));
         } else if (c.type === "expression") {
             node.expressions = [{ prop: "Expression", label: "Expression", lang: "m",
-                value: '"" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]' }];
+                value: NEW_EXPRESSION }];
         }
         return node;
     }
@@ -1199,7 +1285,7 @@ function render({ model, el }) {
             taken = tables.map(effName);
         } else {
             const folder = { role: "roles", perspective: "perspectives", expression: "expressions" }[type];
-            base = { role: "New role", perspective: "New perspective", expression: "New parameter" }[type];
+            base = { role: "New role", perspective: "New perspective", expression: "New expression" }[type];
             taken = [...(data[folder] || []), ...newNodes(type, "")].map(effName);
         }
         pushUndo("");
@@ -1402,10 +1488,10 @@ function render({ model, el }) {
                 const r = button("slls-sx-btn icon", "", "redo", redo, "Redo");
                 r.disabled = !redoStack.length || !!busy || saving;
                 const count = pendingCount();
-                const s = button("slls-sx-btn primary", saving ? "Saving\u2026" : "Save", saving ? "refresh" : "save", save,
-                    count ? `Save ${plural(count, "change")} to the semantic model` : "No changes to save");
+                const saveTitle = saving ? "Saving changes to the semantic model\u2026"
+                    : count ? `Save ${plural(count, "change")} to the semantic model` : "No changes to save";
+                const s = button("slls-sx-btn icon", "", saving ? "refresh" : "save", save, saveTitle);
                 if (saving) s.querySelector("svg").classList.add("slls-sx-spin");
-                if (count) { const b = h("span", "slls-sx-badge", count); s.appendChild(b); }
                 s.disabled = !count || !!busy || saving;
                 group.append(u, r, s);
             }
@@ -1738,13 +1824,25 @@ function render({ model, el }) {
                 row.appendChild(err);
             }
             if (rowIsDirty(node)) { const d = h("span", "slls-sx-dot"); d.title = "Unsaved change"; row.appendChild(d); }
-            label.title = objectLabel(node);
+            const description = value(node, "Description");
+            label.title = objectLabel(node) + (description ? `\n${description}` : "");
         }
         if (r.trailing) row.appendChild(h("span", "slls-sx-trail", r.trailing));
         else if (node && node.type === "table") {
-            const n = (node.columns || []).length + (node.measures || []).length;
-            if (node.mode && node.mode !== "Import") row.appendChild(h("span", "slls-sx-trail", node.mode === "DirectLake" ? "Direct Lake" : node.mode));
-            else row.appendChild(h("span", "slls-sx-trail", String(n || "")));
+            // Column / measure / hierarchy counts, e.g. "12c \u00b7 3m \u00b7 1h".
+            const trail = h("span", "slls-sx-trail slls-sx-counts");
+            const counts = [
+                [(node.columns || []).length + newNodes("column", node.key).length, "c", "column", "columns"],
+                [(node.measures || []).length + newNodes("measure", node.key).length, "m", "measure", "measures"],
+                [(node.hierarchies || []).length, "h", "hierarchy", "hierarchies"],
+            ];
+            counts.forEach(([n, suffix, one, many], i) => {
+                if (i) trail.appendChild(h("span", "sep", "\u00b7"));
+                const c = h("span", "", `${n}${suffix}`);
+                c.title = `${n} ${n === 1 ? one : many}`;
+                trail.appendChild(c);
+            });
+            row.appendChild(trail);
         }
         row.addEventListener("click", () => {
             if (node) select(node.key);
@@ -1831,10 +1929,11 @@ function render({ model, el }) {
             });
             renderTreePane();
         };
-        const reload = button("sl-reload-btn" + (busy ? " sl-spinning" : ""), "", "refresh", () => {
+        const reload = button("slls-sx-iconbtn", "", "refresh", () => {
             if (pendingCount()) confirmDialog(`Reloading discards ${plural(pendingCount(), "pending change")}.`, "Reload", doReload);
             else doReload();
         }, "Reload model metadata");
+        if (busy) reload.querySelector("svg").classList.add("slls-sx-spin");
         reload.disabled = !!model.get("busy");
         const collapse = button("slls-sx-iconbtn", "", "panel_collapse", () => { paneCollapsed = true; renderBody(); }, "Collapse model view");
         tools.append(filterBtn, ex, co, reload, collapse);
@@ -1977,7 +2076,7 @@ function render({ model, el }) {
             if (folder === "tables") items.push(["Add calculation group", "calculation_group", () => addObject("table", null)]);
             if (folder === "roles") items.push(["Add role", "shield_check", () => addObject("role", null)]);
             if (folder === "perspectives") items.push(["Add perspective", "perspective", () => addObject("perspective", null)]);
-            if (folder === "expressions") items.push(["Add parameter", "code", () => addObject("expression", null)]);
+            if (folder === "expressions") items.push(["Add expression", "code", () => addObject("expression", null)]);
             return items;
         }
         if (!node) return items;
@@ -1998,7 +2097,7 @@ function render({ model, el }) {
             items.push(["Add calculation group", "calculation_group", () => addObject("table", null)]);
             items.push(["Add role", "shield_check", () => addObject("role", null)]);
             items.push(["Add perspective", "perspective", () => addObject("perspective", null)]);
-            items.push(["Add parameter", "code", () => addObject("expression", null)]);
+            items.push(["Add expression", "code", () => addObject("expression", null)]);
         }
         const hideable = ["table", "column", "measure", "hierarchy", "function"].includes(node.type);
         const dupable = !node.isNew && ["table", "column", "measure", "hierarchy", "calculationItem", "role", "perspective", "expression"].includes(node.type);
@@ -2090,24 +2189,28 @@ function render({ model, el }) {
     function card(title, opts) {
         const o = opts || {};
         const c = h("div", "slls-sx-card");
-        const headBtn = h("button", "slls-sx-card-head");
-        headBtn.type = "button";
+        // The header holds a toggle button and, beside it, the card's own
+        // controls. Those must not be nested inside the toggle: browsers deliver
+        // clicks on anything inside a <button> to that button.
+        const head = h("div", "slls-sx-card-head");
+        const toggle = h("button", "slls-sx-card-toggle");
+        toggle.type = "button";
         const filtering = !!propFilter && !o.noFilter;
         const isOpen = filtering || !collapsedCards.has(title);
+        toggle.setAttribute("aria-expanded", String(isOpen));
         const caret = h("span", "slls-sx-caret" + (isOpen ? " open" : ""));
         caret.innerHTML = ICON.caret_right;
-        headBtn.appendChild(caret);
-        if (o.dirty) { const d = h("span", "slls-sx-dot"); d.title = "Unsaved change"; headBtn.appendChild(d); }
-        headBtn.appendChild(document.createTextNode(title));
-        if (o.count !== undefined) headBtn.appendChild(h("span", "slls-sx-count", `(${o.count})`));
-        const actions = h("span", "slls-sx-card-actions");
-        headBtn.appendChild(actions);
-        headBtn.addEventListener("click", (ev) => {
-            if (actions.contains(ev.target)) return;
+        toggle.appendChild(caret);
+        if (o.dirty) { const d = h("span", "slls-sx-dot"); d.title = "Unsaved change"; toggle.appendChild(d); }
+        toggle.appendChild(document.createTextNode(title));
+        if (o.count !== undefined) toggle.appendChild(h("span", "slls-sx-count", `(${o.count})`));
+        toggle.addEventListener("click", () => {
             if (collapsedCards.has(title)) collapsedCards.delete(title); else collapsedCards.add(title);
             renderDetail();
         });
-        c.appendChild(headBtn);
+        const actions = h("span", "slls-sx-card-actions");
+        head.append(toggle, actions);
+        c.appendChild(head);
         const bodyEl = h("div", "slls-sx-card-body");
         if (isOpen) c.appendChild(bodyEl);
         return { el: c, body: bodyEl, actions, open: isOpen };
@@ -2130,12 +2233,15 @@ function render({ model, el }) {
         const v = value(node, row.key);
         const commit = (nv) => setValue(node, row.key, nv, { label: row.label });
         if (row.kind === "bool") {
-            const cb = h("input");
-            cb.type = "checkbox";
-            cb.checked = !!v;
-            cb.setAttribute("aria-label", row.label);
-            cb.addEventListener("change", () => commit(cb.checked));
-            return cb;
+            const on = !!v;
+            const sw = h("button", "slls-sx-switch" + (on ? " on" : ""));
+            sw.type = "button";
+            sw.setAttribute("role", "switch");
+            sw.setAttribute("aria-checked", String(on));
+            sw.setAttribute("aria-label", row.label);
+            sw.append(h("span", "slls-sx-track"), document.createTextNode(on ? "Yes" : "No"));
+            sw.addEventListener("click", () => commit(!on));
+            return sw;
         }
         if (row.kind === "enum" || row.kind === "column_ref") {
             const sel = h("select", "slls-sx-select");
@@ -2183,7 +2289,8 @@ function render({ model, el }) {
     function propMatches(text) {
         return !propFilter || String(text).toLowerCase().includes(propFilter.toLowerCase());
     }
-    function renderProps(node, container) {
+    // `afterGroup(group)` lets the caller place extra cards after a group.
+    function renderProps(node, container, afterGroup) {
         const groups = new Map();
         for (const row of node.props || []) {
             if (!propMatches(row.label) && !propMatches(row.key)) continue;
@@ -2209,15 +2316,18 @@ function render({ model, el }) {
                 c.body.appendChild(grid);
             }
             container.appendChild(c.el);
+            if (afterGroup) afterGroup(group);
         }
     }
-    function renderExpressions(node, container) {
+    // The object's main expression ("Expression") is shown at the top; the
+    // secondary ones (format string / detail rows) sit with the properties.
+    function renderExpressions(node, container, secondary) {
         const write = mode === "write" && !saving && !isDeleted(node);
         for (const expr of node.expressions || []) {
+            if ((expr.prop !== "Expression") !== !!secondary) continue;
             const target = expr.target ? getNode(expr.target) : node;
             if (!target) continue;
             const current = value(target, expr.prop);
-            if (!write && !current && expr.prop !== "Expression") continue;
             if (propFilter && !propMatches(expr.label)) continue;
             const dirty = !!staging.edits[editKey(target.key, expr.prop)] || (node.isNew && createFor(node).props[expr.prop] !== undefined);
             const c = card(expr.label, { dirty, noFilter: true });
@@ -2424,7 +2534,6 @@ function render({ model, el }) {
                 const next = Object.assign({}, filters, { [sel.value]: "TRUE()" });
                 setValue(node, "RlsFilters", JSON.stringify(next), { label: "Row-level security" });
             });
-            sel.addEventListener("click", (ev) => ev.stopPropagation());
             rc.actions.appendChild(sel);
         }
         if (rc.open) {
@@ -2478,6 +2587,9 @@ function render({ model, el }) {
     }
 
     function renderDetail() {
+        // Re-rendering the same object (a card toggled, a property edited) keeps
+        // the scroll position; only selecting another object starts at the top.
+        const previous = detailBody ? { key: detailBodyKey, top: detailBody.scrollTop } : null;
         clear(detailPane);
         const node = getNode(selectedKey) || (data.model || null);
         if (!node) return;
@@ -2560,10 +2672,13 @@ function render({ model, el }) {
         detailPane.appendChild(actions);
 
         detailBody = h("div", "slls-sx-detail-body");
+        detailBodyKey = node.key;
         detailPane.appendChild(detailBody);
         renderDetailBody(node, write);
+        if (previous && previous.key === node.key) detailBody.scrollTop = previous.top;
     }
     let detailBody = null;
+    let detailBodyKey = "";
     function renderDetailBody(node, write) {
         clear(detailBody);
         const b = detailBody;
@@ -2592,8 +2707,16 @@ function render({ model, el }) {
             err.appendChild(view);
             b.appendChild(err);
         }
-        renderExpressions(node, b);
-        renderProps(node, b);
+        renderExpressions(node, b, false);
+        // Secondary expressions follow the Formatting section (or General when
+        // the object has no Formatting properties, e.g. calculation items).
+        const groups = new Set((node.props || []).filter((r) => propMatches(r.label) || propMatches(r.key)).map((r) => r.group));
+        const anchor = groups.has("Formatting") ? "Formatting" : "General";
+        let placed = false;
+        renderProps(node, b, (group) => {
+            if (group === anchor) { renderExpressions(node, b, true); placed = true; }
+        });
+        if (!placed) renderExpressions(node, b, true);
         if (propFilter) return;
         if (node.type === "hierarchy") {
             b.appendChild(subList("Levels", node.levels || [], (lv) => columnDisplayName(node.table, lv.column)));
@@ -2716,6 +2839,112 @@ function render({ model, el }) {
         c.append(iconEl("alert", ""), h("div", "", text));
         container.appendChild(c);
     }
+    // ------------------------------------------------------------------
+    // TMDL / JSON syntax highlighting
+    // ------------------------------------------------------------------
+    const TMDL_OBJECTS = new Set([
+        "model", "database", "table", "column", "measure", "hierarchy", "level", "partition",
+        "relationship", "expression", "role", "perspective", "perspectiveTable", "perspectiveColumn",
+        "perspectiveMeasure", "perspectiveHierarchy", "culture", "linguisticMetadata", "annotation",
+        "extendedProperty", "calculationGroup", "calculationItem", "tablePermission", "columnPermission",
+        "member", "dataSource", "function", "formatStringDefinition", "detailRowsDefinition", "kpi",
+        "refreshPolicy", "queryGroup", "variation", "changedProperty", "ref", "createOrReplace",
+        "createOrUpdate", "alter", "delete", "translation", "calendar",
+    ]);
+    function tmdlIndent(ws) {
+        let n = 0;
+        for (const ch of ws) n += ch === "\t" ? 1 : 0.25;
+        return Math.floor(n);
+    }
+    function tmdlScalar(text) {
+        const t = text.trim();
+        if (!t) return esc(text);
+        const lead = text.slice(0, text.indexOf(t[0]));
+        let kind = "";
+        if (/^(true|false)$/i.test(t)) kind = "keyword";
+        else if (/^-?\d+(\.\d+)?$/.test(t)) kind = "number";
+        else if (/^".*"$/.test(t) || /^'.*'$/.test(t)) kind = "string";
+        return esc(lead) + (kind ? `<span class="slls-sx-tk-${kind}">${esc(t)}</span>` : esc(t)) + esc(text.slice(lead.length + t.length));
+    }
+    // TMDL is line-oriented: an object line ("measure 'Sales' = <DAX>"), a
+    // property line ("formatString: 0.00") or a flag ("isHidden"). Expressions
+    // continue on lines indented deeper than the object's properties (or in a
+    // ``` block); they are collected and colored with the DAX / M highlighter.
+    function highlightTmdl(text) {
+        const lines = String(text || "").split("\n");
+        const out = [];
+        let expr = null;
+        let partitionLang = "dax";
+        const flush = () => {
+            if (!expr) return;
+            if (expr.lines.length) out.push(highlight(expr.lines.join("\n"), expr.lang));
+            expr = null;
+        };
+        const startExpr = (indent, lang, fenced) => { expr = { indent, lang, fenced, lines: [] }; };
+        for (const line of lines) {
+            const m = /^(\s*)(.*)$/.exec(line);
+            const ws = m[1];
+            const rest = m[2];
+            if (expr) {
+                if (expr.fenced) {
+                    if (rest.trim() === "```") { flush(); out.push(esc(ws) + '<span class="slls-sx-tk-punctuation">```</span>'); continue; }
+                    expr.lines.push(line);
+                    continue;
+                }
+                if (!rest.trim() || tmdlIndent(ws) > expr.indent + 1) { expr.lines.push(line); continue; }
+                flush();
+            }
+            if (rest.startsWith("///")) { out.push(esc(ws) + `<span class="slls-sx-tk-comment">${esc(rest)}</span>`); continue; }
+            const w = /^([A-Za-z][A-Za-z0-9]*)(.*)$/.exec(rest);
+            if (!w) { out.push(esc(line)); continue; }
+            const word = w[1];
+            let tail = w[2];
+            const indent = tmdlIndent(ws);
+            if (tail.startsWith(":")) {
+                out.push(`${esc(ws)}<span class="slls-sx-tk-variable">${esc(word)}</span><span class="slls-sx-tk-punctuation">:</span>${tmdlScalar(tail.slice(1))}`);
+                continue;
+            }
+            let html = esc(ws);
+            const isObject = TMDL_OBJECTS.has(word);
+            html += `<span class="slls-sx-tk-${isObject ? "keyword" : "variable"}">${esc(word)}</span>`;
+            const eq = tail.indexOf("=");
+            const namePart = eq >= 0 ? tail.slice(0, eq) : tail;
+            if (isObject && namePart.trim()) html += `<span class="slls-sx-tmdl-name">${esc(namePart)}</span>`;
+            else html += esc(namePart);
+            if (eq < 0) { out.push(html); continue; }
+            html += '<span class="slls-sx-tk-operator">=</span>';
+            const value = tail.slice(eq + 1);
+            if (word === "partition") {
+                partitionLang = /^\s*m\s*$/i.test(value) ? "m" : "dax";
+                out.push(html + tmdlScalar(value));
+                continue;
+            }
+            const lang = word === "expression" || (word === "source" && partitionLang === "m") ? "m" : "dax";
+            if (value.trim() === "```") {
+                out.push(html + esc(value));
+                startExpr(indent, lang, true);
+                continue;
+            }
+            out.push(html + (value.trim() ? highlight(value, lang) : esc(value)));
+            startExpr(indent, lang, false);
+        }
+        flush();
+        return out.join("\n");
+    }
+    function highlightJson(text) {
+        const re = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
+        let out = "", cursor = 0, mt;
+        const src = String(text || "");
+        while ((mt = re.exec(src))) {
+            out += esc(src.slice(cursor, mt.index));
+            if (mt[1]) out += `<span class="slls-sx-tk-${mt[2] ? "variable" : "string"}">${esc(mt[1])}</span>${mt[2] ? esc(mt[2]) : ""}`;
+            else if (mt[3]) out += `<span class="slls-sx-tk-keyword">${mt[3]}</span>`;
+            else out += `<span class="slls-sx-tk-number">${mt[4]}</span>`;
+            cursor = re.lastIndex;
+        }
+        return out + esc(src.slice(cursor));
+    }
+
     function openTmdl(node) {
         const m = modal(`TMDL \u2014 ${objectLabel(node)}`, "file", { wide: true });
         loadingInto(m.body, "Serializing\u2026");
@@ -2723,13 +2952,15 @@ function render({ model, el }) {
             if (!m.overlay.isConnected) return;
             if (!res.ok) { errorInto(m.body, res.error || "Could not serialize the object."); return; }
             clear(m.body);
-            const text = (res.data || {}).text || "";
+            const data_ = res.data || {};
+            const text = data_.text || "";
             if (isDirty(node)) {
                 const note = h("div", "slls-sx-code-error", "Showing the saved definition \u2014 pending changes are not included.");
                 note.style.margin = "0 0 8px";
                 m.body.appendChild(note);
             }
-            const pre = h("pre", "slls-sx-tmdl", text);
+            const pre = h("pre", "slls-sx-tmdl");
+            pre.innerHTML = data_.language === "json" ? highlightJson(text) : highlightTmdl(text);
             m.body.appendChild(pre);
             const copy = button("slls-sx-btn small", "Copy", "", () => {
                 try { navigator.clipboard.writeText(text); copy.textContent = "Copied"; } catch (e) { copy.textContent = "Copy failed"; }
@@ -2737,57 +2968,343 @@ function render({ model, el }) {
             m.actions.appendChild(copy);
         });
     }
+
+    // ------------------------------------------------------------------
+    // Dependencies (tree + node graph)
+    // ------------------------------------------------------------------
+    // The model's dependency graph is fetched once per model version; the
+    // tree / graph for any object (in either direction) is derived from it.
+    let depGraphCache = null;
+    const DEP_MAX_DEPTH = 30;
+    const DEP_MAX_NODES = 3000;
+    const GRAPH = { w: 200, h: 46, colGap: 72, rowGap: 18, pad: 28 };
+    function depCategory(type) {
+        if (type === "measure") return "measure";
+        if (type === "column") return "column";
+        if (type === "hierarchy" || type === "level") return "hierarchy";
+        if (type === "calculationItem") return "item";
+        if (type === "table" || type === "partition") return "table";
+        if (type === "role") return "role";
+        return "other";
+    }
+    function depLabel(n) {
+        const known = n.key ? getNode(n.key) : null;
+        if (known) return objectLabel(known);
+        if (n.type === "table" || !n.table) return n.name;
+        return `'${n.table}'[${n.name}]`;
+    }
+    function depGraphLabel(n) {
+        if (n.type === "measure") {
+            const known = n.key ? getNode(n.key) : null;
+            return `[${known ? effName(known) : n.name}]`;
+        }
+        return depLabel(n);
+    }
+    function depTypeLabel(n) {
+        const known = n.key ? getNode(n.key) : null;
+        return known ? typeLabel(known) : (TYPE_LABEL[n.type] || n.type);
+    }
+    function loadDependencyGraph(onDone) {
+        const version = model.get("model_version");
+        if (depGraphCache && depGraphCache.version === version) { onDone(depGraphCache, null); return; }
+        request("dependencies", {}, (res) => {
+            if (!res.ok) { onDone(null, res.error || "Could not read the dependencies."); return; }
+            const raw = res.data || {};
+            const nodes = (raw.nodes || []).map((n) => Object.assign({}, n));
+            const byKey = new Map();
+            nodes.forEach((n, i) => { if (n.key) byKey.set(n.key, i); });
+            const forward = new Map(), reverse = new Map();
+            for (const [a, b] of raw.edges || []) {
+                if (!forward.has(a)) forward.set(a, []);
+                forward.get(a).push(b);
+                if (!reverse.has(b)) reverse.set(b, []);
+                reverse.get(b).push(a);
+            }
+            depGraphCache = { version, nodes, byKey, forward, reverse };
+            onDone(depGraphCache, null);
+        });
+    }
+    // Expands the graph from `rootIdx` into a cycle-safe tree.
+    function buildDepTree(g, rootIdx, direction) {
+        const adj = direction === "depends_on" ? g.forward : g.reverse;
+        let budget = DEP_MAX_NODES;
+        let seq = 0;
+        const tableIdx = (name) => {
+            const key = keyOf("table", "", "", name);
+            if (!g.byKey.has(key)) { g.nodes.push({ key, type: "table", table: "", name }); g.byKey.set(key, g.nodes.length - 1); }
+            return g.byKey.get(key);
+        };
+        const sortKey = (i) => `${g.nodes[i].type}|${g.nodes[i].table}|${g.nodes[i].name}`.toLowerCase();
+        const build = (i, ancestors, depth) => {
+            const item = { id: "d" + seq++, idx: i, children: [], cycle: ancestors.has(i) };
+            if (item.cycle || depth >= DEP_MAX_DEPTH) return item;
+            const next = new Set(ancestors).add(i);
+            const refs = [...(adj.get(i) || [])];
+            // A column ultimately depends on the table it belongs to.
+            const n = g.nodes[i];
+            if (direction === "depends_on" && n.type === "column" && n.table) {
+                const t = tableIdx(n.table);
+                if (!refs.includes(t) && !ancestors.has(t)) refs.push(t);
+            }
+            const seen = new Set();
+            for (const j of refs.sort((a, b) => sortKey(a).localeCompare(sortKey(b)))) {
+                if (seen.has(j) || budget <= 0) continue;
+                seen.add(j);
+                budget -= 1;
+                item.children.push(build(j, next, depth + 1));
+            }
+            return item;
+        };
+        return build(rootIdx, new Set(), 0);
+    }
+    // Lays a dependency tree out as a left-to-right layered graph: nodes are
+    // deduplicated and placed in the column of their shortest distance from
+    // the root. Edges always point from the referencing object to the
+    // referenced one.
+    function layoutDepGraph(tree, direction) {
+        const nodes = new Map();
+        const edges = new Set();
+        const visit = (t, level) => {
+            const existing = nodes.get(t.idx);
+            if (!existing) nodes.set(t.idx, { idx: t.idx, level, x: 0, y: 0 });
+            else existing.level = Math.min(existing.level, level);
+            for (const c of t.children) {
+                edges.add(direction === "depends_on" ? `${t.idx}>${c.idx}` : `${c.idx}>${t.idx}`);
+                visit(c, level + 1);
+            }
+        };
+        visit(tree, 0);
+        const byLevel = new Map();
+        for (const n of nodes.values()) {
+            if (!byLevel.has(n.level)) byLevel.set(n.level, []);
+            byLevel.get(n.level).push(n);
+        }
+        const levels = [...byLevel.keys()].sort((a, b) => a - b);
+        const maxRows = Math.max(1, ...[...byLevel.values()].map((a) => a.length));
+        const height = maxRows * GRAPH.h + (maxRows - 1) * GRAPH.rowGap;
+        for (const lvl of levels) {
+            const col = byLevel.get(lvl);
+            const colHeight = col.length * GRAPH.h + (col.length - 1) * GRAPH.rowGap;
+            col.forEach((n, i) => {
+                n.x = lvl * (GRAPH.w + GRAPH.colGap);
+                n.y = (height - colHeight) / 2 + i * (GRAPH.h + GRAPH.rowGap);
+            });
+        }
+        const maxLevel = levels.length ? levels[levels.length - 1] : 0;
+        return {
+            nodes: [...nodes.values()],
+            edges: [...edges].map((e) => e.split(">").map(Number)),
+            pos: nodes,
+            width: maxLevel * (GRAPH.w + GRAPH.colGap) + GRAPH.w,
+            height,
+        };
+    }
+    function edgePath(a, b) {
+        const ay = a.y + GRAPH.h / 2, by = b.y + GRAPH.h / 2, gap = 3;
+        let x1, x2, c;
+        if (b.x > a.x) { x1 = a.x + GRAPH.w; x2 = b.x - gap; c = [(x1 + x2) / 2, (x1 + x2) / 2]; }
+        else if (b.x < a.x) { x1 = a.x; x2 = b.x + GRAPH.w + gap; c = [(x1 + x2) / 2, (x1 + x2) / 2]; }
+        else {
+            // Same column (e.g. a column and its home table): bulge out to the right.
+            x1 = a.x + GRAPH.w; x2 = b.x + GRAPH.w + gap;
+            const bulge = Math.max(x1, x2) + 56;
+            c = [bulge, bulge];
+        }
+        return `M ${x1} ${ay} C ${c[0]} ${ay}, ${c[1]} ${by}, ${x2} ${by}`;
+    }
+
     function openDependencies(node) {
-        const tabs = h("div", "slls-sx-tabs");
-        let active = "referenced_by";
-        let result = null;
-        const m = modal(`Dependencies \u2014 ${objectLabel(node)}`, "workflow", { wide: true, tabs });
-        const renderTabs = () => {
-            clear(tabs);
-            for (const [k, label] of [["referenced_by", "Referenced by"], ["depends_on", "Depends on"]]) {
-                const count = result ? countTree(result[k] || []) : null;
-                const t = h("button", "slls-sx-tab" + (active === k ? " active" : ""), label + (count === null ? "" : ` (${count})`));
-                t.type = "button";
-                t.addEventListener("click", () => { active = k; renderTabs(); renderTree2(); });
-                tabs.appendChild(t);
+        let rootKey = node.key;
+        let direction = "depends_on";
+        let view = "tree";
+        let zoom = 1;
+        let graph = null;
+        const collapsed = new Set();
+        const toolbar = h("div", "slls-sx-dep-toolbar");
+        const m = modal(`Dependencies \u2014 ${objectLabel(node)}`, "workflow", { wide: true, tabs: toolbar });
+        const titleEl = m.box.querySelector(".slls-sx-modal-title");
+        const segmented = (options, current, onPick) => {
+            const seg = h("div", "slls-sx-seg");
+            for (const [value, label, icon] of options) {
+                const b = button(value === current ? "on" : "", label, icon || "", () => onPick(value));
+                b.setAttribute("aria-pressed", String(value === current));
+                seg.appendChild(b);
             }
+            return seg;
         };
-        const countTree = (nodes) => nodes.reduce((a, n) => a + 1 + countTree(n.children || []), 0);
-        const renderTree2 = () => {
-            if (!result) return;
-            clear(m.body);
-            const nodes = result[active] || [];
-            if (!nodes.length) {
-                m.body.appendChild(h("div", "slls-sx-empty", active === "depends_on" ? "This object does not reference any other object." : "No other object references this object."));
-                return;
+        const rootIndex = () => {
+            if (graph.byKey.has(rootKey)) return graph.byKey.get(rootKey);
+            const known = getNode(rootKey) || node;
+            graph.nodes.push({ key: rootKey, type: known.type, table: known.table || "", name: known.name });
+            graph.byKey.set(rootKey, graph.nodes.length - 1);
+            return graph.nodes.length - 1;
+        };
+        const renderToolbar = () => {
+            clear(toolbar);
+            toolbar.appendChild(segmented([["depends_on", "Depends on"], ["referenced_by", "Referenced by"]], direction,
+                (v) => { direction = v; collapsed.clear(); draw(); }));
+            toolbar.appendChild(h("span", "slls-sx-dep-hint",
+                direction === "depends_on" ? "Objects this object depends on" : "Objects that depend on this object"));
+            const rootNode = getNode(rootKey);
+            if (rootNode && rootKey !== selectedKey) {
+                toolbar.appendChild(button("slls-sx-btn small", "Show in model view", "", () => { m.close(); reveal(rootKey); }));
             }
-            const walk = (list, depth) => {
-                for (const n of list) {
-                    const row = h("div", "slls-sx-dep-row");
-                    row.style.paddingLeft = depth * 18 + "px";
-                    const known = n.key && getNode(n.key);
-                    row.appendChild(iconEl(known ? nodeIcon(known) : "folder"));
-                    const label = known ? objectLabel(known) : (n.table ? `'${n.table}'[${n.name}]` : n.name);
-                    if (known) {
-                        const a = h("a", "slls-sx-link", label);
-                        a.addEventListener("click", () => { m.close(); reveal(n.key); });
-                        row.appendChild(a);
-                    } else row.appendChild(h("span", "", label));
-                    row.appendChild(h("span", "meta", (known ? typeLabel(known) : n.type) + (n.cycle ? " \u00b7 circular" : "") + (n.truncated ? " \u00b7 \u2026" : "")));
-                    m.body.appendChild(row);
-                    walk(n.children || [], depth + 1);
+            toolbar.appendChild(segmented([["tree", "Tree", "list_tree"], ["graph", "Node graph", "workflow"]], view,
+                (v) => { view = v; draw(); }));
+        };
+        const emptyText = () => (direction === "depends_on" ? "This object has no dependencies." : "No objects depend on this object.");
+        const focus = (idx) => {
+            const n = graph.nodes[idx];
+            rootKey = n.key || rootKey;
+            if (!n.key) return;
+            collapsed.clear();
+            titleEl.textContent = `Dependencies \u2014 ${depLabel(n)}`;
+            draw();
+        };
+        const drawTree = (tree) => {
+            m.body.className = "slls-sx-modal-body";
+            const walk = (t, depth) => {
+                const n = graph.nodes[t.idx];
+                const row = h("div", "slls-sx-dep-row");
+                row.style.paddingLeft = depth * 18 + "px";
+                const caret = h("span", "slls-sx-caret" + (collapsed.has(t.id) ? "" : " open"));
+                if (t.children.length) {
+                    caret.innerHTML = ICON.caret_right;
+                    caret.style.cursor = "pointer";
+                    caret.addEventListener("click", () => {
+                        if (collapsed.has(t.id)) collapsed.delete(t.id); else collapsed.add(t.id);
+                        draw();
+                    });
                 }
+                row.appendChild(caret);
+                const known = n.key ? getNode(n.key) : null;
+                const icon = iconEl(known ? nodeIcon(known) : "folder");
+                icon.style.color = `var(--sx-cat-${depCategory(n.type)})`;
+                row.appendChild(icon);
+                if (known && depth > 0) {
+                    const a = h("a", "slls-sx-link", depLabel(n));
+                    a.title = "Show in model view";
+                    a.addEventListener("click", () => { m.close(); reveal(n.key); });
+                    row.appendChild(a);
+                } else row.appendChild(h("span", depth === 0 ? "slls-sx-dep-root" : "", depLabel(n)));
+                row.appendChild(h("span", "slls-sx-pill", depTypeLabel(n)));
+                if (t.cycle) row.appendChild(h("span", "meta", "\u21a9 circular"));
+                m.body.appendChild(row);
+                if (!collapsed.has(t.id)) for (const c of t.children) walk(c, depth + 1);
             };
-            walk(nodes, 0);
+            walk(tree, 0);
+            if (!tree.children.length) m.body.appendChild(h("div", "slls-sx-empty", emptyText()));
         };
-        renderTabs();
+        const drawGraph = (tree) => {
+            m.body.className = "slls-sx-modal-body slls-sx-graph-body";
+            const layout = layoutDepGraph(tree, direction);
+            const canvasW = layout.width + GRAPH.pad * 2 + 80;
+            // With nothing to draw, the message sits under the root node (inside
+            // the graph so it pans/zooms with it) rather than over it.
+            const empty = !tree.children.length;
+            const canvasH = layout.height + GRAPH.pad * 2 + (empty ? 36 : 0);
+            const canvas = h("div", "slls-sx-graph");
+            const sizer = h("div", "slls-sx-graph-sizer");
+            const layer = h("div", "slls-sx-graph-layer");
+            const applyZoom = () => {
+                sizer.style.width = canvasW * zoom + "px";
+                sizer.style.height = canvasH * zoom + "px";
+                layer.style.transform = `scale(${zoom})`;
+                zoomInput.value = String(Math.round(zoom * 100));
+            };
+            layer.style.width = canvasW + "px";
+            layer.style.height = canvasH + "px";
+            const inner = h("div", "slls-sx-graph-inner");
+            inner.style.cssText = `left:${GRAPH.pad}px;top:${GRAPH.pad}px;width:${layout.width}px;height:${layout.height}px`;
+            const svgNs = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNs, "svg");
+            svg.setAttribute("class", "slls-sx-graph-edges");
+            svg.setAttribute("width", String(layout.width));
+            svg.setAttribute("height", String(layout.height));
+            const markerId = "slls-sx-arrow-" + Math.random().toString(36).slice(2, 8);
+            svg.innerHTML = `<defs><marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" ` +
+                'markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
+                '<path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>';
+            for (const [from, to] of layout.edges) {
+                const a = layout.pos.get(from), b = layout.pos.get(to);
+                if (!a || !b) continue;
+                const path = document.createElementNS(svgNs, "path");
+                path.setAttribute("d", edgePath(a, b));
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke", "currentColor");
+                path.setAttribute("stroke-width", "1.5");
+                path.setAttribute("marker-end", `url(#${markerId})`);
+                svg.appendChild(path);
+            }
+            inner.appendChild(svg);
+            const rootIdx = tree.idx;
+            for (const gn of layout.nodes) {
+                const n = graph.nodes[gn.idx];
+                const known = n.key ? getNode(n.key) : null;
+                const b = h("button", "slls-sx-gnode" + (gn.idx === rootIdx ? " root" : ""));
+                b.type = "button";
+                b.style.cssText = `left:${gn.x}px;top:${gn.y}px;width:${GRAPH.w}px;height:${GRAPH.h}px;--cat:var(--sx-cat-${depCategory(n.type)})`;
+                const top = h("div", "slls-sx-gnode-top");
+                top.append(iconEl(known ? nodeIcon(known) : "folder", "slls-sx-gnode-icon"), h("span", "slls-sx-gnode-label", depGraphLabel(n)));
+                b.append(top, h("span", "slls-sx-gnode-type", depTypeLabel(n)));
+                b.title = `${depLabel(n)} \u00b7 ${depTypeLabel(n)}${n.key ? " \u2014 click to focus" : ""}`;
+                b.addEventListener("click", () => { if (gn.idx !== rootIdx) focus(gn.idx); });
+                inner.appendChild(b);
+            }
+            if (empty) {
+                const note = h("div", "slls-sx-graph-empty", emptyText());
+                note.style.top = GRAPH.h + 12 + "px";
+                inner.appendChild(note);
+            }
+            layer.appendChild(inner);
+            sizer.appendChild(layer);
+            canvas.appendChild(sizer);
+            // Drag the empty background to pan.
+            canvas.addEventListener("pointerdown", (ev) => {
+                if (ev.target.closest(".slls-sx-gnode")) return;
+                ev.preventDefault();
+                const ox = ev.clientX, oy = ev.clientY, sl = canvas.scrollLeft, st = canvas.scrollTop;
+                canvas.classList.add("panning");
+                const move = (e) => { canvas.scrollLeft = sl - (e.clientX - ox); canvas.scrollTop = st - (e.clientY - oy); };
+                const up = () => {
+                    canvas.classList.remove("panning");
+                    window.removeEventListener("pointermove", move);
+                    window.removeEventListener("pointerup", up);
+                };
+                window.addEventListener("pointermove", move);
+                window.addEventListener("pointerup", up);
+            });
+            const controls = h("div", "slls-sx-zoom");
+            const zoomTo = (z) => { zoom = Math.min(2.5, Math.max(0.3, Math.round(z * 100) / 100)); applyZoom(); };
+            const zoomInput = h("input", "");
+            zoomInput.type = "text";
+            zoomInput.inputMode = "numeric";
+            zoomInput.setAttribute("aria-label", "Zoom percentage");
+            zoomInput.addEventListener("change", () => {
+                const v = parseInt(zoomInput.value, 10);
+                if (Number.isFinite(v)) zoomTo(v / 100); else applyZoom();
+            });
+            const pct = h("div", "slls-sx-zoom-pct");
+            pct.append(zoomInput, h("span", "", "%"));
+            controls.append(button("slls-sx-iconbtn", "", "zoom_in", () => zoomTo(zoom * 1.2), "Zoom in"), pct,
+                button("slls-sx-iconbtn", "", "zoom_out", () => zoomTo(zoom / 1.2), "Zoom out"));
+            m.body.append(canvas, controls);
+            applyZoom();
+        };
+        const draw = () => {
+            renderToolbar();
+            clear(m.body);
+            m.box.classList.toggle("graph", view === "graph");
+            const tree = buildDepTree(graph, rootIndex(), direction);
+            if (view === "graph") drawGraph(tree); else drawTree(tree);
+        };
+        renderToolbar();
         loadingInto(m.body, "Analyzing dependencies\u2026");
-        request("dependencies", { key: node.key }, (res) => {
+        loadDependencyGraph((g, error) => {
             if (!m.overlay.isConnected) return;
-            if (!res.ok) { errorInto(m.body, res.error || "Could not read the dependencies."); return; }
-            result = res.data || {};
-            renderTabs();
-            renderTree2();
+            if (error) { errorInto(m.body, error); return; }
+            graph = { nodes: g.nodes.map((n) => Object.assign({}, n)), byKey: new Map(g.byKey), forward: g.forward, reverse: g.reverse };
+            draw();
         });
     }
     function openHistory() {
@@ -2940,7 +3457,7 @@ _EXPLORER_ICON_NAMES = (
     "expand_rows", "collapse_rows", "panel_collapse", "panel_expand", "list_tree",
     "sliders", "sun", "moon", "fullscreen", "fullscreen_exit", "pencil", "eye", "eye_off",
     "save", "history", "alert", "close", "trash", "plus", "undo", "redo", "file",
-    "workflow", "wand", "expand_diagonal", "user", "telescope",
+    "workflow", "wand", "expand_diagonal", "user", "telescope", "zoom_in", "zoom_out",
 )  # fmt: skip
 
 _WIDGET_CSS = (
@@ -4041,6 +4558,10 @@ def _new_lineage_tag(obj) -> None:
         pass
 
 
+# Starting definition of a new named expression (matches the frontend).
+_NEW_EXPRESSION = 'let\n    Source = ""\nin\n    Source'
+
+
 def _new_calculation_group(model, name: str):
     import Microsoft.AnalysisServices.Tabular as TOM
 
@@ -4133,10 +4654,7 @@ def _create_object(tom, spec: dict):
         obj = TOM.NamedExpression()
         obj.Name = name
         obj.Kind = TOM.ExpressionKind.M
-        obj.Expression = (
-            '"" meta [IsParameterQuery=true, Type="Text", '
-            "IsParameterQueryRequired=true]"
-        )
+        obj.Expression = _NEW_EXPRESSION
         _new_lineage_tag(obj)
         model.Expressions.Add(obj)
     else:
@@ -4437,9 +4955,6 @@ _DEPENDENCY_TYPES = {
     "ACTIVE_RELATIONSHIP": "relationship",
 }
 
-_DEPENDENCY_MAX_DEPTH = 12
-_DEPENDENCY_MAX_NODES = 3000
-
 
 def _dependency_node(raw_type: str, table: str, name: str) -> dict:
     raw_type = str(raw_type or "").upper()
@@ -4461,65 +4976,41 @@ def _dependency_node(raw_type: str, table: str, name: str) -> dict:
     return {"key": key, "type": label, "table": table, "name": name}
 
 
-def _dependency_edges(
-    rows: List[dict],
-) -> Tuple[Dict[str, list], Dict[str, list], Dict[str, dict]]:
-    """Builds forward (depends on) and reverse (referenced by) edge maps."""
+def _dependency_graph(rows: List[dict]) -> dict:
+    """Builds the model's dependency graph as deduplicated nodes plus edges.
 
-    forward: Dict[str, list] = {}
-    reverse: Dict[str, list] = {}
-    nodes: Dict[str, dict] = {}
+    Each edge is ``[source, referenced]`` (indexes into ``nodes``). The whole
+    graph is sent once so the frontend can root, re-root and reverse it
+    without another round trip.
+    """
+
+    index: Dict[str, int] = {}
+    nodes: List[dict] = []
+    edges = set()
+
+    def _node_id(raw_type, table, name) -> int:
+        node = _dependency_node(raw_type, table, name)
+        ident = node["key"] or _KEY_SEP.join(
+            [node["type"], node["table"], node["name"]]
+        )
+        if ident not in index:
+            index[ident] = len(nodes)
+            nodes.append(node)
+        return index[ident]
+
     for row in rows:
-        source = _dependency_node(row["OBJECT_TYPE"], row["TABLE"], row["OBJECT"])
-        ref = _dependency_node(
+        source = _node_id(row["OBJECT_TYPE"], row["TABLE"], row["OBJECT"])
+        ref = _node_id(
             row["REFERENCED_OBJECT_TYPE"],
             row["REFERENCED_TABLE"],
             row["REFERENCED_OBJECT"],
         )
-        s_id = source["key"] or f"{source['type']}:{source['table']}:{source['name']}"
-        r_id = ref["key"] or f"{ref['type']}:{ref['table']}:{ref['name']}"
-        if s_id == r_id:
-            continue
-        nodes.setdefault(s_id, source)
-        nodes.setdefault(r_id, ref)
-        if r_id not in forward.setdefault(s_id, []):
-            forward[s_id].append(r_id)
-        if s_id not in reverse.setdefault(r_id, []):
-            reverse[r_id].append(s_id)
-    return forward, reverse, nodes
+        if source != ref:
+            edges.add((source, ref))
+    return {"nodes": nodes, "edges": [list(edge) for edge in sorted(edges)]}
 
 
-def _dependency_tree(root: str, edges: Dict[str, list], nodes: Dict) -> list:
-    """Expands the edges from ``root`` into a nested tree (cycle-safe)."""
-
-    budget = [_DEPENDENCY_MAX_NODES]
-
-    def _sort_key(node_id):
-        n = nodes[node_id]
-        return (n["type"], n["table"].lower(), n["name"].lower())
-
-    def _expand(node_id: str, path: frozenset, depth: int) -> list:
-        children = []
-        for child_id in sorted(edges.get(node_id, []), key=_sort_key):
-            if budget[0] <= 0:
-                break
-            budget[0] -= 1
-            entry = dict(nodes[child_id])
-            if child_id in path:
-                entry["cycle"] = True
-                entry["children"] = []
-            elif depth >= _DEPENDENCY_MAX_DEPTH:
-                entry["children"] = []
-                entry["truncated"] = bool(edges.get(child_id))
-            else:
-                entry["children"] = _expand(child_id, path | {child_id}, depth + 1)
-            children.append(entry)
-        return children
-
-    return _expand(root, frozenset({root}), 1)
-
-
-def _object_dependencies(dataset_id: str, workspace_id: str, key: str) -> dict:
+def _model_dependencies(dataset_id: str, workspace_id: str) -> dict:
     import sempy.fabric as fabric
 
     df = fabric.evaluate_dax(
@@ -4532,12 +5023,7 @@ def _object_dependencies(dataset_id: str, workspace_id: str, key: str) -> dict:
         """,
     )
     df.columns = [str(c).strip("[]") for c in df.columns]
-    rows = df.fillna("").to_dict("records")
-    forward, reverse, nodes = _dependency_edges(rows)
-    return {
-        "depends_on": _dependency_tree(key, forward, nodes),
-        "referenced_by": _dependency_tree(key, reverse, nodes),
-    }
+    return _dependency_graph(df.fillna("").to_dict("records"))
 
 
 def _format_dax_expression(expression: str) -> str:
@@ -4741,10 +5227,11 @@ def semantic_explorer(
                     text, language = _object_tmdl(tom.model, data.get("target") or {})
                 _reply(data, True, {"text": text, "language": language})
             elif action == "dependencies":
-                deps = _object_dependencies(
-                    ctx["dataset_id"], ctx["workspace_id"], str(data.get("key") or "")
+                _reply(
+                    data,
+                    True,
+                    _model_dependencies(ctx["dataset_id"], ctx["workspace_id"]),
                 )
-                _reply(data, True, deps)
             elif action == "format_dax":
                 formatted = _format_dax_expression(str(data.get("expression") or ""))
                 _reply(data, True, {"formatted": formatted})
