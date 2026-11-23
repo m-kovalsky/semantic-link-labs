@@ -89,7 +89,7 @@ def _summarize_by(column_name: str, data_type: str) -> str:
 @log
 def convert_model_map_to_bim(
     model_map: dict,
-    compatibility_level: int = 1702,
+    compatibility_level: int = 1706,
 ) -> dict:
     """
     Converts a model_map dictionary into a Direct Lake semantic model in the Model.bim (TMSL) format.
@@ -110,7 +110,7 @@ def convert_model_map_to_bim(
     ----------
     model_map : dict
         A dictionary of a semantic model in the model_map format (see ``sempy_labs.semantic_model._model_map``).
-    compatibility_level : int, default=1702
+    compatibility_level : int, default=1706
         The compatibility level of the semantic model.
 
     Returns

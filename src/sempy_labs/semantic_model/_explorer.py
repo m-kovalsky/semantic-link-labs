@@ -174,6 +174,13 @@ _WIDGET_CSS = """
     color: var(--ui-text-tertiary); padding-left: 2px;
 }
 .slls-sx-picker-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.slls-sx-picker-top { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.slls-sx-picker-note { margin-top: 10px; font-size: 12px; color: var(--ui-text-secondary); }
+.slls-sx-picker-note.error { color: var(--ui-danger-text); }
+.slls-sx-picker-error {
+    margin-top: 10px; padding: 8px 12px; font-size: 12.5px; border-radius: 8px;
+    border: 1px solid var(--ui-danger-border); background: var(--ui-danger-bg); color: var(--ui-danger-text);
+}
 /* Picker actions use the pill buttons shared by the other tools' pickers. */
 .slls-sx-picker-actions .slls-sx-btn {
     height: auto; padding: 7px 16px; border-radius: 999px; font-size: 13.5px;
@@ -1463,6 +1470,7 @@ function render({ model, el }) {
     const JSON_PROPS = new Set(["Annotations", "Translations", "Perspectives", "Members", "RlsFilters", "Ols"]);
     const PANE_MIN = 240, PANE_MAX = 640;
     // Starting definition of a new named expression (matches the kernel side).
+    const NEW_MODEL_COMPATIBILITY_LEVEL = 1706;
     const NEW_EXPRESSION = "let\n    Source = \"\"\nin\n    Source";
 
     // ------------------------------------------------------------------
@@ -1491,6 +1499,11 @@ function render({ model, el }) {
     let pickerOpen = model.get("dataset_chosen") !== true;
     let pickerWs = model.get("active_workspace_id") || "";
     let pickerDs = model.get("active_dataset_id") || "";
+    // "existing" connects to a model; "new" creates an empty one first.
+    let pickerMode = "existing";
+    let newModelName = "";
+    let createError = null;
+    let creating = false;
     let workspacesRequested = false;
     let requestSeq = 0;
     const callbacks = new Map();
@@ -2253,16 +2266,37 @@ function render({ model, el }) {
         const card = h("div", "slls-sx-picker-card");
         const top = h("div", "");
         top.style.cssText = "display:flex;align-items:flex-start;justify-content:space-between;gap:12px";
+        const isNew = pickerMode === "new";
         const tt = h("div", "");
-        tt.append(h("div", "slls-sx-picker-title", "Select a semantic model"),
-            h("div", "slls-sx-picker-sub", "Choose the workspace and semantic model to explore."));
+        tt.append(h("div", "slls-sx-picker-title", isNew ? "Create a semantic model" : "Select a semantic model"),
+            h("div", "slls-sx-picker-sub", isNew ? "Create a new, empty semantic model and open it in the explorer."
+                : "Choose the workspace and semantic model to explore."));
         const reload = button("sl-reload-btn" + (loading ? " sl-spinning" : ""), "", "refresh", () => {
             workspacesRequested = false;
             ensureWorkspaces();
         }, "Reload workspaces and semantic models");
-        reload.disabled = loading || connecting;
-        top.append(tt, reload);
+        reload.disabled = loading || connecting || creating;
+        const right = h("div", "slls-sx-picker-top");
+        const seg = h("div", "slls-sx-seg");
+        seg.setAttribute("role", "radiogroup");
+        seg.setAttribute("aria-label", "Semantic model source");
+        for (const [id, label] of [["existing", "Existing model"], ["new", "New model"]]) {
+            const b = h("button", pickerMode === id ? "on" : "", label);
+            b.type = "button";
+            b.setAttribute("role", "radio");
+            b.setAttribute("aria-checked", String(pickerMode === id));
+            b.disabled = connecting || creating;
+            b.addEventListener("click", () => { pickerMode = id; createError = null; renderPicker(); });
+            seg.appendChild(b);
+        }
+        right.append(seg, reload);
+        top.append(tt, right);
         card.appendChild(top);
+        if (isNew) {
+            renderNewModelForm(card, loading);
+            pickerHost.appendChild(card);
+            return;
+        }
         const row = h("div", "slls-sx-picker-row");
         const wsField = h("div", "slls-sx-field");
         wsField.appendChild(h("label", "", "Workspace"));
@@ -2317,6 +2351,86 @@ function render({ model, el }) {
         actions.appendChild(connect);
         card.appendChild(actions);
         pickerHost.appendChild(card);
+    }
+
+    function renderNewModelForm(card, loading) {
+        const row = h("div", "slls-sx-picker-row");
+        const wsField = h("div", "slls-sx-field");
+        wsField.appendChild(h("label", "", "Workspace"));
+        const wsSel = createSearchSelect({
+            placeholder: "Select a workspace\u2026", searchPlaceholder: "Filter workspaces\u2026",
+            ariaLabel: "Workspace", emptyLabel: loading ? "Loading workspaces\u2026" : "No workspaces",
+            onChange: (o) => {
+                pickerWs = o.value; pickerDs = "";
+                model.set("available_datasets", []);
+                model.set("picker_loading", true);
+                model.save_changes();
+                dispatch({ action: "list_datasets", workspace_id: pickerWs });
+                renderPicker();
+            },
+        });
+        wsSel.setOptions((model.get("available_workspaces") || []).map((w) => ({ value: w.id, label: w.name })), pickerWs);
+        wsSel.setDisabled(creating);
+        wsField.appendChild(wsSel.el);
+        const nameField = h("div", "slls-sx-field");
+        nameField.appendChild(h("label", "", "New model name"));
+        const input = h("input", "slls-sx-input");
+        input.value = newModelName;
+        input.placeholder = "e.g. Sales Model";
+        input.setAttribute("aria-label", "New model name");
+        input.disabled = creating;
+        nameField.appendChild(input);
+        row.append(wsField, nameField);
+        card.appendChild(row);
+        // The workspace's models are listed so a taken name is caught early.
+        const taken = () => (model.get("available_datasets") || []).some((d) => d.name.toLowerCase() === newModelName.trim().toLowerCase());
+        const hint = h("div", "slls-sx-picker-note");
+        const err = h("div", "slls-sx-picker-error");
+        card.append(hint, err);
+        const actions = h("div", "slls-sx-picker-actions");
+        if (model.get("dataset_chosen") === true) {
+            actions.appendChild(button("slls-sx-btn", "Cancel", "", () => { pickerOpen = false; pickerMode = "existing"; renderAll(); }));
+        }
+        const create = button("slls-sx-btn primary", creating ? "Creating\u2026" : "Create model", "", () => {
+            const name = newModelName.trim();
+            if (!pickerWs || !name || taken() || creating) return;
+            creating = true;
+            createError = null;
+            request("create_model", { workspace_id: pickerWs, name }, (res) => {
+                creating = false;
+                if (res.ok) {
+                    pickerOpen = false;
+                    pickerMode = "existing";
+                    pickerDs = res.data.dataset_id || "";
+                    newModelName = "";
+                    staging = { edits: {}, ops: [], creates: [] };
+                    undoStack = []; redoStack = []; history = [];
+                    selectedKey = modelKey();
+                    expanded = new Set(["model", "folder:tables"]);
+                    mode = "write";
+                } else createError = res.error || "The semantic model could not be created.";
+                renderAll();
+            });
+            renderPicker();
+        });
+        actions.appendChild(create);
+        card.appendChild(actions);
+        const refresh = () => {
+            const clash = !!newModelName.trim() && taken();
+            hint.textContent = clash
+                ? `A semantic model named \u201c${newModelName.trim()}\u201d already exists in this workspace.`
+                : `Creates a new, empty semantic model (compatibility level ${NEW_MODEL_COMPATIBILITY_LEVEL}) in the selected workspace. `
+                    + "Choose a name that isn\u2019t already used there.";
+            hint.classList.toggle("error", clash);
+            input.classList.toggle("invalid", clash);
+            err.textContent = createError || "";
+            err.style.display = createError ? "" : "none";
+            create.disabled = creating || !pickerWs || !newModelName.trim() || clash;
+        };
+        input.addEventListener("input", () => { newModelName = input.value; createError = null; refresh(); });
+        input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") create.click(); });
+        refresh();
+        if (!creating) setTimeout(() => { if (input.isConnected && document.activeElement !== input && !newModelName) input.focus(); }, 0);
     }
 
     // ------------------------------------------------------------------
@@ -2940,7 +3054,10 @@ function render({ model, el }) {
             span.textContent = `${n.toFixed(i ? 1 : 0)} ${units[i]}`;
             return span;
         }
-        span.textContent = typeof v === "number" ? v.toLocaleString() : String(v);
+        // Version-like numbers (e.g. compatibility level 1706) read wrong with
+        // thousands separators; quantities keep them.
+        const plain = /(^|\.)CompatibilityLevel$/.test(row.key);
+        span.textContent = typeof v === "number" && !plain ? v.toLocaleString() : String(v);
         return span;
     }
     function propEditor(node, row) {
@@ -9954,6 +10071,41 @@ def _format_dax_expression(expression: str) -> str:
 # ---------------------------------------------------------------------------
 # Tool helpers: AI descriptions, translation, relationship inference
 # ---------------------------------------------------------------------------
+# Compatibility level of semantic models created from the explorer (above the
+# 1702 that DAX user-defined functions need).
+_NEW_MODEL_COMPATIBILITY_LEVEL = 1706
+
+
+def _create_blank_model(workspace_id: str, name: str) -> str:
+    """Creates an empty semantic model in a workspace; returns its ID."""
+
+    from sempy_labs._generate_semantic_model import create_blank_semantic_model
+    from sempy_labs._ui_components import list_picker_datasets
+
+    name = str(name or "").strip()
+    if not workspace_id or not name:
+        raise ValueError(
+            "Select a workspace and enter a name for the new semantic model."
+        )
+    # create_blank_semantic_model embeds the name in a quoted TMSL string.
+    if "'" in name or '"' in name:
+        raise ValueError("The semantic model name cannot contain quotes.")
+    taken = {str(d.get("name", "")).lower() for d in list_picker_datasets(workspace_id)}
+    if name.lower() in taken:
+        raise ValueError(
+            f"A semantic model named '{name}' already exists in this workspace. "
+            "Choose another name."
+        )
+    with _QuietTool():
+        dataset_id = create_blank_semantic_model(
+            dataset=name,
+            compatibility_level=_NEW_MODEL_COMPATIBILITY_LEVEL,
+            workspace=workspace_id,
+            overwrite=False,
+        )
+    return str(dataset_id)
+
+
 def _generate_measure_descriptions(workspace_id: str, measures: List[dict]) -> list:
     """Generates measure descriptions with the Fabric Copilot completions API.
 
@@ -10736,11 +10888,15 @@ def semantic_explorer(
     reference it. Changes are staged locally (with undo / redo and a change
     history) and are only written to the semantic model on Save.
 
+    The semantic model picker can also create a new, empty semantic model
+    (compatibility level 1706) in a workspace and open it in the explorer.
+
     Parameters
     ----------
     dataset : str | uuid.UUID, default=None
         Name or ID of the semantic model. If None, the explorer opens with a
-        workspace and semantic model picker.
+        workspace and semantic model picker (which can also create a new,
+        empty semantic model).
     workspace : str | uuid.UUID, default=None
         The Fabric workspace name or ID.
         Defaults to None which resolves to the workspace of the attached lakehouse
@@ -10882,6 +11038,18 @@ def semantic_explorer(
                 _load(dataset_id, workspace_id)
                 widget.status = {}
                 _reply(data, True)
+                return
+            if action == "create_model":
+                workspace_id = str(data.get("workspace_id") or "")
+                name = str(data.get("name") or "").strip()
+                dataset_id = _create_blank_model(workspace_id, name)
+                widget.available_datasets = list_picker_datasets(workspace_id)
+                _load(dataset_id, workspace_id)
+                widget.status = {
+                    "message": f"Created the '{name}' semantic model.",
+                    "kind": "success",
+                }
+                _reply(data, True, {"dataset_id": dataset_id})
                 return
             if action == "daxlib_catalog":
                 _reply(data, True, {"packages": _daxlib_catalog()})

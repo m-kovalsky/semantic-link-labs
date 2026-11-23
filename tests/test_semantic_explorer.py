@@ -1045,3 +1045,39 @@ def test_create_vpax_surfaces_an_existing_file(monkeypatch):
         sx._create_vpax_file("ds", "ws", data)
 
     assert seen["file_path"] == "Sales" and seen["overwrite"] is False
+
+
+# ---------------------------------------------------------------------------
+# New semantic models
+# ---------------------------------------------------------------------------
+def test_create_blank_model_validates_and_creates_at_level_1706(monkeypatch):
+    from sempy_labs import _generate_semantic_model as gen
+    from sempy_labs import _ui_components as ui
+
+    created = {}
+
+    def fake_create(**kwargs):
+        created.update(kwargs)
+        print("noise")
+        return "new-id"
+
+    monkeypatch.setattr(gen, "create_blank_semantic_model", fake_create)
+    monkeypatch.setattr(
+        ui, "list_picker_datasets", lambda ws: [{"id": "1", "name": "Sales"}]
+    )
+
+    with pytest.raises(ValueError, match="already exists"):
+        sx._create_blank_model("ws", " sales ")
+    with pytest.raises(ValueError, match="cannot contain quotes"):
+        sx._create_blank_model("ws", "Bob's model")
+    with pytest.raises(ValueError, match="Select a workspace"):
+        sx._create_blank_model("", "Finance")
+    assert not created
+
+    assert sx._create_blank_model("ws", " Finance ") == "new-id"
+    assert created == {
+        "dataset": "Finance",
+        "compatibility_level": 1706,
+        "workspace": "ws",
+        "overwrite": False,
+    }
