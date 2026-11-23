@@ -943,3 +943,105 @@ def test_relationship_inference_puts_the_unique_column_on_the_one_side(stats, ex
         result["to_cardinality"],
         result["confident"],
     ) == expected
+
+
+# ---------------------------------------------------------------------------
+# Query scale-out, cache warming and .vpax tools
+# ---------------------------------------------------------------------------
+def test_qso_sync_status_keeps_every_replica(monkeypatch):
+    from sempy_labs import _query_scale_out as qso
+
+    body = {
+        "scaleOutStatus": "Enabled",
+        "commitVersion": 3,
+        "targetSyncVersion": 3,
+        "minActiveReadVersion": 2,
+        "scaleOutReplicas": [
+            {"replicaId": "a", "replicaType": "Read", "replicaVersion": 3},
+            {"replicaId": "b", "replicaType": "Read", "replicaVersion": 2},
+        ],
+    }
+    monkeypatch.setattr(qso, "resolve_workspace_id", lambda w: "ws")
+    monkeypatch.setattr(qso, "resolve_dataset_name_and_id", lambda d, w: ("M", "ds"))
+    monkeypatch.setattr(
+        qso, "_base_api", lambda **kw: types.SimpleNamespace(json=lambda: body)
+    )
+
+    _, replicas = qso.qso_sync_status("M", "ws")
+
+    assert list(replicas["Replica ID"]) == ["a", "b"]
+
+
+def test_qso_state_reports_disabled_models_without_sync_rows(monkeypatch):
+    import pandas as pd
+    from sempy_labs import _query_scale_out as qso
+
+    settings = pd.DataFrame(
+        [
+            {
+                "Storage Mode": "Small",
+                "QSO Auto Sync Enabled": None,
+                "QSO Max Read Only Replicas": 0,
+            }
+        ]
+    )
+    monkeypatch.setattr(qso, "list_qso_settings", lambda **kw: settings)
+    monkeypatch.setattr(
+        qso, "qso_sync_status", lambda **kw: (pd.DataFrame(), pd.DataFrame())
+    )
+
+    state = sx._qso_state("ds", "ws")
+
+    assert state["settings"] == {
+        "storageMode": "Small",
+        "autoSync": True,
+        "maxReplicas": 0,
+    }
+    assert state["status"] == {
+        "scaleOutStatus": "StorageModeNotSupported",
+        "replicas": [],
+    }
+
+
+def test_warming_columns_is_silent_and_rescans(monkeypatch):
+    from sempy_labs.directlake import _warm_cache
+
+    calls = {}
+
+    def fake_put(dataset, workspace, col_df, return_dataframe=True):
+        calls["df"] = col_df.to_dict("records")
+        calls["progress"] = list(_warm_cache.tqdm(["T"]))
+        print("noise")
+
+    monkeypatch.setattr(_warm_cache, "_put_columns_into_memory", fake_put)
+    monkeypatch.setattr(sx, "_column_residency", lambda d, w: [{"table": "T"}])
+    original_tqdm = _warm_cache.tqdm
+
+    result = sx._warm_cache(
+        "ds",
+        "ws",
+        {"columns": [{"table": "T", "column": "C"}, {"table": "", "column": "X"}]},
+    )
+
+    assert calls["df"] == [{"Table Name": "T", "Column Name": "C"}]
+    assert calls["progress"] == ["T"]
+    assert _warm_cache.tqdm is original_tqdm
+    assert result == {"warmed": 1, "columns": [{"table": "T"}]}
+
+
+def test_create_vpax_surfaces_an_existing_file(monkeypatch):
+    from sempy_labs import _vpax
+
+    seen = {}
+
+    def fake_create_vpax(**kwargs):
+        seen.update(kwargs)
+        print("The Files/Sales.vpax file already exists in the 'LH' lakehouse.")
+
+    monkeypatch.setattr(_vpax, "create_vpax", fake_create_vpax)
+    data = {"lakehouseId": "lh", "lakehouseWorkspaceId": "lw", "fileName": "Sales.vpax"}
+
+    with pytest.raises(ValueError, match="Turn on 'Overwrite'"):
+        sx._create_vpax_file("ds", "ws", data)
+
+    assert seen["file_path"] == "Sales" and seen["overwrite"] is False

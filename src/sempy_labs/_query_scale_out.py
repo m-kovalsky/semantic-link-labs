@@ -114,14 +114,17 @@ def qso_sync_status(
             "Min Active Read Timestamp": o.get("minActiveReadTimestamp"),
         }
         df = pd.DataFrame([new_data])
-        for r in o.get("scaleOutReplicas", []):
-            new_data = {
+        replicas = [
+            {
                 "Replica ID": r.get("replicaId"),
                 "Replica Type": r.get("replicaType"),
                 "Replica Version": str(r.get("replicaVersion")),
                 "Replica Timestamp": r.get("replicaTimestamp"),
             }
-            dfRep = pd.DataFrame([new_data])
+            for r in o.get("scaleOutReplicas", [])
+        ]
+        if replicas:
+            dfRep = pd.DataFrame(replicas, columns=list(columns_rep.keys()))
 
         _update_dataframe_datatypes(dataframe=df, column_map=columns)
         _update_dataframe_datatypes(dataframe=dfRep, column_map=columns_rep)

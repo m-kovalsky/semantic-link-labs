@@ -1090,6 +1090,32 @@ ICONS: dict[str, str] = {
         '<path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 '
         '5-2 1.3 0 1.9.5 2.5 1"/></svg>'
     ),
+    "flame": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true">'
+        '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 '
+        "2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 "
+        '1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>'
+    ),
+    "server": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true">'
+        '<rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>'
+        '<rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>'
+        '<line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>'
+    ),
+    "file_box": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true">'
+        '<path d="M14.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"/>'
+        '<path d="M14 2v4a2 2 0 0 0 2 2h4"/>'
+        '<path d="M3 13.1a2 2 0 0 0-1 1.76v3.24a2 2 0 0 0 .97 1.78L6 21.7a2 2 0 0 0 '
+        '2.03.01L11 19.9a2 2 0 0 0 1-1.76V14.9a2 2 0 0 0-.97-1.78L8 11.3a2 2 0 0 0-2.03-.01Z"/>'
+        '<path d="M7 17v5"/><path d="M11.7 14.2 7 17l-4.7-2.8"/></svg>'
+    ),
 }
 
 

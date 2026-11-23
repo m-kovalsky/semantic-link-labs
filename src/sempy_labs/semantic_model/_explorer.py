@@ -1044,6 +1044,87 @@ _WIDGET_CSS = """
 .slls-sx-rd-link-from { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .slls-sx-rd-link-from .slls-sx-pill { margin-left: 0; }
 .slls-sx-modal:has(.slls-sx-rd-link-from) .slls-sx-modal-body { display: flex; flex-direction: column; gap: 10px; }
+
+/* Notices shared by the service tools */
+.slls-sx-tool-notice {
+    display: flex; align-items: center; gap: 8px; margin: 8px 16px 0; padding: 8px 10px 8px 12px; font-size: 12.5px;
+    border: 1px solid var(--ui-border); border-radius: 8px;
+}
+.slls-sx-tool-wrap > .slls-sx-tool-notice { margin: 0; }
+.slls-sx-tool-notice > span:not(.slls-sx-ricon) { flex: 1; min-width: 0; }
+.slls-sx-tool-notice svg { width: 15px; height: 15px; flex-shrink: 0; }
+.slls-sx-tool-notice.ok { border-color: transparent; background: var(--sx-success-soft); color: var(--sx-success); }
+.slls-sx-tool-notice.error { border-color: var(--ui-danger-border); background: var(--ui-danger-bg); color: var(--ui-danger-text); }
+.slls-sx-tool-notice .slls-sx-iconbtn { width: 24px; height: 24px; color: inherit; }
+
+/* Perspective editor */
+.slls-sx-fpm-main .slls-sx-tool-toolbar { padding: 8px 16px; }
+.slls-sx-pe-tree { display: flex; flex-direction: column; padding: 6px 12px 14px; }
+.slls-sx-pe-row { display: flex; align-items: center; gap: 7px; min-height: 30px; padding: 2px 6px; border-radius: 6px; font-size: 12.5px; }
+.slls-sx-pe-row:hover { background: var(--ui-surface-2); }
+.slls-sx-pe-row.table { margin-top: 2px; }
+.slls-sx-pe-row.table .name { font-weight: 600; }
+.slls-sx-pe-row.field { padding-left: 52px; cursor: pointer; min-height: 26px; }
+.slls-sx-pe-row.muted .name { color: var(--ui-text-tertiary); }
+.slls-sx-pe-row > .slls-sx-ricon svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-pe-row .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-pe-row .meta { margin-left: auto; padding-left: 10px; font-size: 11.5px; color: var(--ui-text-tertiary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Query scale-out manager */
+.slls-sx-qso-head { display: flex; align-items: center; gap: 10px; }
+.slls-sx-qso-head .slls-sx-section-title { margin: 0; }
+.slls-sx-qso-head .slls-sx-pill { margin-left: 0; }
+.slls-sx-qso-head .slls-sx-btn { margin-left: auto; }
+.slls-sx-qso-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 10px 0; border-top: 1px solid var(--ui-border);
+}
+.slls-sx-qso-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.slls-sx-qso-label .title { font-size: 13px; font-weight: 500; }
+.slls-sx-qso-label .help { font-size: 12px; color: var(--ui-text-secondary); }
+.slls-sx .slls-sx-qso-max { width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
+.slls-sx-qso-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 10px; border-top: 1px solid var(--ui-border); }
+.slls-sx-qso-hint { font-size: 12px; color: var(--sx-warn); }
+.slls-sx-qso-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; }
+.slls-sx-qso-stats .stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.slls-sx-qso-stats .k { font-size: 11.5px; color: var(--ui-text-tertiary); }
+.slls-sx-qso-stats .v { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-qso-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.slls-sx-qso-table th { text-align: left; padding: 6px 8px; font-size: 11.5px; font-weight: 600; color: var(--ui-text-secondary); border-bottom: 1px solid var(--ui-border); }
+.slls-sx-qso-table td { padding: 6px 8px; border-bottom: 1px solid var(--ui-border); }
+
+/* Warm Direct Lake cache */
+.slls-sx-warm-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.slls-sx-warm-right .slls-sx-tool-count { margin-left: 4px; }
+.slls-sx-warm-persp { gap: 12px; }
+.slls-sx-warm-persp .slls-sx-dlm-note { flex: 1 1 240px; margin: 0; }
+.slls-sx-warm-deps { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; white-space: nowrap; }
+.slls-sx-warm-table tr.table td { background: var(--ui-bg-tertiary); font-weight: 500; }
+.slls-sx-warm-table td.num, .slls-sx-warm-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.slls-sx-warm-table .slls-sx-dm-obj .meta { font-size: 11px; color: var(--ui-text-tertiary); }
+.slls-sx-warm-table td .slls-sx-pill { margin-left: 0; }
+.slls-sx-warm-sort {
+    appearance: none; display: inline-flex; align-items: center; gap: 4px; padding: 0; border: none; background: none;
+    color: inherit; font: inherit; cursor: pointer; transform: none !important;
+}
+.slls-sx-warm-sort.on { color: var(--ui-text); }
+.slls-sx-warm-sort .dir { font-size: 9px; }
+.slls-sx-warm-table th:first-child .slls-sx-warm-sort { padding-left: 46px; }
+
+/* Create .vpax file */
+.slls-sx-modal.slls-sx-vpax { width: min(560px, 100%); }
+.slls-sx-vpax .slls-sx-modal-body { display: flex; flex-direction: column; gap: 12px; overflow: visible; }
+.slls-sx-vpax .slls-sx-tool-notice, .slls-sx-vpax .slls-sx-tool-error { margin: 0; }
+.slls-sx-vpax .slls-sx-dlm-text { margin: 0; }
+.slls-sx-vpax-fields { display: flex; flex-direction: column; gap: 12px; }
+.slls-sx-vpax-name { display: flex; align-items: stretch; }
+.slls-sx-vpax-name .slls-sx-input { flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.slls-sx-vpax-name .ext {
+    display: inline-flex; align-items: center; padding: 0 10px; font-family: var(--sx-mono); font-size: 12px; color: var(--ui-text-secondary);
+    border: 1px solid var(--ui-border-strong); border-left: none; border-radius: 0 var(--sx-radius-sm) var(--sx-radius-sm) 0; background: var(--ui-surface-2);
+}
+.slls-sx-vpax-opts { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; }
+.slls-sx-vpax-opts .slls-sx-tool-field { flex-direction: row; align-items: center; gap: 8px; }
 .slls-sx-tmdl-name { font-weight: 600; }
 
 /* Dependencies: toolbar, segmented toggles, tree and node graph */
@@ -3951,13 +4032,17 @@ function render({ model, el }) {
     // Tools menu + Field parameter manager
     // ------------------------------------------------------------------
     const TOOLS = [
+        { label: "Create .vpax file", icon: "file_box", open: () => openCreateVpax() },
         { label: "DAXLib package manager", icon: "package", open: () => openDaxLibManager() },
         { label: "Description manager", icon: "file", open: () => openDescriptionManager() },
         { label: "Field parameter manager", icon: "field_parameter", open: () => openFieldParameterManager() },
+        { label: "Perspective editor", icon: "perspective", open: () => openPerspectiveEditor() },
+        { label: "Query scale-out manager", icon: "server", open: () => openQueryScaleOutManager() },
         { label: "Relationship diagram", icon: "network", open: () => openRelationshipDiagram() },
         { label: "Relationship manager", icon: "git_branch", open: () => openRelationshipManager() },
         { label: "Security manager", icon: "shield_check", open: () => openSecurityManager() },
         { label: "Translation manager", icon: "languages", open: () => openTranslationManager() },
+        { label: "Warm Direct Lake cache", icon: "flame", open: () => openWarmCache() },
     ];
     // Open tool windows redraw when the explorer re-renders (mode switch,
     // staged change, save, reload); while typing only their actions refresh.
@@ -7122,6 +7207,778 @@ function render({ model, el }) {
         registerTool(m, draw, () => toolActions(m, [m.actions.querySelector(".slls-sx-btn")]));
         draw();
     }
+    // ------------------------------------------------------------------
+    // Perspective editor
+    // ------------------------------------------------------------------
+    function openPerspectiveEditor() {
+        const m = toolWindow("Perspective editor", "perspective");
+        let active = null;
+        let search = "";
+        const openTables = new Set();
+        const write = () => mode === "write" && !saving;
+        const perspectives = () => [...(data.perspectives || []), ...newNodes("perspective", "")]
+            .sort((a, b) => cmpText(effName(a), effName(b)));
+        const current = () => perspectives().find((p) => p.key === active) || null;
+        // Membership lists hold *saved* perspective names (renames apply last);
+        // a staged new perspective is referenced by its create name.
+        const memberName = (p) => (p.isNew ? createFor(p).name : p.name);
+        const listOf = (node) => jsonValue(node, "Perspectives", []);
+        const savedListOf = (node) => (node.isNew ? [] : JSON.parse(originalValue(node, "Perspectives") || "[]"));
+        const fieldsOf = (t) => {
+            const byN = (a, b) => cmpText(effName(a), effName(b));
+            return [
+                ...[...(t.columns || []), ...newNodes("column", t.key)].filter((n) => !isDeleted(n)).sort(byN).map((n) => ["Column", n]),
+                ...[...(t.measures || []), ...newNodes("measure", t.key)].filter((n) => !isDeleted(n)).sort(byN).map((n) => ["Measure", n]),
+                ...(t.hierarchies || []).filter((n) => !isDeleted(n)).sort(byN).map((n) => ["Hierarchy", n]),
+            ];
+        };
+        const withName = (node, pn, on) => {
+            const set = new Set(listOf(node));
+            if (on) set.add(pn); else set.delete(pn);
+            return JSON.stringify([...set].sort());
+        };
+        // Stages field memberships; a table belongs while any of its fields do.
+        function stageMembership(table, fieldNodes, on, pn) {
+            const items = fieldNodes.map((n) => ({ node: n, prop: "Perspectives", value: withName(n, pn, on), label: "Perspectives" }));
+            const toggled = new Set(fieldNodes.map((n) => n.key));
+            const anyLeft = fieldsOf(table).some(([, n]) => (toggled.has(n.key) ? on : listOf(n).includes(pn)));
+            const tableIn = fieldsOf(table).length ? anyLeft : on;
+            items.push({ node: table, prop: "Perspectives", value: withName(table, pn, tableIn), label: "Perspectives" });
+            stageMany(items);
+        }
+        function counts(pn) {
+            let tables = 0, fields = 0;
+            for (const t of savedTables()) {
+                if (listOf(t).includes(pn)) tables += 1;
+                for (const [, n] of fieldsOf(t)) if (listOf(n).includes(pn)) fields += 1;
+            }
+            return { tables, fields };
+        }
+        // Renaming a staged perspective renames it in every staged membership.
+        function renameNew(p, name) {
+            const c = createFor(p);
+            const old = c.name;
+            if (!name.trim() || old === name) return;
+            pushUndo("rename:" + c.id);
+            c.name = name;
+            const swap = (raw) => JSON.stringify(JSON.parse(raw || "[]").map((x) => (x === old ? name : x)).sort());
+            for (const e of Object.values(staging.edits)) {
+                if (e.property !== "Perspectives") continue;
+                e.newValue = swap(e.newValue);
+                if (e.userValue !== undefined) e.userValue = swap(e.userValue);
+            }
+            for (const x of staging.creates) if (x.props.Perspectives) x.props.Perspectives = swap(x.props.Perspectives);
+            afterChange({ keepDetail: true });
+        }
+        function removeNew(p) {
+            const c = createFor(p);
+            const pn = c.name;
+            pushUndo("");
+            staging.creates = staging.creates.filter((x) => x.id !== c.id);
+            for (const [k, e] of Object.entries(staging.edits)) {
+                if (e.property !== "Perspectives") continue;
+                const scrub = (raw) => JSON.stringify(JSON.parse(raw || "[]").filter((x) => x !== pn));
+                e.newValue = scrub(e.newValue);
+                if (e.userValue !== undefined) e.userValue = scrub(e.userValue);
+                if (same(e.newValue, e.oldValue)) delete staging.edits[k];
+            }
+            afterChange();
+        }
+        function drawSidebar() {
+            const side = h("div", "slls-sx-fpm-side");
+            const head = h("div", "slls-sx-fpm-side-head");
+            const list = perspectives();
+            head.appendChild(h("span", "slls-sx-pane-label", `Perspectives (${list.length})`));
+            if (write()) {
+                head.appendChild(button("slls-sx-iconbtn", "", "plus", () => {
+                    addObject("perspective", null);
+                    active = selectedKey;
+                    search = "";
+                    draw();
+                }, "Create a new perspective"));
+            }
+            side.appendChild(head);
+            const items = h("div", "slls-sx-fpm-list");
+            items.dataset.scroll = "perspectives";
+            if (!list.length) items.appendChild(h("div", "slls-sx-empty", "This model has no perspectives." + (write() ? " Use + to create one." : "")));
+            for (const p of list) {
+                const deleted = isDeleted(p);
+                const b = h("button", "slls-sx-fpm-item slls-sx-sm-role" + (active === p.key ? " active" : "") + (p.isNew ? " new" : "") + (deleted ? " deleted" : ""));
+                b.type = "button";
+                const body = h("span", "slls-sx-sm-role-body");
+                const top = h("span", "slls-sx-sm-role-top");
+                top.appendChild(h("span", "name", effName(p)));
+                if (p.isNew) top.appendChild(h("span", "slls-sx-pill new", "New"));
+                if (deleted) top.appendChild(h("span", "slls-sx-pill danger", "Deleted"));
+                const c = counts(memberName(p));
+                body.append(top, h("span", "meta", `${plural(c.tables, "table")} \u00b7 ${plural(c.fields, "field")}`));
+                b.append(iconEl("perspective", ""), body);
+                b.addEventListener("click", () => { active = p.key; draw(); });
+                if (write()) {
+                    const del = h("span", "slls-sx-sm-del");
+                    del.setAttribute("role", "button");
+                    del.title = deleted ? "Restore perspective" : "Delete perspective";
+                    del.setAttribute("aria-label", `${deleted ? "Restore" : "Delete"} perspective ${effName(p)}`);
+                    del.innerHTML = deleted ? ICON.undo : ICON.trash;
+                    del.addEventListener("click", (ev) => {
+                        ev.stopPropagation();
+                        if (deleted) { toggleOp(p, "delete"); return; }
+                        confirmDialog(`Delete the perspective \u2018${effName(p)}\u2019? It is removed from the model when you Save.`, "Delete perspective",
+                            () => { if (p.isNew) removeNew(p); else toggleOp(p, "delete"); });
+                    });
+                    b.appendChild(del);
+                }
+                items.appendChild(b);
+            }
+            side.appendChild(items);
+            return side;
+        }
+        function drawMain() {
+            const main = h("div", "slls-sx-fpm-main");
+            const p = current();
+            if (!p) {
+                const empty = h("div", "slls-sx-center");
+                empty.append(iconEl("perspective", ""), h("div", "", "Create or select a perspective to begin."));
+                main.appendChild(empty);
+                return main;
+            }
+            // Read live: renaming a staged perspective changes its member name.
+            const pn = () => memberName(p);
+            const editable = write() && !isDeleted(p);
+            const bar = h("div", "slls-sx-fpm-toolbar");
+            bar.appendChild(iconEl("perspective", "slls-sx-fpm-title-icon"));
+            if (editable) {
+                const name = h("input", "slls-sx-input slls-sx-fpm-name");
+                name.value = effName(p);
+                name.setAttribute("aria-label", "Perspective name");
+                name.addEventListener("input", () => {
+                    if (p.isNew) renameNew(p, name.value);
+                    else setValue(p, "Name", name.value, { label: "Name", coalesce: true, keepDetail: true });
+                    const el = m.body.querySelector(".slls-sx-fpm-item.active .name");
+                    if (el) el.textContent = name.value;
+                });
+                bar.appendChild(name);
+            } else bar.appendChild(h("span", "slls-sx-fpm-name-text", effName(p)));
+            const sum = h("span", "slls-sx-tool-count");
+            bar.appendChild(sum);
+            main.appendChild(bar);
+            const tools = h("div", "slls-sx-tool-toolbar");
+            tools.appendChild(searchBox("Search tables and fields\u2026", search, (v) => { search = v; paint(); }));
+            tools.append(button("slls-sx-iconbtn", "", "expand_rows", () => { savedTables().forEach((t) => openTables.add(t.key)); paint(); }, "Expand all"),
+                button("slls-sx-iconbtn", "", "collapse_rows", () => { openTables.clear(); paint(); }, "Collapse all"));
+            if (editable) {
+                tools.append(button("slls-sx-btn small", "Select all", "", () => {
+                    const items = [];
+                    for (const t of savedTables()) {
+                        for (const [, n] of fieldsOf(t)) items.push({ node: n, prop: "Perspectives", value: withName(n, pn(), true), label: "Perspectives" });
+                        items.push({ node: t, prop: "Perspectives", value: withName(t, pn(), true), label: "Perspectives" });
+                    }
+                    stageMany(items);
+                }), button("slls-sx-btn small", "Clear", "", () => {
+                    const items = [];
+                    for (const t of savedTables()) {
+                        for (const [, n] of fieldsOf(t)) items.push({ node: n, prop: "Perspectives", value: withName(n, pn(), false), label: "Perspectives" });
+                        items.push({ node: t, prop: "Perspectives", value: withName(t, pn(), false), label: "Perspectives" });
+                    }
+                    stageMany(items);
+                }));
+            }
+            main.appendChild(tools);
+            const scroll = h("div", "slls-sx-tool-scroll");
+            scroll.dataset.scroll = "tree";
+            const listEl = h("div", "slls-sx-pe-tree");
+            scroll.appendChild(listEl);
+            main.appendChild(scroll);
+            const changed = (n) => listOf(n).includes(pn()) !== savedListOf(n).includes(pn()) && !p.isNew;
+            function paint() {
+                clear(listEl);
+                const q = search.trim().toLowerCase();
+                let tableCount = 0;
+                for (const t of savedTables().sort(byLabel)) {
+                    const fields = fieldsOf(t);
+                    const inPersp = fields.filter(([, n]) => listOf(n).includes(pn()));
+                    if (listOf(t).includes(pn())) tableCount += 1;
+                    const tableHit = !q || effName(t).toLowerCase().includes(q);
+                    const shown = tableHit ? fields : fields.filter(([, n]) => effName(n).toLowerCase().includes(q));
+                    if (!tableHit && !shown.length) continue;
+                    const isOpen = !!q || openTables.has(t.key);
+                    const row = h("div", "slls-sx-pe-row table");
+                    row.appendChild(caretBtn(isOpen, () => { if (openTables.has(t.key)) openTables.delete(t.key); else openTables.add(t.key); paint(); }));
+                    const ids = fields.length ? fields.map(([, n]) => n.key) : [t.key];
+                    const sel = new Set(fields.length ? inPersp.map(([, n]) => n.key) : (listOf(t).includes(pn()) ? [t.key] : []));
+                    // triCheckbox has already applied the toggle to `sel`.
+                    const cb = triCheckbox(ids, sel, `Toggle table ${effName(t)}`,
+                        () => stageMembership(t, fields.map(([, n]) => n), ids.every((id) => sel.has(id)), pn()));
+                    cb.disabled = !editable;
+                    row.append(cb, iconEl(tableIcon(t), ""), h("span", "name", effName(t)));
+                    row.appendChild(dirtyDot(changed(t) || fields.some(([, n]) => changed(n))));
+                    const n3 = (kind) => [inPersp.filter(([k]) => k === kind).length, fields.filter(([k]) => k === kind).length];
+                    const [c1, c2] = n3("Column"), [m1, m2] = n3("Measure"), [h1, h2] = n3("Hierarchy");
+                    row.appendChild(h("span", "meta", `${c1}/${c2} cols \u00b7 ${m1}/${m2} measures \u00b7 ${h1}/${h2} hierarchies`));
+                    listEl.appendChild(row);
+                    if (!isOpen) continue;
+                    for (const [kind, n] of shown) {
+                        const r = h("label", "slls-sx-pe-row field" + (isHidden(n) ? " muted" : ""));
+                        const fcb = h("input", "slls-sx-tool-check");
+                        fcb.type = "checkbox";
+                        fcb.checked = listOf(n).includes(pn());
+                        fcb.disabled = !editable;
+                        fcb.setAttribute("aria-label", `Toggle ${effName(n)}`);
+                        fcb.addEventListener("change", () => stageMembership(t, [n], fcb.checked, pn()));
+                        const icon = kind === "Column" ? (n.column_type === "Calculated" ? "calculated_column" : "column") : kind.toLowerCase();
+                        r.append(fcb, iconEl(icon, ""), h("span", "name", effName(n)));
+                        if (isHidden(n)) { const e = iconEl("eye_off", "slls-sx-tool-hidden"); e.title = "Hidden"; r.appendChild(e); }
+                        r.appendChild(dirtyDot(changed(n)));
+                        listEl.appendChild(r);
+                    }
+                }
+                if (!listEl.childNodes.length) listEl.appendChild(h("div", "slls-sx-empty", "No tables match your search."));
+                sum.textContent = `${plural(tableCount, "table")} in \u201c${effName(p)}\u201d`;
+            }
+            paint();
+            return main;
+        }
+        function draw() {
+            const list = perspectives();
+            if (active === null || !list.some((p) => p.key === active)) active = list.length ? list[0].key : null;
+            toolSubtitle(m, "Choose the tables, columns, measures and hierarchies in each perspective."
+                + (mode === "write" ? " Changes are staged and applied when you Save." : ""));
+            toolActions(m);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                const layout = h("div", "slls-sx-fpm");
+                layout.append(drawSidebar(), drawMain());
+                m.body.appendChild(layout);
+            });
+        }
+        registerTool(m, draw, () => toolActions(m));
+        draw();
+    }
+
+    // ------------------------------------------------------------------
+    // Query scale-out manager
+    // ------------------------------------------------------------------
+    const QSO_DOCS_URL = "https://learn.microsoft.com/fabric/enterprise/powerbi/service-premium-scale-out";
+    function fmtTime(v) {
+        if (!v) return "\u2014";
+        const d = new Date(v);
+        return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString();
+    }
+    function toolNotice(ok, text, onDismiss) {
+        const n = h("div", "slls-sx-tool-notice " + (ok ? "ok" : "error"));
+        n.append(iconEl(ok ? "check_circle" : "alert", ""), h("span", "", text));
+        if (onDismiss) n.appendChild(button("slls-sx-iconbtn", "", "close", onDismiss, "Dismiss"));
+        return n;
+    }
+    function openQueryScaleOutManager() {
+        const m = toolWindow("Query scale-out manager", "server");
+        let state = null, loading = false, busy = false, error = null, notice = null;
+        let autoSync = true, maxReplicas = "-1";
+        const seed = (s) => {
+            autoSync = s.settings.autoSync !== false;
+            const cur = s.settings.maxReplicas == null ? 0 : s.settings.maxReplicas;
+            maxReplicas = String(cur === 0 ? -1 : cur);
+        };
+        const enabled = () => !!state && state.settings.maxReplicas != null && state.settings.maxReplicas !== 0;
+        function run(payload, message) {
+            if (busy || loading) return;
+            if (payload.op === "get") loading = true; else busy = true;
+            notice = null;
+            draw();
+            request("qso", payload, (res) => {
+                loading = false; busy = false;
+                if (res.ok) {
+                    state = res.data;
+                    seed(state);
+                    error = null;
+                    if (message) notice = { ok: true, text: message };
+                } else if (!state) error = res.error || "The query scale-out settings could not be loaded.";
+                else notice = { ok: false, text: res.error || "The change failed." };
+                if (m.overlay.isConnected) draw();
+            });
+        }
+        function row(label, help, control) {
+            const r = h("div", "slls-sx-qso-row");
+            const t = h("div", "slls-sx-qso-label");
+            t.append(h("span", "title", label), h("span", "help", help));
+            r.append(t, control);
+            return r;
+        }
+        function draw() {
+            toolSubtitle(m, "Load-balance read queries across read-only replicas. Changes apply immediately.");
+            clear(m.actions);
+            const reload = button("slls-sx-btn small", "Reload", "refresh", () => run({ op: "get" }), "Reload the settings and sync status");
+            reload.disabled = loading || busy;
+            if (loading) reload.querySelector("svg").classList.add("slls-sx-spin");
+            m.actions.appendChild(reload);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                const scroll = h("div", "slls-sx-tool-scroll");
+                scroll.dataset.scroll = "main";
+                const wrap = h("div", "slls-sx-tool-wrap");
+                scroll.appendChild(wrap);
+                m.body.appendChild(scroll);
+                if (!state) {
+                    if (error) {
+                        const err = h("div", "slls-sx-dlm-error");
+                        err.append(iconEl("alert", ""), h("div", "", error), button("slls-sx-btn small", "Try again", "refresh", () => run({ op: "get" })));
+                        wrap.appendChild(err);
+                    } else wrap.appendChild(loadingBox("Loading query scale-out settings\u2026"));
+                    return;
+                }
+                if (notice) wrap.appendChild(toolNotice(notice.ok, notice.text, () => { notice = null; draw(); }));
+                const s = state.settings;
+                const card = h("div", "slls-sx-tool-card");
+                const head = h("div", "slls-sx-qso-head");
+                head.append(h("div", "slls-sx-section-title", "Settings"),
+                    h("span", "slls-sx-pill" + (enabled() ? " new" : ""), enabled() ? "Scale-out enabled" : "Scale-out disabled"));
+                card.appendChild(head);
+                const seg = h("div", "slls-sx-seg");
+                for (const fmt of ["Small", "Large"]) {
+                    const b = h("button", s.storageMode === fmt ? "on" : "", fmt);
+                    b.type = "button";
+                    b.disabled = busy || s.storageMode === fmt;
+                    b.addEventListener("click", () => run({ op: "storage", storageFormat: fmt }, `Storage format set to ${fmt}.`));
+                    seg.appendChild(b);
+                }
+                card.appendChild(row("Storage format", "Scale-out requires the Large storage format.", seg));
+                const sw = switchEl(autoSync, "Auto-sync read-only replicas", () => { autoSync = !autoSync; draw(); });
+                sw.disabled = busy;
+                card.appendChild(row("Auto-sync read-only replicas", "Automatically sync replicas after each model change.", sw));
+                const max = h("input", "slls-sx-input slls-sx-qso-max");
+                max.type = "number";
+                max.min = "-1";
+                max.value = maxReplicas;
+                max.disabled = busy;
+                max.setAttribute("aria-label", "Max read-only replicas");
+                card.appendChild(row("Max read-only replicas", "-1 = as many as the capacity allows \u00b7 0 = disable scale-out.", max));
+                const actions = h("div", "slls-sx-qso-actions");
+                const label = () => {
+                    const n = parseInt(max.value, 10);
+                    if (enabled() && n === 0) return "Apply settings (disables scale-out)";
+                    if (!enabled() && Number.isFinite(n) && n !== 0) return "Apply settings & enable scale-out";
+                    return "Apply settings";
+                };
+                const apply = button("slls-sx-btn primary", label(), "save", () => {
+                    const n = parseInt(max.value, 10);
+                    const value = Number.isFinite(n) ? n : -1;
+                    run({ op: "apply", autoSync, maxReplicas: value },
+                        value === 0 ? "Query scale-out disabled." : `Query scale-out settings applied (max ${value === -1 ? "unlimited" : value} replica${value === 1 ? "" : "s"}).`);
+                });
+                apply.disabled = busy;
+                if (busy) apply.querySelector("svg").classList.add("slls-sx-spin");
+                const hint = h("span", "slls-sx-qso-hint", "Applying will upgrade the storage format to Large.");
+                const refreshHint = () => {
+                    apply.lastChild.textContent = label();
+                    hint.style.display = s.storageMode === "Small" && parseInt(max.value, 10) !== 0 ? "" : "none";
+                };
+                max.addEventListener("input", () => { maxReplicas = max.value; refreshHint(); });
+                const disable = button("slls-sx-btn", "Disable scale-out", "", () => run({ op: "disable" }, "Query scale-out disabled."));
+                disable.disabled = busy || !enabled();
+                actions.append(apply, disable, hint);
+                refreshHint();
+                card.appendChild(actions);
+                wrap.appendChild(card);
+
+                const st = state.status;
+                const sc = h("div", "slls-sx-tool-card");
+                const sh = h("div", "slls-sx-qso-head");
+                sh.append(h("div", "slls-sx-section-title", "Sync status"), h("span", "slls-sx-pill", st.scaleOutStatus || "Unknown"));
+                const sync = button("slls-sx-btn small", "Trigger sync", "refresh", () => run({ op: "sync" }, "Query scale-out sync triggered."),
+                    enabled() ? "Trigger a sync of read-only replicas" : "Enable scale-out to sync replicas");
+                sync.disabled = busy || !enabled();
+                sh.appendChild(sync);
+                sc.appendChild(sh);
+                if (st.scaleOutStatus === "Enabled") {
+                    const grid = h("div", "slls-sx-qso-stats");
+                    const num = (v) => (v == null ? "\u2014" : Number(v).toLocaleString());
+                    for (const [k, v] of [["Sync start", fmtTime(st.syncStartTime)], ["Sync end", fmtTime(st.syncEndTime)],
+                        ["Trigger reason", st.triggerReason || "\u2014"], ["Commit version", num(st.commitVersion)],
+                        ["Target sync version", num(st.targetSyncVersion)], ["Min active read version", num(st.minActiveReadVersion)]]) {
+                        const cell = h("div", "stat");
+                        cell.append(h("span", "k", k), h("span", "v", v));
+                        grid.appendChild(cell);
+                    }
+                    sc.appendChild(grid);
+                    sc.appendChild(h("div", "slls-sx-tool-label", `Read-only replicas (${st.replicas.length})`));
+                    if (!st.replicas.length) sc.appendChild(h("div", "slls-sx-kv-empty", "No read-only replicas yet."));
+                    else {
+                        const table = h("table", "slls-sx-qso-table");
+                        const tr = h("tr", "");
+                        for (const c of ["Replica ID", "Type", "Version", "Timestamp"]) tr.appendChild(h("th", "", c));
+                        const thead = h("thead", "");
+                        thead.appendChild(tr);
+                        const tbody = h("tbody", "");
+                        for (const r of st.replicas) {
+                            const rr = h("tr", "");
+                            rr.append(h("td", "slls-sx-mono", r.id || "\u2014"), h("td", "", r.type || "\u2014"), h("td", "", r.version || "\u2014"), h("td", "", fmtTime(r.timestamp)));
+                            tbody.appendChild(rr);
+                        }
+                        table.append(thead, tbody);
+                        sc.appendChild(table);
+                    }
+                } else {
+                    sc.appendChild(h("p", "slls-sx-dlm-text", /storagemodenotsupported/i.test(st.scaleOutStatus)
+                        ? "Query scale-out is only supported when the semantic model is in the Large storage format. Switch the storage format to Large above, then enable scale-out."
+                        : "Query scale-out is disabled for this semantic model. Enable it above to sync read-only replicas."));
+                }
+                wrap.appendChild(sc);
+                const foot = h("p", "slls-sx-dlm-note");
+                foot.appendChild(document.createTextNode("Query scale-out load-balances read queries across read-only replicas. "
+                    + "It requires a Premium / Fabric capacity and the Large storage format. "));
+                const a = h("a", "slls-sx-link slls-sx-fpm-link", "Learn more");
+                a.href = QSO_DOCS_URL; a.target = "_blank"; a.rel = "noreferrer";
+                a.appendChild(iconEl("external_link", ""));
+                foot.appendChild(a);
+                wrap.appendChild(foot);
+            });
+        }
+        registerTool(m, draw);
+        draw();
+        run({ op: "get" });
+    }
+    function loadingBox(text) {
+        const c = h("div", "slls-sx-center");
+        c.style.padding = "48px 0";
+        const sp = iconEl("refresh", "");
+        sp.querySelector("svg").classList.add("slls-sx-spin");
+        c.append(sp, h("div", "", text));
+        return c;
+    }
+
+    // ------------------------------------------------------------------
+    // Warm Direct Lake cache
+    // ------------------------------------------------------------------
+    let warmColumns = null;
+    function openWarmCache() {
+        const m = toolWindow("Warm Direct Lake cache", "flame");
+        let loading = false, warming = false, error = null, notice = null;
+        let search = "", residentFilter = "all", sortKey = "temperature", sortDir = "desc";
+        const expandedTables = new Set();
+        const selected = new Set();
+        const savedPersp = () => (data.perspectives || []).map((p) => p.name).sort(cmpText);
+        let perspective = savedPersp()[0] || "";
+        let addDeps = true;
+        const widths = new Map();
+        const keyOfCol = (c) => `${c.table}\u0000${c.column}`;
+        const directLake = () => !!data.is_direct_lake;
+        function scan() {
+            loading = true; error = null;
+            draw();
+            request("warm_scan", {}, (res) => {
+                loading = false;
+                if (res.ok) warmColumns = res.data.columns || [];
+                else error = res.error || "Column residency could not be read.";
+                if (m.overlay.isConnected) draw();
+            });
+        }
+        function warm(payload, describe) {
+            if (warming) return;
+            warming = true; notice = null;
+            draw();
+            request("warm", payload, (res) => {
+                warming = false;
+                if (res.ok) {
+                    warmColumns = res.data.columns || warmColumns;
+                    notice = { ok: true, text: describe(res.data.warmed) };
+                    if (!payload.perspective) selected.clear();
+                } else notice = { ok: false, text: res.error || "Warming failed." };
+                if (m.overlay.isConnected) draw();
+            });
+        }
+        function tables() {
+            const q = search.trim().toLowerCase();
+            const by = new Map();
+            for (const c of warmColumns || []) {
+                if (residentFilter === "yes" && !c.resident) continue;
+                if (residentFilter === "no" && c.resident) continue;
+                if (q && !`${c.table} ${c.column}`.toLowerCase().includes(q)) continue;
+                if (!by.has(c.table)) by.set(c.table, []);
+                by.get(c.table).push(c);
+            }
+            const dir = sortDir === "asc" ? 1 : -1;
+            const cmpCol = (a, b) => (sortKey === "temperature" ? (a.temperature - b.temperature)
+                : sortKey === "resident" ? (a.resident - b.resident)
+                    : sortKey === "lastAccessed" ? String(a.lastAccessed).localeCompare(String(b.lastAccessed))
+                        : cmpText(a.column, b.column)) * dir;
+            const out = [];
+            for (const [table, cols] of by) {
+                cols.sort(cmpCol);
+                out.push({ table, cols, resident: cols.filter((c) => c.resident).length,
+                    temperature: cols.reduce((s, c) => s + c.temperature, 0),
+                    lastAccessed: cols.reduce((mx, c) => (c.lastAccessed > mx ? c.lastAccessed : mx), "") });
+            }
+            out.sort((a, b) => (sortKey === "temperature" ? (a.temperature - b.temperature)
+                : sortKey === "resident" ? (a.resident / a.cols.length - b.resident / b.cols.length)
+                    : sortKey === "lastAccessed" ? a.lastAccessed.localeCompare(b.lastAccessed)
+                        : cmpText(a.table, b.table)) * dir);
+            return out;
+        }
+        const fmtTemp = (n) => (!n ? "\u2014" : n.toLocaleString(undefined, { maximumFractionDigits: 4 }));
+        let tbody = null, countEl = null, warmBtn = null;
+        function refreshWarmBtn() {
+            if (!warmBtn) return;
+            warmBtn.lastChild.textContent = warming ? "Warming\u2026" : `Warm ${plural(selected.size, "column")}`;
+            warmBtn.disabled = !selected.size || warming || !directLake();
+        }
+        function paintRows() {
+            clear(tbody);
+            const list = tables();
+            const shown = list.reduce((n, t) => n + t.cols.length, 0);
+            const total = (warmColumns || []).length;
+            countEl.textContent = `${shown.toLocaleString()}${shown !== total ? ` of ${total.toLocaleString()}` : ""} column${shown === 1 ? "" : "s"}`;
+            if (!list.length) {
+                const tr = h("tr", "");
+                const td = h("td", "slls-sx-empty", total ? "No columns match the current filters." : "No columns found.");
+                td.colSpan = 4;
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                return;
+            }
+            const filtering = !!search.trim() || residentFilter !== "all";
+            for (const t of list) {
+                const open = filtering || expandedTables.has(t.table);
+                const tr = h("tr", "table");
+                const td = h("td", "");
+                const cell = h("div", "slls-sx-dm-obj");
+                cell.appendChild(caretBtn(open, () => { if (expandedTables.has(t.table)) expandedTables.delete(t.table); else expandedTables.add(t.table); paintRows(); }));
+                cell.appendChild(triCheckbox(t.cols.map(keyOfCol), selected, `Select every column of ${t.table}`, () => { paintRows(); refreshWarmBtn(); }));
+                const node = tableByName.get(t.table);
+                cell.append(iconEl(node ? tableIcon(node) : "table", ""), h("span", "name", tableDisplayName(t.table)), h("span", "meta", String(t.cols.length)));
+                td.appendChild(cell);
+                tr.append(td, h("td", "", `${t.resident} / ${t.cols.length}`), h("td", "num", fmtTemp(t.temperature)), h("td", "", fmtTime(t.lastAccessed)));
+                tbody.appendChild(tr);
+                if (!open) continue;
+                for (const c of t.cols) {
+                    const cr = h("tr", "");
+                    const ctd = h("td", "");
+                    const cc = h("div", "slls-sx-dm-obj");
+                    cc.style.paddingLeft = "26px";
+                    cc.appendChild(triCheckbox([keyOfCol(c)], selected, `Select ${c.column}`, () => { paintRows(); refreshWarmBtn(); }));
+                    cc.append(iconEl("column", ""), h("span", "name", columnDisplayName(t.table, c.column)));
+                    ctd.appendChild(cc);
+                    const res = h("span", "slls-sx-pill" + (c.resident ? " new" : ""), c.resident ? "Yes" : "No");
+                    const rtd = h("td", "");
+                    rtd.appendChild(res);
+                    const ltd = h("td", "", c.lastAccessed ? fmtTime(c.lastAccessed) : "\u2014");
+                    if (c.lastAccessed) ltd.title = c.lastAccessed;
+                    cr.append(ctd, rtd, h("td", "num", fmtTemp(c.temperature)), ltd);
+                    tbody.appendChild(cr);
+                }
+            }
+        }
+        function draw() {
+            toolSubtitle(m, "Page Direct Lake columns into memory. Residency comes from the same statistics as Vertipaq Analyzer.");
+            clear(m.actions);
+            const reload = button("slls-sx-btn small", "Reload", "refresh", scan, "Rescan column residency");
+            reload.disabled = loading || warming;
+            if (loading) reload.querySelector("svg").classList.add("slls-sx-spin");
+            m.actions.appendChild(reload);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                tbody = null; warmBtn = null;
+                if (!directLake()) {
+                    m.body.appendChild(toolNotice(false, "This semantic model has no Direct Lake partitions, so its columns cannot be warmed. Residency is shown for reference."));
+                }
+                if (!warmColumns) {
+                    if (error) {
+                        const err = h("div", "slls-sx-dlm-error");
+                        err.append(iconEl("alert", ""), h("div", "", error), button("slls-sx-btn small", "Try again", "refresh", scan));
+                        m.body.appendChild(err);
+                    } else m.body.appendChild(loadingBox("Scanning column residency\u2026"));
+                    return;
+                }
+                const bar = h("div", "slls-sx-tool-toolbar");
+                bar.appendChild(searchBox("Filter tables & columns\u2026", search, (v) => { search = v; paintRows(); }));
+                bar.appendChild(field("Resident", selectEl([["all", "All"], ["yes", "Yes"], ["no", "No"]], residentFilter, (v) => { residentFilter = v; paintRows(); }, "Resident")));
+                bar.append(button("slls-sx-iconbtn", "", "expand_rows", () => { (warmColumns || []).forEach((c) => expandedTables.add(c.table)); paintRows(); }, "Expand all tables"),
+                    button("slls-sx-iconbtn", "", "collapse_rows", () => { expandedTables.clear(); paintRows(); }, "Collapse all tables"));
+                const right = h("div", "slls-sx-warm-right");
+                if (selected.size) right.appendChild(button("slls-sx-btn small", "Clear selection", "", () => { selected.clear(); draw(); }));
+                warmBtn = button("slls-sx-btn small primary", "", "flame", () => {
+                    const cols = (warmColumns || []).filter((c) => selected.has(keyOfCol(c))).map((c) => ({ table: c.table, column: c.column }));
+                    const nTables = new Set(cols.map((c) => c.table)).size;
+                    warm({ columns: cols }, () => `Warmed ${plural(cols.length, "column")} across ${plural(nTables, "table")}.`);
+                }, "Run simple DAX queries to page the selected columns into memory");
+                warmBtn.appendChild(document.createTextNode(""));
+                if (warming) warmBtn.querySelector("svg").classList.add("slls-sx-spin");
+                refreshWarmBtn();
+                countEl = h("span", "slls-sx-tool-count");
+                right.append(warmBtn, countEl);
+                bar.appendChild(right);
+                m.body.appendChild(bar);
+                const persps = savedPersp();
+                if (persps.length) {
+                    const pb = h("div", "slls-sx-tool-toolbar slls-sx-warm-persp");
+                    if (!persps.includes(perspective)) perspective = persps[0];
+                    pb.appendChild(field("Warm from perspective", selectEl(persps, perspective, (v) => { perspective = v; }, "Perspective")));
+                    const lab = h("label", "slls-sx-warm-deps");
+                    const cb = h("input", "slls-sx-tool-check");
+                    cb.type = "checkbox";
+                    cb.checked = addDeps;
+                    cb.addEventListener("change", () => { addDeps = cb.checked; draw(); });
+                    lab.append(cb, document.createTextNode("Include dependencies"));
+                    pb.appendChild(lab);
+                    const wp = button("slls-sx-btn small", "Warm perspective", "flame", () => warm({ perspective, addDependencies: addDeps },
+                        (n) => `Warmed ${plural(n, "column")} from the \u2018${perspective}\u2019 perspective${addDeps ? " (with dependencies)" : ""}.`),
+                    "Put the columns in this perspective (plus their dependencies) into memory");
+                    wp.disabled = warming || !directLake();
+                    pb.appendChild(wp);
+                    pb.appendChild(h("span", "slls-sx-dlm-note", "Puts every column in the perspective"
+                        + (addDeps ? " and its dependencies (measure columns, hierarchy levels, relationships)" : "") + " into memory."));
+                    m.body.appendChild(pb);
+                }
+                if (notice) m.body.appendChild(toolNotice(notice.ok, notice.text, () => { notice = null; draw(); }));
+                const scroll = h("div", "slls-sx-tool-scroll");
+                scroll.dataset.scroll = "rows";
+                const table = h("table", "slls-sx-tm-table slls-sx-warm-table");
+                const thead = h("thead", "");
+                const hr = h("tr", "");
+                for (const [key, label, w, title] of [["name", "Table / Column", 360, "The model table and its columns."],
+                    ["resident", "Is Resident", 130, "Whether the column is currently held in memory. Direct Lake pages column data in on demand."],
+                    ["temperature", "Temperature", 140, "A decimal indicating the frequency and recency of queries against the column (higher = hotter)."],
+                    ["lastAccessed", "Last Accessed", 220, "The time the column was last queried, or empty if it has not been accessed."]]) {
+                    const th = h("th", key === "temperature" ? "num" : "");
+                    th.dataset.columnWidth = String(w);
+                    th.title = title;
+                    const b = h("button", "slls-sx-warm-sort" + (sortKey === key ? " on" : ""), label);
+                    b.type = "button";
+                    if (sortKey === key) b.appendChild(h("span", "dir", sortDir === "asc" ? "\u25b2" : "\u25bc"));
+                    b.addEventListener("click", () => {
+                        if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
+                        else { sortKey = key; sortDir = key === "name" ? "asc" : "desc"; }
+                        draw();
+                    });
+                    th.appendChild(b);
+                    hr.appendChild(th);
+                }
+                thead.appendChild(hr);
+                tbody = h("tbody", "");
+                table.append(thead, tbody);
+                scroll.appendChild(table);
+                m.body.appendChild(scroll);
+                sllsInstallColumnResizers(table, { widths, key: "warm", minWidth: 64 });
+                paintRows();
+            });
+        }
+        registerTool(m, draw);
+        draw();
+        if (!warmColumns) scan();
+    }
+
+    // ------------------------------------------------------------------
+    // Create .vpax file
+    // ------------------------------------------------------------------
+    const VPAX_INFO_URL = "https://www.sqlbi.com/tv/inside-a-vpax-file-produced-by-vertipaq-analyzer/";
+    function openCreateVpax() {
+        const m = modal("Create .vpax file", "file_box");
+        m.box.classList.add("slls-sx-vpax");
+        let busy = false, error = null, result = null;
+        let wsId = "", lhId = "";
+        let fileName = model.get("dataset_name") || "";
+        let overwrite = false, readStats = false, dlMode = "ResidentOnly";
+        let workspaces = null, lakehouses = null;
+        const wsSel = createSearchSelect({ placeholder: "Select a workspace\u2026", searchPlaceholder: "Filter workspaces\u2026", ariaLabel: "Save to workspace",
+            emptyLabel: "Loading workspaces\u2026", onChange: (o) => { wsId = o.value; lhId = ""; lakehouses = null; loadLakehouses(); paint(); } });
+        const lhSel = createSearchSelect({ placeholder: "Select a lakehouse\u2026", searchPlaceholder: "Filter lakehouses\u2026", ariaLabel: "Lakehouse",
+            emptyLabel: "Select a workspace first", onChange: (o) => { lhId = o.value; paint(); } });
+        function loadLakehouses() {
+            if (!wsId) return;
+            const target = wsId;
+            request("vpax_lakehouses", { workspace_id: target }, (res) => {
+                if (target !== wsId) return;
+                lakehouses = res.ok ? res.data.items || [] : [];
+                if (!res.ok) error = res.error || "Failed to load lakehouses.";
+                paint();
+            });
+        }
+        const name = () => fileName.trim().replace(/\.vpax$/i, "").trim();
+        const ready = () => !!wsId && !!lhId && !!name() && !busy;
+        function create() {
+            if (!ready()) return;
+            busy = true; error = null;
+            paint();
+            request("vpax_create", { lakehouseWorkspaceId: wsId, lakehouseId: lhId, fileName: name(), overwrite,
+                readStatsFromData: readStats, directLakeStatsMode: dlMode }, (res) => {
+                busy = false;
+                if (res.ok) result = res.data; else error = res.error || "Failed to create the .vpax file.";
+                if (m.overlay.isConnected) paint();
+            });
+        }
+        let fields = null;
+        function paint() {
+            clear(m.body);
+            const intro = h("p", "slls-sx-dlm-text");
+            intro.append(document.createTextNode("Runs VertiPaq Analyzer over "), h("strong", "", model.get("dataset_name") || "the model"),
+                document.createTextNode(" and saves a .vpax file to the chosen lakehouse\u2019s Files section. "));
+            const a = h("a", "slls-sx-link slls-sx-fpm-link", "Learn more");
+            a.href = VPAX_INFO_URL; a.target = "_blank"; a.rel = "noreferrer"; a.title = "Learn what's inside a .vpax file (SQLBI)";
+            a.appendChild(iconEl("external_link", ""));
+            intro.appendChild(a);
+            m.body.appendChild(intro);
+            const foot = m.box.querySelector(".slls-sx-modal-foot") || h("div", "slls-sx-modal-foot");
+            clear(foot);
+            if (result) {
+                const lh = (lakehouses || []).find((x) => x.id === lhId);
+                m.body.appendChild(toolNotice(true, `Saved ${result.filePath}${lh ? ` to the ${lh.name} lakehouse` : ""}.`));
+                foot.appendChild(button("slls-sx-btn primary", "Done", "", () => m.close()));
+                m.box.appendChild(foot);
+                return;
+            }
+            if (!fields) fields = h("div", "slls-sx-vpax-fields");
+            clear(fields);
+            wsSel.setOptions((workspaces || []).map((w) => ({ value: w.id, label: w.name })), wsId);
+            wsSel.setEmptyLabel(workspaces ? "No workspaces" : "Loading workspaces\u2026");
+            wsSel.setDisabled(busy || !workspaces);
+            lhSel.setOptions((lakehouses || []).map((l) => ({ value: l.id, label: l.name })), lhId);
+            lhSel.setEmptyLabel(!wsId ? "Select a workspace first" : lakehouses ? "No lakehouses in this workspace" : "Loading lakehouses\u2026");
+            lhSel.setDisabled(busy || !wsId || !lakehouses || !lakehouses.length);
+            const fw = h("div", "slls-sx-tool-field");
+            fw.append(h("span", "", "Save to workspace"), wsSel.el);
+            const fl = h("div", "slls-sx-tool-field");
+            fl.append(h("span", "", "Lakehouse"), lhSel.el);
+            const fn = h("div", "slls-sx-tool-field");
+            const fnRow = h("div", "slls-sx-vpax-name");
+            const input = h("input", "slls-sx-input");
+            input.value = fileName;
+            input.disabled = busy;
+            input.setAttribute("aria-label", "File name");
+            input.addEventListener("input", () => { fileName = input.value; go.disabled = !ready(); });
+            fnRow.append(input, h("span", "ext", ".vpax"));
+            fn.append(h("span", "", "File name"), fnRow);
+            fields.append(fw, fl, fn);
+            const opts = h("div", "slls-sx-vpax-opts");
+            const ow = switchEl(overwrite, "Overwrite", () => { overwrite = !overwrite; paint(); }, "Overwrite an existing file");
+            const rs = switchEl(readStats, "Read statistics from data", () => { readStats = !readStats; paint(); }, "Read statistics from data");
+            ow.disabled = rs.disabled = busy;
+            opts.append(ow, rs);
+            if (readStats) {
+                const dl = selectEl([["ResidentOnly", "Resident columns only"], ["Full", "All columns"]], dlMode, (v) => { dlMode = v; }, "Direct Lake statistics");
+                dl.disabled = busy;
+                opts.appendChild(field("Direct Lake statistics", dl));
+            }
+            fields.appendChild(opts);
+            m.body.appendChild(fields);
+            if (error) {
+                const err = h("div", "slls-sx-tool-error");
+                err.append(iconEl("alert", ""), h("span", "", error));
+                m.body.appendChild(err);
+            }
+            const cancel = button("slls-sx-btn", "Cancel", "", () => m.close());
+            cancel.disabled = busy;
+            const go = button("slls-sx-btn primary", busy ? "Creating\u2026" : "Create .vpax", busy ? "refresh" : "file_box", create);
+            if (busy) go.querySelector("svg").classList.add("slls-sx-spin");
+            go.disabled = !ready();
+            foot.append(cancel, go);
+            m.box.appendChild(foot);
+        }
+        paint();
+        request("vpax_workspaces", {}, (res) => {
+            workspaces = res.ok ? res.data.items || [] : [];
+            if (!res.ok) error = res.error || "Failed to load workspaces.";
+            if (m.overlay.isConnected) paint();
+        });
+    }
     function openHistory() {
         const m = modal("Change history", "history");
         const draw = () => {
@@ -7279,7 +8136,7 @@ _EXPLORER_ICON_NAMES = (
     "more", "arrow_up", "arrow_down", "external_link", "info", "package", "calendar",
     "download", "check_circle", "arrow_left", "network", "key_round", "focus", "lightbulb",
     "snowflake", "languages", "unlink", "arrow_left_right", "cable", "layers", "waves", "git_branch",
-    "link", "reset", "user", "sparkles",
+    "link", "reset", "user", "sparkles", "flame", "server", "file_box",
 )  # fmt: skip
 
 _WIDGET_CSS = (
@@ -9276,6 +10133,264 @@ def _infer_relationships(dataset_id: str, workspace_id: str, pairs: List[dict]):
 
 
 # ---------------------------------------------------------------------------
+# Tool helpers: query scale-out, Direct Lake cache warming, .vpax files
+# ---------------------------------------------------------------------------
+class _NoProgress:
+    """A silent stand-in for tqdm (widget work runs on the kernel thread)."""
+
+    def __init__(self, iterable=None, *args, **kwargs):
+        self._iterable = iterable if iterable is not None else []
+
+    def __iter__(self):
+        return iter(self._iterable)
+
+    def set_description(self, *args, **kwargs):
+        pass
+
+
+class _QuietTool:
+    """Silences prints and progress bars of the library functions a tool calls.
+
+    The captured output stays available as ``text`` (some functions report
+    failures by printing rather than raising).
+    """
+
+    def __enter__(self):
+        import contextlib
+        import io
+        from unittest import mock
+        from sempy_labs.directlake import _warm_cache
+
+        self._stack = contextlib.ExitStack()
+        self._buffer = io.StringIO()
+        self._stack.enter_context(contextlib.redirect_stdout(self._buffer))
+        self._stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+        self._stack.enter_context(mock.patch.object(_warm_cache, "tqdm", _NoProgress))
+        return self
+
+    def __exit__(self, *exc):
+        self._stack.close()
+        return False
+
+    @property
+    def text(self) -> str:
+        return self._buffer.getvalue()
+
+
+def _json_time(value) -> str:
+    """A JSON-friendly timestamp ('' for empty / NaT)."""
+
+    import pandas as pd
+
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
+def _json_int(value):
+    import pandas as pd
+
+    try:
+        return None if pd.isna(value) else int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _qso_state(dataset_id: str, workspace_id: str) -> dict:
+    """Query scale-out settings and sync status of a semantic model."""
+
+    import pandas as pd
+    from sempy_labs._query_scale_out import list_qso_settings, qso_sync_status
+
+    with _QuietTool():
+        settings_df = list_qso_settings(dataset=dataset_id, workspace=workspace_id)
+        status_df, replicas_df = qso_sync_status(
+            dataset=dataset_id, workspace=workspace_id
+        )
+    if settings_df.empty:
+        raise ValueError("The query scale-out settings could not be read.")
+    row = settings_df.iloc[0]
+    auto_sync = row["QSO Auto Sync Enabled"]
+    settings = {
+        "storageMode": str(row["Storage Mode"]),
+        "autoSync": (
+            True if auto_sync is None or pd.isna(auto_sync) else bool(auto_sync)
+        ),
+        "maxReplicas": _json_int(row["QSO Max Read Only Replicas"]),
+    }
+    if status_df.empty:
+        # qso_sync_status only returns rows while scale-out is enabled.
+        state = (
+            "StorageModeNotSupported"
+            if settings["storageMode"] == "Small"
+            else "Disabled"
+        )
+        status = {"scaleOutStatus": state, "replicas": []}
+    else:
+        s = status_df.iloc[0]
+        status = {
+            "scaleOutStatus": str(s["Scale Out Status"]),
+            "syncStartTime": _json_time(s["Sync Start Time"]),
+            "syncEndTime": _json_time(s["Sync End Time"]),
+            "triggerReason": str(s["Trigger Reason"] or ""),
+            "commitVersion": _json_int(s["Commit Version"]),
+            "targetSyncVersion": _json_int(s["Target Sync Version"]),
+            "minActiveReadVersion": _json_int(s["Min Active Read Version"]),
+            "replicas": [
+                {
+                    "id": str(r["Replica ID"] or ""),
+                    "type": str(r["Replica Type"] or ""),
+                    "version": str(r["Replica Version"] or ""),
+                    "timestamp": _json_time(r["Replica Timestamp"]),
+                }
+                for _, r in replicas_df.iterrows()
+            ],
+        }
+    return {"settings": settings, "status": status}
+
+
+def _qso_action(dataset_id: str, workspace_id: str, data: dict) -> dict:
+    """Applies a query scale-out change, then returns the new state."""
+
+    from sempy_labs._query_scale_out import (
+        disable_qso,
+        qso_sync,
+        set_qso,
+        set_semantic_model_storage_format,
+    )
+
+    op = data.get("op")
+    with _QuietTool():
+        if op == "apply":
+            set_qso(
+                dataset=dataset_id,
+                auto_sync=bool(data.get("autoSync", True)),
+                max_read_only_replicas=int(data.get("maxReplicas", -1)),
+                workspace=workspace_id,
+            )
+        elif op == "disable":
+            disable_qso(dataset=dataset_id, workspace=workspace_id)
+        elif op == "storage":
+            set_semantic_model_storage_format(
+                dataset=dataset_id,
+                storage_format=str(data.get("storageFormat") or ""),
+                workspace=workspace_id,
+            )
+        elif op == "sync":
+            qso_sync(dataset=dataset_id, workspace=workspace_id)
+        elif op != "get":
+            raise ValueError(f"Unknown query scale-out operation '{op}'.")
+    return _qso_state(dataset_id, workspace_id)
+
+
+def _column_residency(dataset_id: str, workspace_id: str) -> list:
+    """Every column's Direct Lake residency (Is Resident / Temperature / Last Accessed)."""
+
+    import sempy.fabric as fabric
+
+    with _QuietTool():
+        df = fabric.list_columns(
+            dataset=dataset_id, workspace=workspace_id, extended=True
+        )
+    rows = []
+    for _, r in df.iterrows():
+        if str(r.get("Type", "")) == "RowNumber" or str(
+            r.get("Column Name", "")
+        ).startswith("RowNumber-"):
+            continue
+        temperature = r.get("Temperature")
+        try:
+            temperature = float(temperature) if temperature == temperature else 0.0
+        except (TypeError, ValueError):
+            temperature = 0.0
+        rows.append(
+            {
+                "table": str(r.get("Table Name", "")),
+                "column": str(r.get("Column Name", "")),
+                "resident": str(r.get("Is Resident")).lower() in ("true", "yes", "1"),
+                "temperature": temperature,
+                "lastAccessed": _json_time(r.get("Last Accessed")),
+            }
+        )
+    return rows
+
+
+def _warm_cache(dataset_id: str, workspace_id: str, data: dict) -> dict:
+    """Warms selected columns or a perspective's columns, then rescans residency."""
+
+    import pandas as pd
+    from sempy_labs.directlake._warm_cache import (
+        _put_columns_into_memory,
+        warm_direct_lake_cache_perspective,
+    )
+
+    warmed = 0
+    with _QuietTool():
+        if data.get("perspective"):
+            df = warm_direct_lake_cache_perspective(
+                dataset=dataset_id,
+                perspective=str(data["perspective"]),
+                add_dependencies=bool(data.get("addDependencies")),
+                workspace=workspace_id,
+            )
+            warmed = 0 if df is None else len(df)
+        else:
+            columns = [
+                {"Table Name": str(c["table"]), "Column Name": str(c["column"])}
+                for c in data.get("columns") or []
+                if c.get("table") and c.get("column")
+            ]
+            if not columns:
+                raise ValueError("Select at least one column to warm.")
+            _put_columns_into_memory(
+                dataset=dataset_id,
+                workspace=workspace_id,
+                col_df=pd.DataFrame(columns),
+                return_dataframe=False,
+            )
+            warmed = len(columns)
+    return {"warmed": warmed, "columns": _column_residency(dataset_id, workspace_id)}
+
+
+def _create_vpax_file(dataset_id: str, workspace_id: str, data: dict) -> dict:
+    """Creates a .vpax file for the model in the chosen lakehouse's Files."""
+
+    from sempy_labs._vpax import create_vpax
+
+    lakehouse_id = str(data.get("lakehouseId") or "")
+    lakehouse_workspace_id = str(data.get("lakehouseWorkspaceId") or "")
+    file_name = re.sub(r"\.vpax$", "", str(data.get("fileName") or ""), flags=re.I)
+    file_name = file_name.strip()
+    if not lakehouse_id or not lakehouse_workspace_id or not file_name:
+        raise ValueError("Select a workspace and lakehouse, and enter a file name.")
+    with _QuietTool() as quiet:
+        create_vpax(
+            dataset=dataset_id,
+            workspace=workspace_id,
+            lakehouse=lakehouse_id,
+            lakehouse_workspace=lakehouse_workspace_id,
+            file_path=file_name,
+            read_stats_from_data=bool(data.get("readStatsFromData")),
+            direct_lake_stats_mode=str(
+                data.get("directLakeStatsMode") or "ResidentOnly"
+            ),
+            overwrite=bool(data.get("overwrite")),
+        )
+    # create_vpax reports an existing file by printing instead of raising.
+    if "already exists" in quiet.text:
+        raise ValueError(
+            f"Files/{file_name}.vpax already exists in that lakehouse. "
+            "Turn on 'Overwrite' to replace it."
+        )
+    return {"filePath": f"Files/{file_name}.vpax"}
+
+
+# ---------------------------------------------------------------------------
 # DAXLib.org packages
 # ---------------------------------------------------------------------------
 _DAXLIB_QUERY_URL = "https://api.daxlib.org/v1/query"
@@ -9293,6 +10408,12 @@ _BACKGROUND_ACTIONS = (
     "generate_descriptions",
     "translate_texts",
     "infer_relationships",
+    "qso",
+    "warm_scan",
+    "warm",
+    "vpax_workspaces",
+    "vpax_lakehouses",
+    "vpax_create",
 )
 _daxlib_cache: Dict[object, Tuple[float, object]] = {}
 
@@ -9627,6 +10748,7 @@ def semantic_explorer(
     from sempy_labs._helper_functions import resolve_workspace_name_and_id
     from sempy_labs._ui_components import (
         list_picker_datasets,
+        list_picker_lakehouses,
         list_picker_workspaces,
         run_widget_task,
     )
@@ -9805,6 +10927,28 @@ def semantic_explorer(
                     list(data.get("pairs") or []),
                 )
                 _reply(data, True, {"results": inferred})
+            elif action == "qso":
+                state = _qso_action(ctx["dataset_id"], ctx["workspace_id"], data)
+                _reply(data, True, state)
+            elif action == "warm_scan":
+                columns = _column_residency(ctx["dataset_id"], ctx["workspace_id"])
+                _reply(data, True, {"columns": columns})
+            elif action == "warm":
+                warmed = _warm_cache(ctx["dataset_id"], ctx["workspace_id"], data)
+                _reply(data, True, warmed)
+            elif action == "vpax_workspaces":
+                workspaces = list_picker_workspaces(
+                    ctx["workspace_id"], widget.workspace_name
+                )
+                _reply(data, True, {"items": workspaces})
+            elif action == "vpax_lakehouses":
+                target = str(data.get("workspace_id") or "")
+                _reply(data, True, {"items": list_picker_lakehouses(target)})
+            elif action == "vpax_create":
+                created = _create_vpax_file(
+                    ctx["dataset_id"], ctx["workspace_id"], data
+                )
+                _reply(data, True, created)
             elif action == "save":
                 with connect_semantic_model(
                     dataset=ctx["dataset_id"],
