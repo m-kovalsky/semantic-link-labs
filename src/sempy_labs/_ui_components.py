@@ -966,6 +966,18 @@ ICONS: dict[str, str] = {
         '<path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>'
         '<path d="M2 12h20"/></svg>'
     ),
+    "arrow_up": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true">'
+        '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>'
+    ),
+    "arrow_down": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" '
+        'aria-hidden="true">'
+        '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>'
+    ),
 }
 
 

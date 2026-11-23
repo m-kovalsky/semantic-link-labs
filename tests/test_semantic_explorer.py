@@ -148,6 +148,17 @@ class _PerspectiveTable:
         return self.Table.Name
 
 
+class _FakePartition(_Obj):
+    """A Partition whose SourceType follows its Source, as in TOM."""
+
+    def __init__(self):
+        super().__init__("Partition", Source=None)
+
+    @property
+    def SourceType(self):
+        return getattr(self.Source, "kind", "M")
+
+
 DATA_TYPE = _EnumType("DataType", ["String", "Int64", "Double", "DateTime"])
 AGGREGATE = _EnumType("AggregateFunction", ["Default", "None", "Sum", "Count"])
 COLUMN_TYPE = _EnumType("ColumnType", ["Data", "Calculated", "CalculatedTableColumn"])
@@ -286,6 +297,30 @@ def fake_clr(monkeypatch):
         Caption="Caption", Description="Description", DisplayFolder="DisplayFolder"
     )
     tom.PerspectiveTable = _PerspectiveTable
+    tom.Table = lambda: _Obj(
+        "Table",
+        Columns=_Coll(),
+        Measures=_Coll(),
+        Hierarchies=_Coll(),
+        Partitions=_Coll(),
+        CalculationGroup=None,
+        Description="",
+        IsHidden=False,
+    )
+    tom.Partition = _FakePartition
+    tom.CalculatedPartitionSource = lambda: types.SimpleNamespace(
+        Expression="", kind="Calculated"
+    )
+    tom.CalculatedTableColumn = lambda: _Obj(
+        "Column", Type="CalculatedTableColumn", SortByColumn=None, IsHidden=False
+    )
+    tom.JsonExtendedProperty = lambda: types.SimpleNamespace(Name="", Value="")
+    tom.RelatedColumnDetails = lambda: types.SimpleNamespace(GroupByColumns=_Coll())
+    tom.GroupByColumn = lambda: types.SimpleNamespace(GroupingColumn=None)
+    tom.ModeType = types.SimpleNamespace(Import="Import")
+    tom.DataType = types.SimpleNamespace(
+        String=_Enum(DATA_TYPE, "String"), Int64=_Enum(DATA_TYPE, "Int64")
+    )
     tom.PerspectiveColumn = lambda: _PerspectiveMember("Column")
     tom.PerspectiveMeasure = lambda: _PerspectiveMember("Measure")
     tom.PerspectiveHierarchy = lambda: _PerspectiveMember("Hierarchy")
@@ -560,6 +595,59 @@ def test_duplicating_a_table_gives_its_measures_unique_names(fake_clr):
     copy = model.Tables["Sales copy"]
     assert [m.Name for m in copy.Measures] == ["Total copy", "Broken copy"]
     assert "original" not in {copy.LineageTag, *(m.LineageTag for m in copy.Measures)}
+
+
+def test_field_parameter_create_and_group_column_follow_the_expression(fake_clr):
+    model = _build_model()
+    tom = _tom(model)
+    expression = (
+        "{\n"
+        '    ( "Total", NAMEOF ( [Total] ), 0, "KPIs" ),\n'
+        '    ( "Amount", NAMEOF ( \'Sales\'[Amount] ), 1, "KPIs" )\n'
+        "}"
+    )
+    create = {
+        "type": "fieldParameter",
+        "name": "Metric",
+        "table": "",
+        "props": {"Expression": expression, "Description": "Pick a metric"},
+    }
+
+    sx._apply_changes(tom, [create], [], [])
+
+    table = model.Tables["Metric"]
+    value, fields, order, group = table.Columns
+    assert [c.SourceColumn for c in table.Columns] == [
+        "[Value1]",
+        "[Value2]",
+        "[Value3]",
+        "[Value4]",
+    ]
+    assert [c.Name for c in (value, fields, order, group)] == [
+        "Metric",
+        "Metric Fields",
+        "Metric Order",
+        "Metric Group",
+    ]
+    assert table.Partitions[0].Source.Expression == expression
+    assert table.Description == "Pick a metric"
+    assert value.SortByColumn is order and fields.SortByColumn is order
+    assert [g.GroupingColumn for g in value.RelatedColumnDetails.GroupByColumns] == [
+        fields
+    ]
+    assert [(p.Name, p.Value) for p in fields.ExtendedProperties] == [
+        ("ParameterMetadata", '{"version":3,"kind":2}')
+    ]
+
+    # Dropping the hierarchy values drops the group column again.
+    partition = table.Partitions[0]
+    partition.Table = table
+    sx._apply_edit(tom, partition, "Expression", expression.replace(', "KPIs"', ""))
+    assert [c.SourceColumn for c in table.Columns] == [
+        "[Value1]",
+        "[Value2]",
+        "[Value3]",
+    ]
 
 
 # ---------------------------------------------------------------------------

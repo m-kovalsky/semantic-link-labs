@@ -10,6 +10,7 @@ undo / redo and a change history) and only written to the model on Save.
 """
 
 import json
+import re
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 from sempy._utils._log import log
@@ -478,6 +479,103 @@ _WIDGET_CSS = """
 .slls-sx-section-title:not(:first-child) { margin-top: 18px; }
 .slls-sx-ctx { position: fixed; z-index: 2147483600; }
 .slls-sx-counts .sep { margin: 0 3px; opacity: 0.6; }
+
+/* Field parameter manager */
+.slls-sx-modal.slls-sx-fpm-box { width: 100%; height: 100%; }
+.slls-sx-modal .slls-sx-fpm-body { padding: 0; overflow: hidden; display: flex; }
+.slls-sx-fpm { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.slls-sx-fpm-side {
+    width: 260px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+    border-right: 1px solid var(--ui-border);
+}
+.slls-sx-fpm-side-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    padding: 8px 10px 8px 14px; border-bottom: 1px solid var(--ui-border);
+}
+.slls-sx-fpm-list { flex: 1 1 0; min-height: 0; overflow: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.slls-sx-fpm-item {
+    appearance: none; width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 8px; flex-shrink: 0;
+    border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ui-text);
+    font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.slls-sx-fpm-item svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-fpm-item:hover { background: var(--ui-surface-2); }
+.slls-sx-fpm-item.active { background: var(--ui-accent-soft); }
+.slls-sx-fpm-item.draft { border: 1px dashed var(--ui-accent); color: var(--ui-accent); }
+.slls-sx-fpm-item.draft svg { color: var(--ui-accent); }
+.slls-sx-fpm-item.new .name { color: var(--sx-success); }
+.slls-sx-fpm-item .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.slls-sx-fpm-item .count { font-size: 11px; color: var(--ui-text-tertiary); font-variant-numeric: tabular-nums; }
+.slls-sx-fpm-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.slls-sx-fpm-toolbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 16px;
+    border-bottom: 1px solid var(--ui-border);
+}
+.slls-sx-fpm-title-icon { display: inline-flex; color: var(--ui-accent); }
+.slls-sx-fpm-title-icon svg { width: 17px; height: 17px; }
+.slls-sx-fpm-name { width: 260px; }
+.slls-sx-fpm-name-text { font-size: 14px; font-weight: 600; }
+.slls-sx .slls-sx-input.invalid { border-color: var(--ui-danger); }
+.slls-sx-fpm-status { font-size: 12px; }
+.slls-sx-fpm-status.success { color: var(--sx-success); }
+.slls-sx-fpm-status.error { color: var(--ui-danger-text); }
+.slls-sx-fpm-stage { margin-left: auto; }
+.slls-sx-fpm-grid {
+    flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px; padding: 14px 16px;
+}
+.slls-sx-fpm-pane {
+    display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 10px;
+    border: 1px solid var(--ui-border); border-radius: var(--sx-radius); background: var(--ui-bg);
+}
+.slls-sx-fpm-pane-head { display: flex; align-items: center; gap: 8px; }
+.slls-sx-fpm-link { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; }
+.slls-sx-fpm-link svg { width: 12px; height: 12px; }
+.slls-sx-fpm-note { font-size: 11.5px; line-height: 1.4; color: var(--ui-text-secondary); }
+.slls-sx-fpm-note.error { color: var(--ui-danger-text); font-weight: 500; }
+.slls-sx-fpm-scroll { flex: 1 1 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
+.slls-sx-fpm-row {
+    appearance: none; width: 100%; display: flex; align-items: center; gap: 6px; padding: 5px 8px; flex-shrink: 0;
+    border: none; border-radius: 6px; background: transparent; color: var(--ui-text);
+    font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.slls-sx-fpm-row:hover:not(:disabled) { background: var(--ui-surface-2); }
+.slls-sx-fpm-row svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-fpm-row .slls-sx-caret { width: 16px; height: 16px; }
+.slls-sx-fpm-row.table .name { font-weight: 500; }
+.slls-sx-fpm-row.item { padding-left: 30px; }
+.slls-sx-fpm-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-fpm-row .meta { font-size: 11.5px; color: var(--ui-text-tertiary); }
+.slls-sx-fpm-row.added { cursor: default; }
+.slls-sx-fpm-row.added .name { color: var(--ui-text-tertiary); }
+.slls-sx-fpm-obj {
+    display: flex; align-items: center; gap: 6px; padding: 5px 6px; flex-shrink: 0;
+    border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg-tertiary);
+}
+.slls-sx-fpm-obj > .slls-sx-ricon svg { width: 14px; height: 14px; }
+.slls-sx-fpm-obj .idx { width: 18px; text-align: center; font-size: 11px; color: var(--ui-text-tertiary); font-variant-numeric: tabular-nums; }
+.slls-sx-fpm-obj .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.slls-sx-fpm-label {
+    min-width: 0; padding: 2px 5px; border: 1px solid transparent; border-radius: 5px; background: transparent;
+    color: var(--ui-text); font: inherit; font-size: 12.5px; font-weight: 500; outline: none;
+}
+.slls-sx-fpm-label:hover, .slls-sx-fpm-label:focus { border-color: var(--ui-border-strong); background: var(--ui-bg); }
+.slls-sx-fpm-obj .ref {
+    padding: 0 5px; font-family: var(--sx-mono); font-size: 11px; color: var(--ui-text-tertiary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.slls-sx-fpm-obj .ref.broken { color: var(--ui-danger-text); }
+.slls-sx .slls-sx-fpm-hier { width: 120px; flex-shrink: 0; padding: 4px 7px; }
+.slls-sx-fpm-readonly { flex: 1 1 0; min-height: 0; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.slls-sx-fpm-info {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 8px 12px; font-size: 12.5px;
+    border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface-2); color: var(--ui-text-secondary);
+}
+.slls-sx-fpm-info svg { width: 15px; height: 15px; }
+.slls-sx-fpm-obj.readonly { gap: 10px; padding: 8px 10px; }
+.slls-sx-fpm-obj.readonly .label { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-fpm-obj.readonly .ref { padding: 0; font-size: 11.5px; max-width: 45%; }
+.slls-sx-fpm-main .slls-sx-center a { font-size: 12.5px; }
 .slls-sx-tmdl-name { font-weight: 600; }
 
 /* Dependencies: toolbar, segmented toggles, tree and node graph */
@@ -999,6 +1097,13 @@ function render({ model, el }) {
             node.table = "";
             node.props.push(P("IsHidden", "Hidden", "General", "bool", { value: false }));
             node.columns = []; node.measures = []; node.hierarchies = []; node.calculation_items = []; node.partitions = [];
+        } else if (c.type === "fieldParameter") {
+            node.type = "table";
+            node.kind = "field_parameter";
+            node.table = "";
+            node.props.push(P("IsHidden", "Hidden", "General", "bool", { value: false }));
+            node.columns = []; node.measures = []; node.hierarchies = []; node.calculation_items = []; node.partitions = [];
+            node.expressions = [{ prop: "Expression", label: "Expression", lang: "dax", value: "" }];
         } else if (c.type === "role") {
             node.props.push(P("ModelPermission", "Model permission", "General", "enum", { enum: enumOf("ModelPermission"), value: "Read" }));
         } else if (c.type === "expression") {
@@ -1270,7 +1375,7 @@ function render({ model, el }) {
         if (mode !== "write") setMode("write");
         let base = "New object";
         let taken = [];
-        const tables = [...(data.tables || []), ...newNodes("table", "")];
+        const tables = [...(data.tables || []), ...newNodes("table", ""), ...newNodes("fieldParameter", "")];
         if (type === "measure") {
             base = "New measure";
             for (const t of tables) for (const m of [...(t.measures || []), ...newNodes("measure", t.key)]) taken.push(effName(m));
@@ -1324,6 +1429,7 @@ function render({ model, el }) {
         for (const c of staging.creates) {
             const node = syntheticNode(c);
             const title = c.type === "table" ? `Add calculation group '${c.name}'`
+                : c.type === "fieldParameter" ? `Add field parameter '${c.name}'`
                 : `Add ${TYPE_LABEL[c.type].toLowerCase()} ${objectLabel(node)}`;
             items.push({ kind: "create", id: c.id, title, detail: "" });
         }
@@ -1351,7 +1457,7 @@ function render({ model, el }) {
             const parent = c.parentKey ? getNode(c.parentKey) : null;
             const table = parent ? (parent.isNew ? effName(parent) : parent.name) : "";
             const props = Object.assign({}, c.props);
-            if (renames.length && ["measure", "column", "calculationItem"].includes(c.type)) {
+            if (renames.length && ["measure", "column", "calculationItem", "fieldParameter"].includes(c.type)) {
                 for (const prop of DAX_PROPS) {
                     if (props[prop]) props[prop] = rewriteDax(String(props[prop]), renames, parent ? parent.name : "", c.type === "column");
                 }
@@ -1470,6 +1576,14 @@ function render({ model, el }) {
         if (!pickerOpen && model.get("dataset_chosen") === true) {
             const change = button("sl-change-btn", "", "swap", () => openPicker(), "Change workspace or semantic model");
             header.appendChild(change);
+        }
+        if (!pickerOpen && loaded()) {
+            const tools = button("slls-sx-btn", "Tools", "more", () => {
+                const r = tools.getBoundingClientRect();
+                showMenu(r.left, r.bottom + 4, TOOLS.map((t) => [t.label, t.icon, t.open]));
+            }, "Model tools");
+            tools.setAttribute("aria-haspopup", "menu");
+            header.appendChild(tools);
         }
         if (!pickerOpen && loaded()) {
             const group = h("div", "slls-sx-head-group");
@@ -1685,7 +1799,7 @@ function render({ model, el }) {
         if (!open("model")) return rows;
 
         // Tables
-        const tables = [...(data.tables || []), ...newNodes("table", "")].sort(byLabel);
+        const tables = [...(data.tables || []), ...newNodes("table", ""), ...newNodes("fieldParameter", "")].sort(byLabel);
         const tableRows = [];
         for (const t of tables) {
             if (!inPerspective(t)) continue;
@@ -2117,8 +2231,11 @@ function render({ model, el }) {
         return items;
     }
     function openContextMenu(x, y, node, folder) {
+        showMenu(x, y, menuItems(node, folder));
+    }
+    // Items are [label, icon, onClick, disabled, danger] or null (separator).
+    function showMenu(x, y, items) {
         closeContextMenu();
-        const items = menuItems(node, folder);
         if (!items.length) return;
         ctxMenu = h("div", "slls-sx-menu slls-sx-ctx");
         for (const item of items) {
@@ -2779,7 +2896,14 @@ function render({ model, el }) {
             document.removeEventListener("keydown", onKey, true);
             if (result.onClose) result.onClose();
         };
-        const onKey = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); close(); } };
+        // Escape closes only the topmost dialog (one can open over another).
+        const onKey = (ev) => {
+            if (ev.key !== "Escape") return;
+            const open = root.querySelectorAll(".slls-sx-overlay");
+            if (open[open.length - 1] !== overlay) return;
+            ev.stopPropagation();
+            close();
+        };
         head.appendChild(button("slls-sx-iconbtn", "", "close", close, "Close"));
         box.appendChild(head);
         if (o.tabs) box.appendChild(o.tabs);
@@ -3307,6 +3431,450 @@ function render({ model, el }) {
             draw();
         });
     }
+    // ------------------------------------------------------------------
+    // Tools menu + Field parameter manager
+    // ------------------------------------------------------------------
+    const TOOLS = [
+        { label: "Field parameter manager", icon: "field_parameter", open: () => openFieldParameterManager() },
+    ];
+    // An open tool window redraws itself when the explorer re-renders (mode
+    // switch, save, reload).
+    let toolRedraw = null;
+    const FP_HIERARCHY_URL = "https://www.youtube.com/watch?v=5G_xSJy5muo";
+    const FP_NEW = "\u0000new";
+    const fpEscape = (s) => String(s).replace(/"/g, '""');
+    const fpQuoteTable = (t) => `'${String(t).replace(/'/g, "''")}'`;
+    function fpCanonicalRef(f) {
+        return f.type === "measure" ? `[${f.name}]` : `${fpQuoteTable(f.table)}[${f.name}]`;
+    }
+    function fpRef(f) { return f.rawRef || fpCanonicalRef(f); }
+    // The field parameter's calculated-table DAX for an ordered list of fields.
+    // When any field has a "hierarchy" (group) value, every row gets the 4th
+    // element so the table constructor stays rectangular.
+    function fpBuildExpression(fields) {
+        const grouped = fields.some((f) => (f.hierarchy || "").trim() !== "");
+        const rows = fields.map((f, i) => {
+            const base = `    ( "${fpEscape(f.label)}", NAMEOF ( ${fpRef(f)} ), ${i}`;
+            return grouped ? `${base}, "${fpEscape((f.hierarchy || "").trim())}" )` : `${base} )`;
+        });
+        return `{\n${rows.join(",\n")}\n}`;
+    }
+    // Effective (pending-aware) tables, columns and measures, keyed lower-case.
+    function fpModelIndex() {
+        const tables = new Map();
+        const measureOwner = new Map();
+        for (const t of data.tables || []) {
+            if (isDeleted(t)) continue;
+            const name = effName(t);
+            const entry = { name, kind: t.kind, columns: new Map(), measures: new Map() };
+            for (const c of [...(t.columns || []), ...newNodes("column", t.key)]) {
+                if (!isDeleted(c)) entry.columns.set(effName(c).toLowerCase(), { name: effName(c), calculated: c.column_type === "Calculated" });
+            }
+            for (const m of [...(t.measures || []), ...newNodes("measure", t.key)]) {
+                if (isDeleted(m)) continue;
+                entry.measures.set(effName(m).toLowerCase(), { name: effName(m) });
+                measureOwner.set(effName(m).toLowerCase(), name);
+            }
+            tables.set(name.toLowerCase(), entry);
+        }
+        return { tables, measureOwner };
+    }
+    function fpField(type, table, name, label, calculated, originalRef) {
+        const f = { key: `${type}|${table}|${name}`, type, table, name, label, calculated: !!calculated };
+        // Keep the author's reference text verbatim unless it is canonical.
+        if (originalRef && originalRef.trim() !== fpCanonicalRef(f)) f.rawRef = originalRef.trim();
+        return f;
+    }
+    // Resolves a NAMEOF reference to a column or measure. Power BI writes both
+    // as 'Table'[Name], so the model decides which it is.
+    function fpResolve(ref, label, idx, index) {
+        const trimmed = ref.trim();
+        const qual = trimmed.match(/^(?:'((?:[^']|'')+)'|([^\s'[\]]+))\s*\[([^\]]+)\]$/);
+        const unq = trimmed.match(/^\[([^\]]+)\]$/);
+        let table = "", name = "";
+        if (qual) { table = (qual[1] || qual[2] || "").replace(/''/g, "'"); name = qual[3]; }
+        else if (unq) name = unq[1];
+        else return { key: `raw|${index}|${trimmed}`, type: "column", table: "", name: trimmed, label, calculated: false, broken: true, rawRef: ref };
+        const t = table ? idx.tables.get(table.toLowerCase()) : null;
+        if (t && t.columns.has(name.toLowerCase())) {
+            const c = t.columns.get(name.toLowerCase());
+            return fpField("column", t.name, c.name, label, c.calculated, ref);
+        }
+        const owner = idx.measureOwner.get(name.toLowerCase());
+        if (owner) return fpField("measure", owner, idx.tables.get(owner.toLowerCase()).measures.get(name.toLowerCase()).name, label, false, ref);
+        if (!table) {
+            for (const tt of idx.tables.values()) {
+                if (tt.columns.has(name.toLowerCase())) {
+                    const c = tt.columns.get(name.toLowerCase());
+                    return fpField("column", tt.name, c.name, label, c.calculated, ref);
+                }
+            }
+        }
+        return { key: table ? `column|${table}|${name}` : `raw|${index}|${trimmed}`, type: "column", table, name: table ? name : trimmed,
+            label, calculated: false, broken: true, rawRef: ref };
+    }
+    // Rows look like ( "label", NAMEOF ( ref ), ordinal [, "hierarchy"] ).
+    function fpParse(expression, idx) {
+        const rowRe = /\(\s*"((?:[^"]|"")*)"\s*,\s*NAMEOF\s*\(\s*([^)]*?)\s*\)\s*,\s*(-?\d+)(?:\s*,?\s*"((?:[^"]|"")*)")?/g;
+        const rows = [];
+        let mt;
+        while ((mt = rowRe.exec(expression || "")) !== null) {
+            rows.push({ label: mt[1].replace(/""/g, '"'), ref: mt[2].trim(), ordinal: parseInt(mt[3], 10),
+                hierarchy: mt[4] !== undefined ? mt[4].replace(/""/g, '"') : undefined });
+        }
+        rows.sort((a, b) => a.ordinal - b.ordinal);
+        const seen = new Set();
+        const out = [];
+        rows.forEach((r, i) => {
+            const f = fpResolve(r.ref, r.label, idx, i);
+            if (seen.has(f.key)) return;
+            seen.add(f.key);
+            if (r.hierarchy !== undefined) f.hierarchy = r.hierarchy;
+            out.push(f);
+        });
+        return out;
+    }
+    function fpList() {
+        const out = [];
+        for (const t of data.tables || []) {
+            if (t.kind !== "field_parameter" || isDeleted(t)) continue;
+            const partition = (t.partitions || []).find((p) => p.source_type === "Calculated") || (t.partitions || [])[0];
+            out.push({ id: t.key, name: effName(t), partition, isNew: false });
+        }
+        for (const c of staging.creates) {
+            if (c.type === "fieldParameter") out.push({ id: "new:" + c.id, name: c.name, create: c, isNew: true });
+        }
+        return out.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    }
+    function fpExpression(fp) {
+        if (fp.isNew) return fp.create.props.Expression || "";
+        return fp.partition ? String(value(fp.partition, "Expression") || "") : "";
+    }
+    function fpTakenNames() {
+        const names = [...(data.tables || []).map(effName)];
+        for (const c of staging.creates) if (c.type === "table" || c.type === "fieldParameter") names.push(c.name);
+        return names;
+    }
+    function fpFieldIcon(f) { return f.type === "measure" ? "measure" : (f.calculated ? "calculated_column" : "column"); }
+
+    function openFieldParameterManager() {
+        let active = null;
+        let draftName = "";
+        let fields = [];
+        let baseline = [];
+        let search = "";
+        let status = null;
+        const openTables = new Set();
+        const m = modal("Field parameter manager", "field_parameter", { wide: true });
+        m.box.classList.add("slls-sx-fpm-box");
+        m.body.className = "slls-sx-modal-body slls-sx-fpm-body";
+        toolRedraw = () => { if (m.overlay.isConnected) draw(true); };
+        m.onClose = () => { toolRedraw = null; };
+        const sig = (f) => [f.type, f.table, f.name, f.label, f.rawRef || "", f.hierarchy || ""].join("\u0001");
+        const sameFields = (a, b) => a.length === b.length && a.every((f, i) => sig(f) === sig(b[i]));
+        const clone = (list) => list.map((f) => Object.assign({}, f));
+        const writable = () => mode === "write" && !saving;
+        const isNewDraft = () => active === FP_NEW;
+        const nameTaken = () => {
+            const n = draftName.trim().toLowerCase();
+            return isNewDraft() && !!n && fpTakenNames().some((x) => x.toLowerCase() === n);
+        };
+        const dirty = () => (isNewDraft() ? fields.length > 0 || !!draftName.trim() : active !== null && !sameFields(fields, baseline));
+        const hierarchyState = () => {
+            const some = fields.some((f) => (f.hierarchy || "").trim() !== "");
+            const all = fields.every((f) => (f.hierarchy || "").trim() !== "");
+            return { some, incomplete: some && !all };
+        };
+        const canStage = () => writable() && fields.length > 0 && fields.every((f) => f.label.trim()) && !hierarchyState().incomplete
+            && (isNewDraft() ? !!draftName.trim() && !nameTaken() : dirty());
+        const load = (fp) => {
+            fields = fpParse(fpExpression(fp), fpModelIndex());
+            baseline = clone(fields);
+            draftName = fp.name;
+        };
+        const select = (id) => {
+            const fp = fpList().find((x) => x.id === id);
+            if (!fp) return;
+            active = id; status = null; search = "";
+            load(fp);
+            draw();
+        };
+        const startNew = () => {
+            active = FP_NEW; status = null; search = "";
+            draftName = uniqueName("Parameter", fpTakenNames());
+            fields = []; baseline = [];
+            draw();
+        };
+        const stage = () => {
+            if (!canStage()) return;
+            const expression = fpBuildExpression(fields);
+            if (isNewDraft()) {
+                pushUndo("");
+                const id = ++createSeq + "-" + Date.now().toString(36);
+                staging.creates.push({ id, type: "fieldParameter", parentKey: "", name: draftName.trim(), props: { Expression: expression } });
+                active = "new:" + id;
+                status = { kind: "success", text: `Staged new field parameter \u201c${draftName.trim()}\u201d. Use Save to apply it to the model.` };
+                afterChange();
+            } else {
+                const fp = fpList().find((x) => x.id === active);
+                if (!fp) return;
+                if (fp.isNew) { pushUndo(""); fp.create.props.Expression = expression; afterChange(); }
+                else setValue(fp.partition, "Expression", expression, { label: "Expression" });
+                status = { kind: "success", text: `Staged changes to \u201c${fp.name}\u201d. Use Save to apply them to the model.` };
+            }
+            baseline = clone(fields);
+            draw();
+        };
+
+        let stageBtn = null;
+        let hierarchyNote = null;
+        const refreshControls = () => {
+            if (stageBtn) stageBtn.disabled = !canStage();
+            const hs = hierarchyState();
+            if (hierarchyNote) {
+                hierarchyNote.className = "slls-sx-fpm-note" + (hs.incomplete ? " error" : "");
+                hierarchyNote.textContent = hs.incomplete
+                    ? "Set a Hierarchy value for every object, or clear them all \u2014 it's all-or-nothing."
+                    : "Give objects the same Hierarchy name to group them into a (makeshift) hierarchy in Power BI. Leave blank for none.";
+            }
+            for (const input of m.body.querySelectorAll(".slls-sx-fpm-hier")) {
+                input.classList.toggle("invalid", hs.incomplete && !input.value.trim());
+            }
+        };
+
+        function drawSidebar(list) {
+            const side = h("div", "slls-sx-fpm-side");
+            const head = h("div", "slls-sx-fpm-side-head");
+            head.appendChild(h("span", "slls-sx-pane-label", `Field parameters (${list.length})`));
+            if (writable()) {
+                const add = button("slls-sx-iconbtn" + (isNewDraft() ? " on" : ""), "", "plus", startNew, "Create a new field parameter");
+                head.appendChild(add);
+            }
+            side.appendChild(head);
+            const items = h("div", "slls-sx-fpm-list");
+            if (isNewDraft()) {
+                const b = button("slls-sx-fpm-item draft active", "", "plus", () => {});
+                b.append(h("span", "name", draftName.trim() || "New field parameter"), h("span", "count", String(fields.length)));
+                items.appendChild(b);
+            }
+            if (!list.length && !isNewDraft()) {
+                items.appendChild(h("div", "slls-sx-empty", "This model has no field parameters." + (writable() ? " Use + to create one." : "")));
+            }
+            for (const fp of list) {
+                const b = button("slls-sx-fpm-item" + (active === fp.id ? " active" : "") + (fp.isNew ? " new" : ""), "", "field_parameter", () => select(fp.id));
+                const count = fpParse(fpExpression(fp), fpModelIndex()).length;
+                b.append(h("span", "name", fp.name), h("span", "count", String(count)));
+                b.title = fp.isNew ? `${fp.name} (new \u2014 not saved yet)` : fp.name;
+                items.appendChild(b);
+            }
+            side.appendChild(items);
+            return side;
+        }
+        function drawAvailable() {
+            const pane = h("div", "slls-sx-fpm-pane");
+            pane.appendChild(h("div", "slls-sx-pane-label", "Add columns & measures"));
+            const sw = h("div", "slls-sx-search");
+            sw.appendChild(iconEl("search", ""));
+            const input = h("input", "slls-sx-input");
+            input.type = "search";
+            input.placeholder = "Search columns and measures\u2026";
+            input.value = search;
+            sw.appendChild(input);
+            pane.appendChild(sw);
+            const list = h("div", "slls-sx-fpm-scroll");
+            pane.appendChild(list);
+            const paint = () => {
+                clear(list);
+                const q = search.trim().toLowerCase();
+                const chosen = new Set(fields.map((f) => f.key));
+                let any = false;
+                for (const t of [...(data.tables || [])].sort(byLabel)) {
+                    if (isDeleted(t) || t.kind === "calculation_group" || t.kind === "field_parameter") continue;
+                    const tname = effName(t);
+                    const byName = (a, b) => effName(a).localeCompare(effName(b), undefined, { sensitivity: "base" });
+                    let items = [
+                        ...[...(t.measures || []), ...newNodes("measure", t.key)].filter((x) => !isDeleted(x)).sort(byName)
+                            .map((x) => ({ type: "measure", name: effName(x), calculated: false })),
+                        ...[...(t.columns || []), ...newNodes("column", t.key)].filter((x) => !isDeleted(x)).sort(byName)
+                            .map((x) => ({ type: "column", name: effName(x), calculated: x.column_type === "Calculated" })),
+                    ];
+                    if (q && !tname.toLowerCase().includes(q)) items = items.filter((x) => x.name.toLowerCase().includes(q));
+                    if (!items.length) continue;
+                    any = true;
+                    const isOpen = !!q || openTables.has(t.key);
+                    const head = h("button", "slls-sx-fpm-row table");
+                    head.type = "button";
+                    const caret = h("span", "slls-sx-caret" + (isOpen ? " open" : ""));
+                    caret.innerHTML = ICON.caret_right;
+                    head.append(caret, iconEl(tableIcon(t), ""), h("span", "name", tname), h("span", "meta", String(items.length)));
+                    head.addEventListener("click", () => { if (openTables.has(t.key)) openTables.delete(t.key); else openTables.add(t.key); paint(); });
+                    list.appendChild(head);
+                    if (!isOpen) continue;
+                    for (const it of items) {
+                        const f = fpField(it.type, tname, it.name, it.name, it.calculated);
+                        const added = chosen.has(f.key);
+                        const row = h("button", "slls-sx-fpm-row item" + (added ? " added" : ""));
+                        row.type = "button";
+                        row.disabled = added;
+                        row.append(iconEl(fpFieldIcon(f), ""), h("span", "name", it.name));
+                        if (added) row.appendChild(h("span", "meta", "Added"));
+                        else row.appendChild(iconEl("plus", "slls-sx-ricon add"));
+                        row.addEventListener("click", () => { fields.push(f); draw(); });
+                        list.appendChild(row);
+                    }
+                }
+                if (!any) list.appendChild(h("div", "slls-sx-empty", "No matching columns or measures."));
+            };
+            input.addEventListener("input", () => { search = input.value; paint(); });
+            paint();
+            return pane;
+        }
+        function drawObjects() {
+            const pane = h("div", "slls-sx-fpm-pane");
+            const head = h("div", "slls-sx-fpm-pane-head");
+            head.appendChild(h("span", "slls-sx-pane-label", `Objects (${fields.length})`));
+            const link = h("a", "slls-sx-link slls-sx-fpm-link");
+            link.href = FP_HIERARCHY_URL;
+            link.target = "_blank";
+            link.rel = "noreferrer";
+            link.title = "Watch a video about hierarchies in field parameters";
+            link.append(document.createTextNode("About hierarchies"), iconEl("external_link", ""));
+            head.appendChild(link);
+            pane.appendChild(head);
+            hierarchyNote = fields.length ? h("div", "slls-sx-fpm-note") : null;
+            if (hierarchyNote) pane.appendChild(hierarchyNote);
+            const list = h("div", "slls-sx-fpm-scroll");
+            if (!fields.length) list.appendChild(h("div", "slls-sx-empty", "Add fields from the left. The order here is the order shown in the field parameter."));
+            fields.forEach((f, i) => {
+                const row = h("div", "slls-sx-fpm-obj");
+                row.appendChild(h("span", "idx", String(i)));
+                row.appendChild(iconEl(fpFieldIcon(f), ""));
+                const main = h("div", "main");
+                const label = h("input", "slls-sx-fpm-label");
+                label.value = f.label;
+                label.placeholder = "Label";
+                label.setAttribute("aria-label", `Label for ${f.name}`);
+                label.addEventListener("input", () => { f.label = label.value; refreshControls(); });
+                const ref = h("span", "ref" + (f.broken ? " broken" : ""), fpRef(f) + (f.broken ? " \u00b7 missing" : ""));
+                ref.title = f.broken ? `${fpRef(f)} \u2014 object not found in the model` : fpRef(f);
+                main.append(label, ref);
+                row.appendChild(main);
+                const hier = h("input", "slls-sx-input slls-sx-fpm-hier");
+                hier.value = f.hierarchy || "";
+                hier.placeholder = "Hierarchy";
+                hier.title = "Optional hierarchy / group name. All-or-nothing: set it for every object or leave them all blank.";
+                hier.setAttribute("aria-label", `Hierarchy for ${f.name}`);
+                hier.addEventListener("input", () => { f.hierarchy = hier.value; refreshControls(); });
+                row.appendChild(hier);
+                const up = button("slls-sx-iconbtn", "", "arrow_up", () => { [fields[i - 1], fields[i]] = [fields[i], fields[i - 1]]; draw(); }, "Move up");
+                up.disabled = i === 0;
+                const down = button("slls-sx-iconbtn", "", "arrow_down", () => { [fields[i + 1], fields[i]] = [fields[i], fields[i + 1]]; draw(); }, "Move down");
+                down.disabled = i === fields.length - 1;
+                const remove = button("slls-sx-iconbtn", "", "close", () => { fields.splice(i, 1); draw(); }, "Remove");
+                row.append(up, down, remove);
+                list.appendChild(row);
+            });
+            pane.appendChild(list);
+            return pane;
+        }
+        function drawReadOnly() {
+            const wrap = h("div", "slls-sx-fpm-readonly");
+            const info = h("div", "slls-sx-fpm-info");
+            info.append(iconEl("info", ""), h("span", "", "Read-only. Switch to edit mode to reorder, change objects or create new field parameters."));
+            wrap.appendChild(info);
+            if (!fields.length) wrap.appendChild(h("div", "slls-sx-empty", "This field parameter has no objects."));
+            fields.forEach((f, i) => {
+                const row = h("div", "slls-sx-fpm-obj readonly");
+                row.append(h("span", "idx", String(i)), iconEl(fpFieldIcon(f), ""), h("span", "label", f.label));
+                if (f.hierarchy) { const p = h("span", "slls-sx-pill", f.hierarchy); p.title = "Hierarchy / group"; row.appendChild(p); }
+                const ref = h("span", "ref" + (f.broken ? " broken" : ""), fpRef(f));
+                ref.title = fpRef(f);
+                row.appendChild(ref);
+                if (f.broken) { const w = iconEl("alert", "slls-sx-err"); w.title = "Object not found in the model"; row.appendChild(w); }
+                wrap.appendChild(row);
+            });
+            return wrap;
+        }
+        function drawMain() {
+            const main = h("div", "slls-sx-fpm-main");
+            if (active === null) {
+                const empty = h("div", "slls-sx-center");
+                empty.append(iconEl("field_parameter", ""), h("div", "", "Select a field parameter to view its objects" + (writable() ? ", or create a new one." : ".")));
+                if (!writable() && !saving) {
+                    const link = h("a", "slls-sx-link", "Enable edit mode to reorder, change objects or create new field parameters");
+                    link.addEventListener("click", () => setMode("write"));
+                    empty.appendChild(link);
+                }
+                main.appendChild(empty);
+                return main;
+            }
+            const bar = h("div", "slls-sx-fpm-toolbar");
+            bar.appendChild(iconEl("field_parameter", "slls-sx-fpm-title-icon"));
+            if (isNewDraft() && writable()) {
+                const name = h("input", "slls-sx-input slls-sx-fpm-name" + (nameTaken() ? " invalid" : ""));
+                name.value = draftName;
+                name.placeholder = "Field parameter name";
+                name.setAttribute("aria-label", "Field parameter name");
+                name.addEventListener("input", () => {
+                    draftName = name.value;
+                    name.classList.toggle("invalid", nameTaken());
+                    taken.style.display = nameTaken() ? "" : "none";
+                    const item = m.body.querySelector(".slls-sx-fpm-item.draft .name");
+                    if (item) item.textContent = draftName.trim() || "New field parameter";
+                    refreshControls();
+                });
+                bar.appendChild(name);
+            } else bar.appendChild(h("span", "slls-sx-fpm-name-text", draftName));
+            const taken = h("span", "slls-sx-fpm-status error", "Name already in use");
+            taken.style.display = nameTaken() ? "" : "none";
+            bar.appendChild(taken);
+            if (status) bar.appendChild(h("span", "slls-sx-fpm-status " + status.kind, status.text));
+            if (writable()) {
+                stageBtn = button("slls-sx-btn primary slls-sx-fpm-stage", isNewDraft() ? "Stage field parameter" : "Stage changes", "", stage);
+                bar.appendChild(stageBtn);
+            } else stageBtn = null;
+            main.appendChild(bar);
+            if (writable()) {
+                const grid = h("div", "slls-sx-fpm-grid");
+                grid.append(drawAvailable(), drawObjects());
+                main.appendChild(grid);
+            } else {
+                hierarchyNote = null;
+                main.appendChild(drawReadOnly());
+            }
+            return main;
+        }
+        function draw(external) {
+            const list = fpList();
+            if (active !== null && active !== FP_NEW && !list.some((x) => x.id === active)) {
+                // A staged field parameter that was just saved is now a real table.
+                const match = list.find((x) => x.name === draftName);
+                active = match ? match.id : null;
+                if (match && !dirty()) load(match);
+            } else if (external && active !== null && active !== FP_NEW && !dirty()) {
+                const fp = list.find((x) => x.id === active);
+                if (fp) load(fp);
+            }
+            if (active === FP_NEW && !writable()) active = null;
+            clear(m.actions);
+            const sw = h("button", "slls-sx-mode" + (mode === "write" ? " write" : ""));
+            sw.type = "button";
+            sw.setAttribute("role", "switch");
+            sw.setAttribute("aria-checked", String(mode === "write"));
+            sw.title = mode === "write" ? "Read-write mode (editing enabled)" : "Read-only mode \u2014 click to enable editing";
+            sw.innerHTML = (mode === "write" ? ICON.pencil : ICON.eye) + '<span class="slls-sx-track"></span>';
+            sw.appendChild(document.createTextNode(mode === "write" ? "Edit" : "Read-only"));
+            sw.disabled = saving;
+            sw.addEventListener("click", () => setMode(mode === "write" ? "read" : "write"));
+            m.actions.appendChild(sw);
+            clear(m.body);
+            const layout = h("div", "slls-sx-fpm");
+            layout.append(drawSidebar(list), drawMain());
+            m.body.appendChild(layout);
+            refreshControls();
+        }
+        draw();
+    }
     function openHistory() {
         const m = modal("Change history", "history");
         const draw = () => {
@@ -3396,6 +3964,7 @@ function render({ model, el }) {
         renderPicker();
         renderBody();
         renderStatus();
+        if (toolRedraw) toolRedraw();
     }
 
     function onModelData() {
@@ -3458,6 +4027,7 @@ _EXPLORER_ICON_NAMES = (
     "sliders", "sun", "moon", "fullscreen", "fullscreen_exit", "pencil", "eye", "eye_off",
     "save", "history", "alert", "close", "trash", "plus", "undo", "redo", "file",
     "workflow", "wand", "expand_diagonal", "user", "telescope", "zoom_in", "zoom_out",
+    "more", "arrow_up", "arrow_down", "external_link", "info",
 )  # fmt: skip
 
 _WIDGET_CSS = (
@@ -4531,6 +5101,8 @@ def _apply_edit(tom, obj, prop: str, value) -> None:
 
     if prop == "Expression" and obj_type == "Partition":
         obj.Source.Expression = str(value or "")
+        if str(obj.SourceType) == "Calculated":
+            _reconcile_field_parameter_group_column(obj.Table, obj.Source.Expression)
         return
 
     if prop == "SortByColumn" and obj_type == "Column":
@@ -4560,6 +5132,107 @@ def _new_lineage_tag(obj) -> None:
 
 # Starting definition of a new named expression (matches the frontend).
 _NEW_EXPRESSION = 'let\n    Source = ""\nin\n    Source'
+
+
+# Marks a field parameter's "Fields" column, as Power BI does.
+_FIELD_PARAMETER_METADATA = '{"version":3,"kind":2}'
+
+
+def _is_field_parameter_table(table) -> bool:
+    return any(
+        str(prop.Name) == "ParameterMetadata"
+        for column in table.Columns
+        for prop in column.ExtendedProperties
+    )
+
+
+def _field_parameter_has_group(expression: str) -> bool:
+    """True when the rows carry the optional 4th ("hierarchy" / group) value,
+    e.g. ``( "Label", NAMEOF ( [Sales] ), 0, "Group" )``."""
+
+    return bool(
+        re.search(
+            r'NAMEOF\s*\([^)]*\)\s*,\s*-?\d+\s*,\s*"', expression or "", re.IGNORECASE
+        )
+    )
+
+
+def _reconcile_field_parameter_group_column(table, expression: str) -> None:
+    """Adds / removes a field parameter's ``[Value4]`` group column so it
+    matches whether the rows carry a group value. No-op for other tables."""
+
+    import Microsoft.AnalysisServices.Tabular as TOM
+
+    if not _is_field_parameter_table(table):
+        return
+    group = next(
+        (
+            c
+            for c in table.Columns
+            if str(c.Type) == "CalculatedTableColumn"
+            and str(c.SourceColumn).lower() == "[value4]"
+        ),
+        None,
+    )
+    if _field_parameter_has_group(expression):
+        if group is None:
+            column = TOM.CalculatedTableColumn()
+            column.Name = _unique_name(
+                f"{table.Name} Group", table.Columns.ContainsName
+            )
+            column.SourceColumn = "[Value4]"
+            column.DataType = TOM.DataType.String
+            _new_lineage_tag(column)
+            table.Columns.Add(column)
+    elif group is not None:
+        table.Columns.Remove(group)
+
+
+def _new_field_parameter(model, name: str, expression: str):
+    """Builds a field parameter: a calculated table listing (label, NAMEOF,
+    order[, group]) rows, with a value column grouped by a hidden fields column
+    (which carries the ParameterMetadata marker), both sorted by a hidden
+    order column."""
+
+    import Microsoft.AnalysisServices.Tabular as TOM
+
+    table = TOM.Table()
+    table.Name = name
+    _new_lineage_tag(table)
+    partition = TOM.Partition()
+    partition.Name = name
+    partition.Mode = TOM.ModeType.Import
+    source = TOM.CalculatedPartitionSource()
+    source.Expression = expression
+    partition.Source = source
+    table.Partitions.Add(partition)
+
+    def _column(column_name: str, source_column: str, data_type, hidden: bool):
+        column = TOM.CalculatedTableColumn()
+        column.Name = column_name
+        column.SourceColumn = source_column
+        column.DataType = data_type
+        column.IsHidden = hidden
+        _new_lineage_tag(column)
+        table.Columns.Add(column)
+        return column
+
+    value = _column(name, "[Value1]", TOM.DataType.String, False)
+    fields = _column(f"{name} Fields", "[Value2]", TOM.DataType.String, True)
+    order = _column(f"{name} Order", "[Value3]", TOM.DataType.Int64, True)
+    marker = TOM.JsonExtendedProperty()
+    marker.Name = "ParameterMetadata"
+    marker.Value = _FIELD_PARAMETER_METADATA
+    fields.ExtendedProperties.Add(marker)
+    value.SortByColumn = order
+    fields.SortByColumn = order
+    value.RelatedColumnDetails = TOM.RelatedColumnDetails()
+    group_by = TOM.GroupByColumn()
+    group_by.GroupingColumn = fields
+    value.RelatedColumnDetails.GroupByColumns.Add(group_by)
+    _reconcile_field_parameter_group_column(table, expression)
+    model.Tables.Add(table)
+    return table
 
 
 def _new_calculation_group(model, name: str):
@@ -4610,6 +5283,7 @@ def _create_object(tom, spec: dict):
     obj_type = spec.get("type")
     name = str(spec.get("name") or "").strip()
     table_name = spec.get("table") or ""
+    props = dict(spec.get("props") or {})
     if not name:
         raise ValueError(f"A new {obj_type} needs a name.")
 
@@ -4641,6 +5315,10 @@ def _create_object(tom, spec: dict):
         table.CalculationGroup.CalculationItems.Add(obj)
     elif obj_type == "table":
         obj = _new_calculation_group(model, name)
+    elif obj_type == "fieldParameter":
+        if model.Tables.ContainsName(name):
+            raise ValueError(f"A table named '{name}' already exists.")
+        obj = _new_field_parameter(model, name, str(props.pop("Expression", "") or ""))
     elif obj_type == "role":
         obj = TOM.ModelRole()
         obj.Name = name
@@ -4660,7 +5338,7 @@ def _create_object(tom, spec: dict):
     else:
         raise ValueError(f"Creating a '{obj_type}' is not supported.")
 
-    for prop, value in (spec.get("props") or {}).items():
+    for prop, value in props.items():
         _apply_edit(tom, obj, prop, value)
     return obj
 
