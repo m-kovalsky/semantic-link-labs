@@ -5262,12 +5262,24 @@ function render({ model, el }) {
         cb.disabled = !ids.length;
         cb.title = title;
         cb.setAttribute("aria-label", title);
+        cb.sllsIds = ids;
+        cb.sllsSelected = selected;
         cb.addEventListener("change", () => {
             const on = !(ids.length > 0 && ids.every((id) => selected.has(id)));
             for (const id of ids) { if (on) selected.add(id); else selected.delete(id); }
             onToggle();
         });
         return cb;
+    }
+    // Refreshes every selection checkbox in place. Rebuilding the rows instead
+    // would collapse the scroller and jump the view back to the top.
+    function syncTriCheckboxes(container) {
+        for (const cb of container.querySelectorAll("input.slls-sx-tool-check")) {
+            if (!cb.sllsIds) continue;
+            const n = cb.sllsIds.filter((id) => cb.sllsSelected.has(id)).length;
+            cb.checked = cb.sllsIds.length > 0 && n === cb.sllsIds.length;
+            cb.indeterminate = n > 0 && n < cb.sllsIds.length;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -5881,7 +5893,7 @@ function render({ model, el }) {
             if (countEl) countEl.textContent = `${shownMatches.length.toLocaleString()} shown`;
             if (headCheck) {
                 const fresh = triCheckbox(measureIds(shownMatches), selected,
-                    "Select all measures (matching the current filters) for AI description generation", () => { paintRows(); refreshGenerate(); });
+                    "Select all measures (matching the current filters) for AI description generation", () => { syncTriCheckboxes(m.body); refreshGenerate(); });
                 headCheck.replaceWith(fresh);
                 headCheck = fresh;
             }
@@ -5895,10 +5907,10 @@ function render({ model, el }) {
                     paintRows();
                 }) : h("span", "slls-sx-tool-caret"));
                 if (editable) {
-                    if (n.type === "Measure") obj.appendChild(triCheckbox([n.id], selected, "Select for AI description generation", () => { paintRows(); refreshGenerate(); }));
+                    if (n.type === "Measure") obj.appendChild(triCheckbox([n.id], selected, "Select for AI description generation", () => { syncTriCheckboxes(m.body); refreshGenerate(); }));
                     else if (n.type === "Table" && measureIds(n.children).length) {
                         obj.appendChild(triCheckbox(measureIds(n.children), selected, "Select all measures in this table for AI description generation",
-                            () => { paintRows(); refreshGenerate(); }));
+                            () => { syncTriCheckboxes(m.body); refreshGenerate(); }));
                     } else obj.appendChild(h("span", "slls-sx-tool-check"));
                 }
                 obj.appendChild(iconEl(objIcon(n), ""));
@@ -6103,7 +6115,7 @@ function render({ model, el }) {
             if (countEl) countEl.textContent = `${matching.length.toLocaleString()} shown`;
             if (headCheck) {
                 const fresh = triCheckbox(matching.map((n) => n.id), selected, "Select all objects (matching the current filters) to translate",
-                    () => { paintRows(); refreshTranslate(); });
+                    () => { syncTriCheckboxes(m.body); refreshTranslate(); });
                 headCheck.replaceWith(fresh);
                 headCheck = fresh;
             }
@@ -6128,7 +6140,7 @@ function render({ model, el }) {
                 if (write()) {
                     const ids = n.type === "Table" ? flatTree([n]).map((x) => x.id) : [n.id];
                     obj.appendChild(triCheckbox(ids, selected, n.type === "Table" ? "Select all objects in this table to translate" : "Select to translate",
-                        () => { paintRows(); refreshTranslate(); }));
+                        () => { syncTriCheckboxes(m.body); refreshTranslate(); }));
                 }
                 obj.appendChild(iconEl(objIcon(n), ""));
                 const name = h("span", "name", effName(n.node));
@@ -6149,7 +6161,8 @@ function render({ model, el }) {
             if (!trBtn) return;
             const n = flatTree(tree).filter((x) => selected.has(x.id)).length;
             trBtn.lastChild.textContent = n ? `Translate (${n})` : "Translate";
-            trBtn.disabled = !n || !culture;
+            // Machine translation is switched off for now.
+            trBtn.disabled = true;
         }
         function openTranslate() {
             const rows = flatTree(tree).filter((x) => selected.has(x.id));
@@ -6270,7 +6283,7 @@ function render({ model, el }) {
             trBtn = null;
             if (write()) {
                 trBtn = button("slls-sx-btn", "Translate", "sparkles", openTranslate,
-                    "Translate the selected objects into other languages with Azure AI Translator");
+                    "Machine translation is not available yet");
                 refreshTranslate();
             }
             toolActions(m, [trBtn]);
@@ -7715,8 +7728,9 @@ function render({ model, el }) {
             return out;
         }
         const fmtTemp = (n) => (!n ? "\u2014" : n.toLocaleString(undefined, { maximumFractionDigits: 4 }));
-        let tbody = null, countEl = null, warmBtn = null;
+        let tbody = null, countEl = null, warmBtn = null, clearBtn = null;
         function refreshWarmBtn() {
+            if (clearBtn) clearBtn.style.display = selected.size ? "" : "none";
             if (!warmBtn) return;
             warmBtn.lastChild.textContent = warming ? "Warming\u2026" : `Warm ${plural(selected.size, "column")}`;
             warmBtn.disabled = !selected.size || warming || !directLake();
@@ -7742,7 +7756,7 @@ function render({ model, el }) {
                 const td = h("td", "");
                 const cell = h("div", "slls-sx-dm-obj");
                 cell.appendChild(caretBtn(open, () => { if (expandedTables.has(t.table)) expandedTables.delete(t.table); else expandedTables.add(t.table); paintRows(); }));
-                cell.appendChild(triCheckbox(t.cols.map(keyOfCol), selected, `Select every column of ${t.table}`, () => { paintRows(); refreshWarmBtn(); }));
+                cell.appendChild(triCheckbox(t.cols.map(keyOfCol), selected, `Select every column of ${t.table}`, () => { syncTriCheckboxes(m.body); refreshWarmBtn(); }));
                 const node = tableByName.get(t.table);
                 cell.append(iconEl(node ? tableIcon(node) : "table", ""), h("span", "name", tableDisplayName(t.table)), h("span", "meta", String(t.cols.length)));
                 td.appendChild(cell);
@@ -7754,7 +7768,7 @@ function render({ model, el }) {
                     const ctd = h("td", "");
                     const cc = h("div", "slls-sx-dm-obj");
                     cc.style.paddingLeft = "26px";
-                    cc.appendChild(triCheckbox([keyOfCol(c)], selected, `Select ${c.column}`, () => { paintRows(); refreshWarmBtn(); }));
+                    cc.appendChild(triCheckbox([keyOfCol(c)], selected, `Select ${c.column}`, () => { syncTriCheckboxes(m.body); refreshWarmBtn(); }));
                     cc.append(iconEl("column", ""), h("span", "name", columnDisplayName(t.table, c.column)));
                     ctd.appendChild(cc);
                     const res = h("span", "slls-sx-pill" + (c.resident ? " new" : ""), c.resident ? "Yes" : "No");
@@ -7776,7 +7790,7 @@ function render({ model, el }) {
             m.actions.appendChild(reload);
             keepScroll(m.body, () => {
                 clear(m.body);
-                tbody = null; warmBtn = null;
+                tbody = null; warmBtn = null; clearBtn = null;
                 if (!directLake()) {
                     m.body.appendChild(toolNotice(false, "This semantic model has no Direct Lake partitions, so its columns cannot be warmed. Residency is shown for reference."));
                 }
@@ -7794,7 +7808,8 @@ function render({ model, el }) {
                 bar.append(button("slls-sx-iconbtn", "", "expand_rows", () => { (warmColumns || []).forEach((c) => expandedTables.add(c.table)); paintRows(); }, "Expand all tables"),
                     button("slls-sx-iconbtn", "", "collapse_rows", () => { expandedTables.clear(); paintRows(); }, "Collapse all tables"));
                 const right = h("div", "slls-sx-warm-right");
-                if (selected.size) right.appendChild(button("slls-sx-btn small", "Clear selection", "", () => { selected.clear(); draw(); }));
+                clearBtn = button("slls-sx-btn small", "Clear selection", "", () => { selected.clear(); syncTriCheckboxes(m.body); refreshWarmBtn(); });
+                right.appendChild(clearBtn);
                 warmBtn = button("slls-sx-btn small primary", "", "flame", () => {
                     const cols = (warmColumns || []).filter((c) => selected.has(keyOfCol(c))).map((c) => ({ table: c.table, column: c.column }));
                     const nTables = new Set(cols.map((c) => c.table)).size;
