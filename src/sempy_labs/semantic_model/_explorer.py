@@ -44,6 +44,9 @@ _WIDGET_CSS = """
     border-radius: var(--sx-radius);
     box-shadow: var(--ui-shadow-md);
     box-sizing: border-box;
+    /* Do not inherit word breaking from the notebook host. */
+    word-break: normal;
+    overflow-wrap: normal;
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -952,6 +955,8 @@ _WIDGET_CSS = """
 .slls-sx-rd-head .slls-sx-iconbtn { width: 24px; height: 24px; }
 .slls-sx-rd-head .slls-sx-iconbtn svg { width: 13px; height: 13px; }
 .slls-sx-rd-cols { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 0; }
+.slls-sx-rd-panel.collapsed .slls-sx-rd-cols { overflow: hidden; }
+.slls-sx-rd-col { flex-shrink: 0; overflow: hidden; white-space: nowrap; }
 .slls-sx-rd-col { display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; }
 .slls-sx-rd-col[draggable="true"] { cursor: grab; }
 .slls-sx-rd-col > span:first-child svg { width: 12px; height: 12px; color: var(--ui-text-tertiary); }
@@ -963,10 +968,14 @@ _WIDGET_CSS = """
 .slls-sx-rd-col.hl .name { color: var(--ui-accent); font-weight: 600; }
 .slls-sx-rd-col.flagged { background: color-mix(in srgb, var(--sx-hl-nonint) 12%, transparent); }
 .slls-sx-rd-col.flagged .dt { color: var(--sx-hl-nonint); font-weight: 600; }
-.slls-sx-rd-none { padding: 2px 10px; font-size: 11.5px; color: var(--ui-text-tertiary); font-style: italic; }
+.slls-sx-rd-none {
+    display: flex; align-items: center; height: 22px; padding: 0 10px; overflow: hidden; white-space: nowrap;
+    font-size: 11.5px; color: var(--ui-text-tertiary); font-style: italic;
+}
 .slls-sx-rd-resize { position: absolute; right: 1px; bottom: 1px; width: 14px; height: 14px; cursor: nwse-resize; color: var(--ui-text-tertiary); }
 .slls-sx-rd-tip {
-    position: absolute; z-index: 5; width: 280px; padding: 9px 11px; pointer-events: none; font-size: 12px;
+    position: absolute; z-index: 5; width: max-content; min-width: 240px; max-width: 380px; padding: 9px 11px; pointer-events: none;
+    font-size: 12px; line-height: 1.4; text-align: left; white-space: normal; word-break: normal; letter-spacing: normal;
     border: 1px solid var(--ui-border-strong); border-radius: 10px; background: var(--ui-bg-solid); box-shadow: var(--ui-shadow-lg);
 }
 .slls-sx-rd-tip-head { display: flex; align-items: center; gap: 6px; font-weight: 600; }
@@ -974,10 +983,12 @@ _WIDGET_CSS = """
 .slls-sx-rd-tip-head .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slls-sx-rd-tip-head .kind { font-weight: 400; font-size: 11px; color: var(--ui-text-tertiary); }
 .slls-sx-rd-tip-head .slls-sx-pill { margin-left: 0; }
-.slls-sx-rd-tip-path { margin-top: 4px; font-family: var(--sx-mono); font-size: 11px; color: var(--ui-text-secondary); overflow-wrap: anywhere; }
-.slls-sx-rd-tip dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 8px 0 0; }
-.slls-sx-rd-tip dt { color: var(--ui-text-tertiary); }
-.slls-sx-rd-tip dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.slls-sx-rd-tip-path { margin-top: 4px; font-family: var(--sx-mono); font-size: 11px; color: var(--ui-text-secondary); overflow-wrap: break-word; }
+.slls-sx-rd-tip-grid {
+    display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 8px 0 0; padding: 0;
+}
+.slls-sx-rd-tip-grid > .k { color: var(--ui-text-tertiary); white-space: nowrap; }
+.slls-sx-rd-tip-grid > .v { min-width: 0; color: var(--ui-text); overflow-wrap: break-word; word-break: normal; }
 .slls-sx-rd-legend { position: absolute; left: 12px; bottom: 12px; z-index: 3; font-size: 12px; }
 .slls-sx-rd-legend .pill {
     display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--ui-border-strong);
@@ -6252,7 +6263,7 @@ function render({ model, el }) {
     // ------------------------------------------------------------------
     // Relationship diagram
     // ------------------------------------------------------------------
-    const RD = { HEADER_H: 34, ROW_H: 22, BODY_PAD: 8, W: 240, H: 220, MIN_W: 160, MIN_H: 120, MARGIN: 240 };
+    const RD = { HEADER_H: 34, ROW_H: 22, BODY_PAD: 11, W: 240, H: 220, MIN_W: 160, MIN_H: 120, MARGIN: 240 };
     const RD_SOURCE_COLORS = 10;
     const RD_MODE_ICON = { import: ["Import", "database"], directquery: ["DirectQuery", "cable"], dual: ["Dual", "layers"],
         directlake: ["Direct Lake", "waves"], push: ["Push", "database"] };
@@ -6261,6 +6272,11 @@ function render({ model, el }) {
     const rdMark = (card, fallback) => (!card ? fallback : (/one/i.test(card) ? "1" : "*"));
     const rdPair = (a, b) => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
     const rdEnd = (table, column) => `'${tableDisplayName(table)}'[${columnDisplayName(table, column)}]`;
+    function rdTipGrid(rows) {
+        const grid = h("div", "slls-sx-rd-tip-grid");
+        for (const [k, v] of rows) grid.append(h("span", "k", k), h("span", "v", v || "\u2014"));
+        return grid;
+    }
     const rdPath = (r) => `${rdEnd(r.from_table, r.from_column)} \u2192 ${rdEnd(r.to_table, r.to_column)}`;
     function rdEdgePoint(x, y, w, hh, tx, ty) {
         const cx = x + w / 2, cy = y + hh / 2, dx = tx - cx, dy = ty - cy;
@@ -6582,7 +6598,7 @@ function render({ model, el }) {
                 const mk = (x, y, mark) => `<g class="card"><circle cx="${x}" cy="${y}" r="10"/>`
                     + `<text x="${x}" y="${y}" dy="${mark === "*" ? "0.5em" : "0.35em"}" text-anchor="middle">${mark}</text></g>`;
                 const title = rdPath(c.r) + (c.r.active ? "" : " (inactive)");
-                out += `<g class="${cls}"><title>${esc(title)}</title>`
+                out += `<g class="${cls}" aria-label="${esc(title)}">`
                     + `<line class="ln" x1="${c.p1.x}" y1="${c.p1.y}" x2="${c.p2.x}" y2="${c.p2.y}"`
                     + ` stroke-width="${c.key === hoveredKey ? 3 : strong ? 2.5 : 1.5}"${c.r.active ? "" : ' stroke-dasharray="5 4"'}/>`
                     + heads.map((hd) => `<polygon class="arrow" points="${rdArrow(hd[0], hd[1], hd[2], hd[3], size2)}"/>`).join("")
@@ -6609,13 +6625,9 @@ function render({ model, el }) {
             if (!c.r.active) head.appendChild(h("span", "slls-sx-pill", "Inactive"));
             tip.appendChild(head);
             tip.appendChild(h("div", "slls-sx-rd-tip-path", rdPath(c.r)));
-            const dl = h("dl", "");
-            for (const [k, v] of [["Cardinality", `${c.fromMark === "*" ? "Many" : "One"} \u2192 ${c.toMark === "*" ? "Many" : "One"}`],
+            tip.appendChild(rdTipGrid([["Cardinality", `${c.fromMark === "*" ? "Many" : "One"} \u2192 ${c.toMark === "*" ? "Many" : "One"}`],
                 ["Cross filter", c.r.cross], ["Strength", c.limited ? "Limited (weak)" : "Strong"], ["Security", c.r.security],
-                ["Assume referential integrity", c.r.rely ? "Yes" : "No"], ["Active", c.r.active ? "Yes" : "No"]]) {
-                dl.append(h("dt", "", k), h("dd", "", v));
-            }
-            tip.appendChild(dl);
+                ["Assume referential integrity", c.r.rely ? "Yes" : "No"], ["Active", c.r.active ? "Yes" : "No"]]));
             tip.style.left = ((c.p1.x + c.p2.x) / 2) * zoom + 14 + "px";
             tip.style.top = ((c.p1.y + c.p2.y) / 2) * zoom + 14 + "px";
             els.sizer.appendChild(tip);
@@ -6636,11 +6648,10 @@ function render({ model, el }) {
             const counts = new Map();
             for (const x of parts) { const label = (RD_MODE_ICON[String(x.mode || "").toLowerCase()] || [x.mode || "Unknown"])[0]; counts.set(label, (counts.get(label) || 0) + 1); }
             const modeText = !parts.length ? "\u2014" : counts.size === 1 ? [...counts.keys()][0] : [...counts].map(([k, n]) => `${k} \u00d7 ${n}`).join(", ");
-            const dl = h("dl", "");
-            dl.append(h("dt", "", "Source"), h("dd", "", key ? rdSourceLabel(key) : (parts[0] ? parts[0].source_type : "\u2014")));
-            if (entity) dl.append(h("dt", "", "Object"), h("dd", "", entity));
-            dl.append(h("dt", "", "Query mode"), h("dd", "", modeText), h("dt", "", "Partitions"), h("dd", "", String(parts.length)));
-            tip.appendChild(dl);
+            const rows = [["Source", key ? rdSourceLabel(key) : (parts[0] ? parts[0].source_type : "\u2014")]];
+            if (entity) rows.push(["Object", entity]);
+            rows.push(["Query mode", modeText], ["Partitions", String(parts.length)]);
+            tip.appendChild(rdTipGrid(rows));
             tip.style.left = (p.x + p.w) * zoom + 10 + "px";
             tip.style.top = p.y * zoom + "px";
             els.sizer.appendChild(tip);
@@ -6742,7 +6753,6 @@ function render({ model, el }) {
             head.appendChild(stop(caretBtn(!p.collapsed, () => { p.collapsed = !p.collapsed; drawPanels(); })));
             head.appendChild(iconEl(tableIcon(node), "kind"));
             const name = h("span", "name", effName(node));
-            name.title = `${effName(node)} \u00b7 ${TABLE_KIND_LABEL[node.kind] || "Table"}`;
             head.appendChild(name);
             const modes = [...new Set((node.partitions || []).map((x) => String(x.mode || "")).filter((x) => x && x.toLowerCase() !== "default"))].sort();
             for (const mo of modes) {
