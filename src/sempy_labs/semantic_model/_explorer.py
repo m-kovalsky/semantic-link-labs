@@ -218,6 +218,16 @@ _WIDGET_CSS = """
 /* Semantic view explorer */
 .slls-sx-vtree { padding: 4px 0; }
 .slls-sx-vtree .slls-sx-row { position: relative; }
+/* A view defined in several YAML files color-codes its objects by file. */
+.slls-sx-vtree .slls-sx-row.vfile::before {
+    content: ""; position: absolute; left: 1px; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: var(--sx-vfile);
+}
+.slls-sx-vswatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; background: var(--sx-vfile); }
+.slls-sx-vfile-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-typebtn > span.slls-sx-vfile-btn { min-width: 0; overflow: hidden; }
+.slls-sx-menu-item.on { background: var(--ui-accent-soft); }
+.slls-sx-menu-item .meta { margin-left: auto; padding-left: 8px; color: var(--ui-text-tertiary); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.slls-sx-defined-in { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .slls-sx-issue { display: flex; align-items: flex-start; gap: 8px; padding: 6px 2px; font-size: 12.5px; border-bottom: 1px solid var(--ui-border); }
 .slls-sx-issue:last-child { border-bottom: none; }
 .slls-sx-issue > span:nth-child(2) { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
@@ -1625,6 +1635,7 @@ function render({ model, el }) {
     let vSelected = "view";
     let vExpanded = new Set(["view", "v:datasets", "v:relationships", "v:metrics"]);
     let vSearch = "";
+    let vFileFilter = "";
     let vTreeEl = null;
     // Editing a view: the saved objects (vBase), the staged working copy
     // (vWork), undo / redo snapshots and lookups for the editors.
@@ -2708,6 +2719,7 @@ function render({ model, el }) {
         vSelected = "view";
         vExpanded = new Set(["view", "v:datasets", "v:relationships", "v:metrics"]);
         vSearch = "";
+        vFileFilter = "";
         propFilter = "";
         vMode = "read";
         vTables = null;
@@ -2902,6 +2914,7 @@ function render({ model, el }) {
         vBase = viewData && viewData.view ? viewObjects(viewData) : null;
         vWork = vBase ? JSON.parse(JSON.stringify(vBase)) : null;
         vUndo = []; vRedo = []; vEditKey = "";
+        if (!vMultiFile() || !viewYamlFiles().includes(vFileFilter)) vFileFilter = "";
         rebuildViewIndex();
         if (vPendingSelect) {
             const p = vPendingSelect;
@@ -2936,6 +2949,27 @@ function render({ model, el }) {
         for (const m of vWork.metrics) vIndex.set(m.key, m);
     }
     function vCols(d) { return vColumns.get(d.key) || []; }
+    // YAML files of the view; with more than one, objects are filtered and
+    // color-coded by the file that defines them.
+    function viewYamlFiles() {
+        return ((viewData && viewData.files) || []).filter((f) => f.area === "definition" && !f.ignored).map((f) => f.path);
+    }
+    function vMultiFile() { return viewYamlFiles().length > 1; }
+    function vFileColor(path) {
+        const i = viewYamlFiles().indexOf(path);
+        return i < 0 ? "" : `var(--sx-src-${i % 10})`;
+    }
+    function vNodeFile(n) {
+        if (!n) return "";
+        if (n.type === "column") return vNodeFile(vIndex.get(n.datasetKey));
+        return n.file || "";
+    }
+    function vInFile(n) { return !vFileFilter || vNodeFile(n) === vFileFilter; }
+    function vSwatch(path) {
+        const s = h("span", "slls-sx-vswatch");
+        s.style.setProperty("--sx-vfile", vFileColor(path));
+        return s;
+    }
     const byName = (a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: "base" });
     function vNodes(type, withDeleted) {
         return vAll(VIEW_LISTS[type]).filter((o) => withDeleted || !o.deleted).slice().sort(byName);
@@ -3120,7 +3154,7 @@ function render({ model, el }) {
         vBeginStep("");
         const id = `new-${type}-${++vNewSeq}`;
         const names = { dataset: "new_dataset", relationship: "new_relationship", metric: "New metric" };
-        const o = { id, key: id, type, isNew: true, deleted: false, file: defaultViewFile(kind), name: uniqueViewName(kind, names[type]) };
+        const o = { id, key: id, type, isNew: true, deleted: false, file: vFileFilter || defaultViewFile(kind), name: uniqueViewName(kind, names[type]) };
         if (type === "dataset") Object.assign(o, { source: "", description: "" });
         if (type === "relationship") {
             const ds = vLive("datasets");
@@ -3289,13 +3323,14 @@ function render({ model, el }) {
         rows.push({ id: "view", depth: 0, node: vIndex.get("view"), hasChildren: true, open: open("view") });
         if (!open("view")) return rows;
         const datasets = [];
-        for (const d of vNodes("dataset", true)) {
+        for (const d of vNodes("dataset", true).filter(vInFile)) {
             const columns = vCols(d).slice().sort(byName).filter((c) => hit(d.name) || hit(c.name));
             if (hit(d.name) || columns.length) datasets.push({ d, columns });
         }
         const folder = (id, label, icon, count, noun) => {
             if (q && !count) return false;
-            const trailTitle = `${plural(count, noun)} ${q ? "matching the search" : "in the semantic view"}`;
+            const scope = vFileFilter ? `in ${vFileFilter}` : "in the semantic view";
+            const trailTitle = `${plural(count, noun)} ${q ? "matching the search" : scope}`;
             rows.push({ id, depth: 1, folder: true, label, icon, hasChildren: count > 0, open: open(id), trailing: String(count), trailTitle });
             return open(id);
         };
@@ -3307,11 +3342,11 @@ function render({ model, el }) {
                 if (open(d.key)) for (const c of columns) rows.push({ id: c.key, depth: 3, node: c, trailing: c.data_type || "", trailTitle: "Data type" });
             }
         }
-        const rels = vNodes("relationship", true).filter((r) => hit(r.name) || hit(r.from) || hit(r.to));
+        const rels = vNodes("relationship", true).filter((r) => vInFile(r) && (hit(r.name) || hit(r.from) || hit(r.to)));
         if (folder("v:relationships", "Relationships", "relationship", rels.length, "relationship")) {
             for (const r of rels) rows.push({ id: r.key, depth: 2, node: r });
         }
-        const metrics = vNodes("metric", true).filter((m) => hit(m.name));
+        const metrics = vNodes("metric", true).filter((m) => vInFile(m) && hit(m.name));
         if (folder("v:metrics", "Metrics", "measure", metrics.length, "metric")) {
             for (const m of metrics) rows.push({ id: m.key, depth: 2, node: m });
         }
@@ -3337,6 +3372,14 @@ function render({ model, el }) {
         const label = h("span", "slls-sx-rlabel", text);
         label.title = node && node.description ? `${text}\n${node.description}` : text;
         if (node && node.type === "relationship") label.title = `${text}\n${node.from}[${node.from_column}] \u2192 ${node.to}[${node.to_column}]`;
+        if (node && node.type !== "view" && vMultiFile()) {
+            const file = vNodeFile(node);
+            if (vFileColor(file)) {
+                row.classList.add("vfile");
+                row.style.setProperty("--sx-vfile", vFileColor(file));
+            }
+            label.title += `\nDefined in ${file || "(inferred when published)"}`;
+        }
         row.appendChild(label);
         if (node && ((node.type === "column" && node.is_hidden) || (node.type === "metric" && !String(node.dax || "").trim() && !node.isNew))) row.classList.add("muted");
         if (node && node.isNew) row.classList.add("new");
@@ -3419,6 +3462,7 @@ function render({ model, el }) {
         if (node.type === "relationship") vExpanded.add("v:relationships");
         if (node.type === "metric") vExpanded.add("v:metrics");
         vSearch = "";
+        if (!vInFile(node)) vFileFilter = "";
         vSelected = key;
         vEditKey = "";
         renderViewTreePane();
@@ -3476,11 +3520,56 @@ function render({ model, el }) {
         });
         sw.appendChild(input);
         filters.appendChild(sw);
+        if (vMultiFile()) filters.appendChild(viewFileFilter());
         treePane.appendChild(filters);
         vTreeEl = h("div", "slls-sx-tree slls-sx-vtree");
         vTreeEl.setAttribute("role", "tree");
         treePane.appendChild(vTreeEl);
         renderViewTree();
+    }
+
+    // Dropdown limiting the tree to the objects of one YAML file; it doubles
+    // as the legend of the file colors.
+    function viewFileFilter() {
+        const tf = h("div", "slls-sx-typefilter");
+        const btn = h("button", "slls-sx-typebtn");
+        btn.type = "button";
+        btn.title = "Show the objects of one YAML file";
+        btn.setAttribute("aria-haspopup", "menu");
+        const lead = h("span", "slls-sx-vfile-btn");
+        lead.append(vFileFilter ? vSwatch(vFileFilter) : iconEl("file", ""),
+            h("span", "slls-sx-vfile-name", vFileFilter || "All YAML files"));
+        btn.appendChild(lead);
+        btn.insertAdjacentHTML("beforeend", ICON.chevron_down);
+        tf.appendChild(btn);
+        let menu = null;
+        const outside = (ev) => { if (!tf.contains(ev.target)) closeMenu(); };
+        const closeMenu = () => { if (menu) { menu.remove(); menu = null; document.removeEventListener("mousedown", outside, true); } };
+        const pick = (path) => { closeMenu(); vFileFilter = path; renderViewTreePane(); };
+        btn.addEventListener("click", () => {
+            if (menu) { closeMenu(); return; }
+            menu = h("div", "slls-sx-menu");
+            menu.setAttribute("role", "menu");
+            const mh = h("div", "slls-sx-menu-head");
+            mh.appendChild(h("span", "", "YAML files"));
+            menu.appendChild(mh);
+            const live = [...vLive("datasets"), ...vLive("relationships"), ...vLive("metrics")];
+            const item = (path, lead, label, count) => {
+                const it = h("button", "slls-sx-menu-item" + (path === vFileFilter ? " on" : ""));
+                it.type = "button";
+                it.setAttribute("role", "menuitemradio");
+                it.setAttribute("aria-checked", String(path === vFileFilter));
+                it.title = label;
+                it.append(lead, h("span", "slls-sx-vfile-name", label), h("span", "meta", String(count)));
+                it.addEventListener("click", () => pick(path));
+                menu.appendChild(it);
+            };
+            item("", iconEl("file", ""), "All YAML files", live.length);
+            for (const path of viewYamlFiles()) item(path, vSwatch(path), path, live.filter((o) => o.file === path).length);
+            tf.appendChild(menu);
+            document.addEventListener("mousedown", outside, true);
+        });
+        return tf;
     }
 
     // Detail pane
@@ -3512,6 +3601,13 @@ function render({ model, el }) {
     function fileLink(path, node) {
         if (node && node.isNew) return h("span", "", path ? `${path} (when saved)` : "(the first YAML file, when saved)");
         return path ? vLink(path, () => openViewFiles(path)) : h("span", "none", "(inferred when published)");
+    }
+    function definedIn(node) {
+        const link = fileLink(node.file, node);
+        if (!vMultiFile() || !vFileColor(node.file)) return link;
+        const wrap = h("span", "slls-sx-defined-in");
+        wrap.append(vSwatch(node.file), link);
+        return wrap;
     }
     function datasetLink(name) {
         const d = vDataset(name);
@@ -3718,7 +3814,9 @@ function render({ model, el }) {
             const list = h("div", "slls-sx-sublist");
             for (const f of files) {
                 const it = h("div", "slls-sx-subitem" + (f.ignored ? " muted" : ""));
-                it.append(iconEl(f.error ? "alert" : "file", ""), h("span", "slls-sx-files-name", f.path), h("span", "meta", f.ignored ? "ignored" : fmtBytes(f.size)));
+                it.appendChild(iconEl(f.error ? "alert" : "file", ""));
+                if (vMultiFile() && vFileColor(f.path)) it.appendChild(vSwatch(f.path));
+                it.append(h("span", "slls-sx-files-name", f.path), h("span", "meta", f.ignored ? "ignored" : fmtBytes(f.size)));
                 it.title = f.ignored ? `${f.path}\nIgnored \u2014 only .yaml files are part of the view` : f.path;
                 it.addEventListener("click", () => openViewFiles(f.path));
                 list.appendChild(it);
@@ -3757,7 +3855,7 @@ function render({ model, el }) {
             ["Name", write ? vInput(node, "name", { label: "Name" }) : node.name],
             ["Source", source],
             ["Description", write ? vInput(node, "description", { multiline: true, label: "Description" }) : node.description, true],
-            ["Defined in", fileLink(node.file, node)],
+            ["Defined in", definedIn(node)],
             ["Columns from", from || h("span", "none", node.source ? "Unavailable \u2014 the source table could not be read" : "Choose a source table")],
             ...publishRows(node),
         ])), { dirty: vIsDirty(node) });
@@ -3820,7 +3918,7 @@ function render({ model, el }) {
             ["To (one side)", datasetLink(node.to)],
             ["To column", node.to_column],
         ];
-        rows.push(["Cardinality", "Many to one"], ["Active", true], ["Defined in", fileLink(node.file, node)]);
+        rows.push(["Cardinality", "Many to one"], ["Active", true], ["Defined in", definedIn(node)]);
         rows.push(...publishRows(node));
         vCard(b, "General", (body) => body.appendChild(vProps(rows)), { dirty: vIsDirty(node) });
         notApplied(b, node);
@@ -3862,7 +3960,7 @@ function render({ model, el }) {
         ];
         if (node.format_string) rows.push(["Format string", node.format_string]);
         if (node.datatype) rows.push(["Data type (ignored)", node.datatype]);
-        rows.push(["Defined in", fileLink(node.file, node)]);
+        rows.push(["Defined in", definedIn(node)]);
         rows.push(...publishRows(node));
         vCard(b, "General", (body) => body.appendChild(vProps(rows)));
         const others = (node.dialects || []).filter((d) => d.dialect !== "DAX");
