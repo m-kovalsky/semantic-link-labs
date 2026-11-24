@@ -1480,6 +1480,60 @@ def test_save_semantic_view_writes_staged_edits_to_the_yaml_files(monkeypatch):
     assert "expression: |" in written  # Multi-line DAX is a literal block.
 
 
+def test_save_semantic_view_moves_objects_between_yaml_files(monkeypatch):
+    import yaml
+
+    lake = _saved_view_lake()
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    def at(kind, file, index, name):
+        return {"kind": kind, "file": file, "index": index, "name": name}
+
+    rel = at("relationships", "schema.yaml", 0, "sales_to_customers")
+    changes = {
+        # Renamed and moved: the move still finds it by its saved name.
+        "updates": [dict(rel, values={"name": "orders_to_customers"})],
+        "moves": [
+            dict(rel, to="metrics/metrics.yaml"),
+            dict(
+                at("datasets", "schema.yaml", 1, "customers"), to="metrics/metrics.yaml"
+            ),
+            dict(
+                at("metrics", "metrics/metrics.yaml", 1, "SQL only"), to="schema.yaml"
+            ),
+        ],
+    }
+
+    count, _ = sx._save_semantic_view("ws", "lh", "sales", changes)
+
+    assert count == 4
+
+    def read(path):
+        return yaml.safe_load(lake.files[f"Context/Semantic Views/sales/{path}"])
+
+    schema, metrics = read("schema.yaml"), read("metrics/metrics.yaml")
+    assert [d["name"] for d in schema["datasets"]] == ["sales"]
+    # A list emptied by a move is removed ('relationships: []' is invalid).
+    assert "relationships" not in schema
+    assert schema["metrics"] == [
+        {
+            "name": "SQL only",
+            "expression": {
+                "dialects": [{"dialect": "SNOWFLAKE", "expression": "COUNT(*)"}]
+            },
+        }
+    ]
+    assert [m["name"] for m in metrics["metrics"]] == ["Total Net Sales"]
+    assert metrics["datasets"] == [{"name": "customers", "source": "dbo.customers"}]
+    assert metrics["relationships"][0]["name"] == "orders_to_customers"
+    assert metrics["relationships"][0]["from_columns"] == ["customer_id"]
+
+    with pytest.raises(ValueError, match="no longer in the semantic view"):
+        sx._save_semantic_view(
+            "ws", "lh", "sales", {"moves": [dict(rel, to="gone.yaml")]}
+        )
+
+
 def test_save_semantic_view_refuses_to_overwrite_changed_files(monkeypatch):
     lake = _saved_view_lake()
     monkeypatch.setattr(sx, "_onelake_request", lake)
@@ -1662,6 +1716,37 @@ def _view_explorer_widget(monkeypatch):
 
 def _step_states(status):
     return {s["id"]: s["state"] for s in status.get("steps") or []}
+
+
+def test_format_dax_formats_all_expressions_in_one_call(monkeypatch):
+    import sempy_labs._daxformatter as daxformatter
+
+    calls = []
+
+    def _format(expressions, metadata=None):
+        calls.append((list(expressions), metadata))
+        return [e.upper() for e in expressions][: 1 if len(calls) > 1 else None]
+
+    monkeypatch.setattr(daxformatter, "_format_dax", _format)
+    widget, send = _view_explorer_widget(monkeypatch)
+
+    result = send(
+        action="format_dax",
+        expressions=["sum(a)", "max(b)"],
+        names=["A", "B"],
+        request_id=1,
+    )
+
+    assert result["ok"] and result["data"]["formatted"] == ["SUM(A)", "MAX(B)"]
+    assert calls == [
+        (
+            ["sum(a)", "max(b)"],
+            [{"name": "A", "type": "measures"}, {"name": "B", "type": "measures"}],
+        )
+    ]
+    # A partial result is an error rather than misaligned expressions.
+    result = send(action="format_dax", expressions=["x", "y"], names=[], request_id=2)
+    assert not result["ok"] and "incomplete" in result["error"]
 
 
 def test_publishing_a_view_refreshes_its_semantic_model(monkeypatch):

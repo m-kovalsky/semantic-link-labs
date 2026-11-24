@@ -228,6 +228,9 @@ _WIDGET_CSS = """
 .slls-sx-menu-item.on { background: var(--ui-accent-soft); }
 .slls-sx-menu-item .meta { margin-left: auto; padding-left: 8px; color: var(--ui-text-tertiary); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .slls-sx-defined-in { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.slls-sx-defined-in.edit { display: flex; flex: 1 1 auto; flex-wrap: wrap; row-gap: 4px; }
+.slls-sx-defined-in.edit .slls-sx-select { flex: 1 1 0; width: auto; min-width: 0; }
+.slls-sx-vmoved { flex-basis: 100%; padding-left: 16px; color: var(--sx-warn); font-size: 11.5px; font-weight: 500; }
 .slls-sx-issue { display: flex; align-items: flex-start; gap: 8px; padding: 6px 2px; font-size: 12.5px; border-bottom: 1px solid var(--ui-border); }
 .slls-sx-issue:last-child { border-bottom: none; }
 .slls-sx-issue > span:nth-child(2) { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
@@ -1646,6 +1649,7 @@ function render({ model, el }) {
     let vEditKey = "";
     let vMode = "read";
     let vSaving = false;
+    let vFormatting = false;
     let vNewSeq = 0;
     let vColCache = {};
     let vColumns = new Map();
@@ -2997,10 +3001,15 @@ function render({ model, el }) {
         if (o.type === "column") return false;
         if (o.isNew || o.deleted) return true;
         const b = vBaseOf(o);
-        return !!b && VIEW_FIELDS[VIEW_LISTS[o.type]].some((f) => (o[f] || "") !== (b[f] || ""));
+        return !!b && (vMoved(o) || VIEW_FIELDS[VIEW_LISTS[o.type]].some((f) => (o[f] || "") !== (b[f] || "")));
+    }
+    // An existing object whose "Defined in" file was changed; Save moves it.
+    function vMoved(o) {
+        const b = o && !o.isNew ? vBaseOf(o) : null;
+        return !!b && !!b.file && !!o.file && o.file !== b.file;
     }
     function viewChanges() {
-        const out = { description: null, updates: [], deletes: [], creates: [] };
+        const out = { description: null, updates: [], deletes: [], moves: [], creates: [] };
         if (!vWork) return out;
         if ((vWork.description || "") !== (vBase.description || "")) out.description = vWork.description || "";
         for (const kind of Object.values(VIEW_LISTS)) {
@@ -3012,18 +3021,22 @@ function render({ model, el }) {
                     continue;
                 }
                 const b = vBaseOf(o);
-                if (!o.file || !b) continue;
-                if (o.deleted) { out.deletes.push({ kind, file: o.file, index: o.index, name: b.name }); continue; }
+                if (!b || !b.file) continue;
+                // Saved objects are addressed where they were read from, even
+                // when they are being moved to another file.
+                const at = { kind, file: b.file, index: o.index, name: b.name };
+                if (o.deleted) { out.deletes.push(at); continue; }
                 const values = {};
                 for (const f of VIEW_FIELDS[kind]) if ((o[f] || "") !== (b[f] || "")) values[f] = o[f] || "";
-                if (Object.keys(values).length) out.updates.push({ kind, file: o.file, index: o.index, name: b.name, values });
+                if (Object.keys(values).length) out.updates.push(Object.assign({ values }, at));
+                if (vMoved(o)) out.moves.push(Object.assign({ to: o.file }, at));
             }
         }
         return out;
     }
     function viewPendingCount() {
         const c = viewChanges();
-        return (c.description !== null ? 1 : 0) + c.updates.length + c.deletes.length + c.creates.length;
+        return (c.description !== null ? 1 : 0) + c.updates.length + c.deletes.length + c.moves.length + c.creates.length;
     }
     function viewValidation() {
         const errors = new Map();
@@ -3258,6 +3271,38 @@ function render({ model, el }) {
     }
 
     // Header
+    // Formats the DAX of every editable metric in one DAX Formatter call; the
+    // result is a single undo step.
+    function vFormatTargets() {
+        return vLive("metrics").filter((m) => vEditable(m) && String(m.dax || "").trim());
+    }
+    function vFormatAll() {
+        const targets = vFormatTargets();
+        if (vFormatting || vSaving || !targets.length) return;
+        const status = (message, kind) => { model.set("status", { message, kind }); model.save_changes(); };
+        vFormatting = true;
+        renderHeader();
+        request("format_dax", { expressions: targets.map((m) => m.dax), names: targets.map((m) => m.name || "") }, (res) => {
+            vFormatting = false;
+            if (!res.ok) { status(`Error: ${res.error}`, "error"); renderHeader(); return; }
+            const formatted = res.data.formatted || [];
+            if (vMode !== "write" || !vWork) { renderHeader(); return; }
+            // Metrics edited (or removed) while formatting keep their edits.
+            const changed = targets.map((m, i) => ({ key: m.key, before: m.dax, after: formatted[i] })).filter((c) => {
+                const w = vFind(c.key);
+                return !!w && !w.deleted && !!c.after && w.dax === c.before && c.after !== c.before;
+            });
+            if (changed.length) {
+                vBeginStep("");
+                for (const c of changed) vFind(c.key).dax = c.after;
+                vAfterChange(false);
+                status(`Formatted the DAX of ${plural(changed.length, "metric")}.`, "success");
+            } else {
+                renderHeader();
+                status("The DAX of every metric is already formatted.", "info");
+            }
+        });
+    }
     function renderViewHeaderControls() {
         header.appendChild(button("sl-change-btn", "", "swap", () => openPicker(), "Change the semantic view, or open a semantic model"));
         const group = h("div", "slls-sx-head-group");
@@ -3300,6 +3345,16 @@ function render({ model, el }) {
             group.append(u, r, split);
         }
         header.appendChild(group);
+        if (write) {
+            const targets = vFormatTargets();
+            const fmt = button("slls-sx-btn", "Format DAX", vFormatting ? "refresh" : "wand", vFormatAll,
+                vFormatting ? "Formatting the DAX of the metrics\u2026"
+                    : targets.length ? `Format the DAX of ${plural(targets.length, "metric")} with DAX Formatter (daxformatter.com)`
+                    : "No metrics with DAX to format");
+            if (vFormatting) fmt.querySelector("svg").classList.add("slls-sx-spin");
+            fmt.disabled = !targets.length || vFormatting || vSaving;
+            header.appendChild(fmt);
+        }
         header.appendChild(button("slls-sx-btn", "YAML", "file", () => openViewFiles(), "View the YAML files behind the semantic view"));
         const issues = viewIssues();
         const errors = issues.filter((i) => i.level === "error").length;
@@ -3602,11 +3657,33 @@ function render({ model, el }) {
         if (node && node.isNew) return h("span", "", path ? `${path} (when saved)` : "(the first YAML file, when saved)");
         return path ? vLink(path, () => openViewFiles(path)) : h("span", "none", "(inferred when published)");
     }
-    function definedIn(node) {
+    function definedIn(node, write) {
+        if (write && vMultiFile()) return definedInChoice(node);
         const link = fileLink(node.file, node);
         if (!vMultiFile() || !vFileColor(node.file)) return link;
         const wrap = h("span", "slls-sx-defined-in");
         wrap.append(vSwatch(node.file), link);
+        return wrap;
+    }
+    // Picks the YAML file which defines a dataset / relationship / metric;
+    // Save moves a saved object (with all its properties) to that file.
+    function definedInChoice(node) {
+        const files = ((viewData && viewData.files) || [])
+            .filter((f) => f.area === "definition" && !f.ignored && !f.error).map((f) => f.path);
+        const wrap = h("span", "slls-sx-defined-in edit");
+        const sel = vChoice(node, "file", files, "Select a YAML file\u2026", (path) => {
+            // Keep the moved object visible when the tree shows one file.
+            if (vFileFilter && vFileFilter !== path) { vFileFilter = path; renderViewTreePane(); }
+        });
+        sel.setAttribute("aria-label", "Defined in");
+        sel.title = "The YAML file which defines this object";
+        wrap.append(vSwatch(node.file), sel);
+        const base = vBaseOf(node);
+        if (vMoved(node)) {
+            const note = h("span", "slls-sx-vmoved", `Moves from ${base.file} when saved`);
+            note.title = `Saving removes it from ${base.file} and adds it to ${node.file}`;
+            wrap.appendChild(note);
+        }
         return wrap;
     }
     function datasetLink(name) {
@@ -3855,7 +3932,7 @@ function render({ model, el }) {
             ["Name", write ? vInput(node, "name", { label: "Name" }) : node.name],
             ["Source", source],
             ["Description", write ? vInput(node, "description", { multiline: true, label: "Description" }) : node.description, true],
-            ["Defined in", definedIn(node)],
+            ["Defined in", definedIn(node, write)],
             ["Columns from", from || h("span", "none", node.source ? "Unavailable \u2014 the source table could not be read" : "Choose a source table")],
             ...publishRows(node),
         ])), { dirty: vIsDirty(node) });
@@ -3918,7 +3995,7 @@ function render({ model, el }) {
             ["To (one side)", datasetLink(node.to)],
             ["To column", node.to_column],
         ];
-        rows.push(["Cardinality", "Many to one"], ["Active", true], ["Defined in", definedIn(node)]);
+        rows.push(["Cardinality", "Many to one"], ["Active", true], ["Defined in", definedIn(node, write)]);
         rows.push(...publishRows(node));
         vCard(b, "General", (body) => body.appendChild(vProps(rows)), { dirty: vIsDirty(node) });
         notApplied(b, node);
@@ -3960,9 +4037,11 @@ function render({ model, el }) {
         ];
         if (node.format_string) rows.push(["Format string", node.format_string]);
         if (node.datatype) rows.push(["Data type (ignored)", node.datatype]);
-        rows.push(["Defined in", definedIn(node)]);
+        rows.push(["Defined in", definedIn(node, write)]);
         rows.push(...publishRows(node));
-        vCard(b, "General", (body) => body.appendChild(vProps(rows)));
+        const base = vBaseOf(node);
+        const generalDirty = !!node.isNew || vMoved(node) || (!!base && ["name", "description"].some((f) => (node[f] || "") !== (base[f] || "")));
+        vCard(b, "General", (body) => body.appendChild(vProps(rows)), { dirty: generalDirty });
         const others = (node.dialects || []).filter((d) => d.dialect !== "DAX");
         if (others.length) {
             vCard(b, "Other dialects", (body) => {
@@ -11763,6 +11842,24 @@ def _format_dax_expression(expression: str) -> str:
     return formatted[0]
 
 
+def _format_dax_expressions(expressions: List[str], names: List[str]) -> List[str]:
+    """Formats measure expressions in one DAX Formatter call; ``names`` name
+    the measures in errors."""
+
+    from sempy_labs._daxformatter import _format_dax
+
+    if not expressions:
+        return []
+    metadata = [
+        {"name": names[i] if i < len(names) else "", "type": "measures"}
+        for i in range(len(expressions))
+    ]
+    formatted = _format_dax(expressions, metadata=metadata)
+    if len(formatted) != len(expressions):
+        raise ValueError("DAX Formatter returned an incomplete result.")
+    return formatted
+
+
 # ---------------------------------------------------------------------------
 # Tool helpers: AI descriptions, translation, relationship inference
 # ---------------------------------------------------------------------------
@@ -12989,10 +13086,11 @@ def _save_semantic_view(
     ``changes`` holds ``description`` (the view description, or None when
     unchanged), ``updates`` / ``deletes`` (``{kind, file, index, name}`` plus
     ``values`` for updates; objects are addressed by their position in their
-    file's list and checked by name) and ``creates`` (``{kind, file,
-    values}``). ``etags`` are the files' ETags when the view was read: a file
-    changed since then is not overwritten. Returns the number of changes and
-    whether YAML comments could be kept.
+    file's list and checked by name), ``moves`` (``{kind, file, index, name,
+    to}``: the object, with all its properties, moves to the ``to`` file) and
+    ``creates`` (``{kind, file, values}``). ``etags`` are the files' ETags when
+    the view was read: a file changed since then is not overwritten. Returns
+    the number of changes and whether YAML comments could be kept.
     """
 
     folder = f"{_VIEWS_FOLDER}/{view_name}"
@@ -13056,20 +13154,38 @@ def _save_semantic_view(
         return items, index, obj
 
     count = 0
+    deletes = list(changes.get("deletes") or [])
+    moves = list(changes.get("moves") or [])
+    for change in moves:
+        if change.get("to") not in current:
+            raise ValueError(
+                f"'{change.get('to')}' is no longer in the semantic view. Reload the view."
+            )
+    # Located before the updates, which may rename the objects being moved.
+    removals = [(change, *located(change)) for change in deletes + moves]
     for change in changes.get("updates") or []:
         _, _, obj = located(change)
         _apply_view_values(change["kind"], obj, dict(change.get("values") or {}), yml)
         touched.add(change["file"])
         count += 1
-    deletes = list(changes.get("deletes") or [])
-    for change in sorted(deletes, key=lambda c: -int(c.get("index", -1))):
-        items, index, _ = located(change)
+    moved = []
+    # Removing from the end of each list keeps the other indexes valid.
+    for change, items, index, obj in sorted(removals, key=lambda r: -r[2]):
         del items[index]
         if not items:
             # An empty list is invalid (e.g. 'datasets: []').
             del doc(change["file"])[change["kind"]]
         touched.add(change["file"])
+        if "to" in change:
+            moved.append((change, obj))
         count += 1
+    # Moved objects keep the order they had in their source files.
+    for change, obj in reversed(moved):
+        document = doc(change["to"])
+        if not isinstance(document.get(change["kind"]), list):
+            document[change["kind"]] = []
+        document[change["kind"]].append(obj)
+        touched.add(change["to"])
 
     def target(kind):
         for path in yaml_files:
@@ -14027,9 +14143,10 @@ def semantic_explorer(
     and TMDL files can be viewed, and a new view can be created with a starter
     definition file. In edit mode, the view's description, datasets,
     relationships and metrics can be edited, added and deleted (renames update
-    the references to them); changes are staged with undo / redo and written to
-    the YAML files only on Save. Comments in the YAML files are kept when the
-    ruamel.yaml package is installed.
+    the references to them), moved to another of the view's YAML files, and the
+    DAX of every metric can be formatted at once with DAX Formatter; changes are
+    staged with undo / redo and written to the YAML files only on Save. Comments
+    in the YAML files are kept when the ruamel.yaml package is installed.
 
     Parameters
     ----------
@@ -14285,7 +14402,7 @@ def semantic_explorer(
                     raise ValueError("Select a semantic view first.")
                 changes = dict(data.get("changes") or {})
                 has_changes = any(
-                    changes.get(k) for k in ("updates", "deletes", "creates")
+                    changes.get(k) for k in ("updates", "deletes", "moves", "creates")
                 ) or (changes.get("description") is not None)
                 publish = bool(data.get("publish"))
                 workspace_id, _, view_name = ctx["view"]
@@ -14421,6 +14538,13 @@ def semantic_explorer(
                 _reply(data, True, {"columns": columns})
                 return
             if action == "format_dax":
+                if "expressions" in data:
+                    formatted = _format_dax_expressions(
+                        [str(e or "") for e in data.get("expressions") or []],
+                        [str(n or "") for n in data.get("names") or []],
+                    )
+                    _reply(data, True, {"formatted": formatted})
+                    return
                 formatted = _format_dax_expression(str(data.get("expression") or ""))
                 _reply(data, True, {"formatted": formatted})
                 return
