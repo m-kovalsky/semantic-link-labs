@@ -3175,6 +3175,7 @@ function render({ model, el }) {
         renderViewTree();
         if (typing) refreshViewDetailHead();
         else renderViewDetail();
+        redrawTools();
     }
     function vUndoStep() {
         if (!vUndo.length || vSaving) return;
@@ -3625,6 +3626,12 @@ function render({ model, el }) {
     }
     function renderViewHeaderControls() {
         header.appendChild(button("sl-change-btn", "", "swap", () => openPicker(), "Change the semantic view, or open a semantic model"));
+        const tools = button("slls-sx-btn", "Tools", "more", () => {
+            const r = tools.getBoundingClientRect();
+            showMenu(r.left, r.bottom + 4, VIEW_TOOLS.map((t) => [t.label, t.icon, t.open]));
+        }, "Semantic view tools");
+        tools.setAttribute("aria-haspopup", "menu");
+        header.appendChild(tools);
         const group = h("div", "slls-sx-head-group");
         const write = vMode === "write";
         const modeBtn = h("button", "slls-sx-mode" + (write ? " write" : ""));
@@ -9457,6 +9464,559 @@ function render({ model, el }) {
         registerTool(m, draw, () => toolActions(m, [m.actions.querySelector(".slls-sx-btn")]));
         draw();
     }
+
+    // ------------------------------------------------------------------
+    // Semantic view tools
+    // ------------------------------------------------------------------
+    const VIEW_TOOLS = [
+        { label: "Relationship diagram", icon: "network", open: () => openViewRelationshipDiagram() },
+    ];
+    // Header actions of a view tool: in edit mode the pending count, undo and
+    // save, then the view's read-only / edit switch.
+    function viewToolActions(m, extras) {
+        clear(m.actions);
+        for (const el of extras || []) if (el) m.actions.appendChild(el);
+        const write = vMode === "write";
+        if (write) {
+            const count = viewPendingCount();
+            if (count) {
+                const p = h("span", "slls-sx-pill warn slls-sx-tool-pending", plural(count, "pending change"));
+                p.title = "Staged changes are written to the YAML files when you Save";
+                m.actions.appendChild(p);
+            }
+            const u = button("slls-sx-iconbtn", "", "undo", vUndoStep, "Undo");
+            u.disabled = !vUndo.length || vSaving;
+            const s = button("slls-sx-iconbtn", "", vSaving ? "refresh" : "save", () => vSave(false), count ? `Save ${plural(count, "change")} to the YAML files` : "No changes to save");
+            s.disabled = !count || vSaving || !!model.get("busy");
+            if (vSaving) s.querySelector("svg").classList.add("slls-sx-spin");
+            m.actions.append(u, s);
+        }
+        const sw = h("button", "slls-sx-mode" + (write ? " write" : ""));
+        sw.type = "button";
+        sw.setAttribute("role", "switch");
+        sw.setAttribute("aria-checked", String(write));
+        sw.title = write ? "Edit mode (changes are saved to the YAML files)" : "Read-only mode \u2014 click to enable editing";
+        sw.innerHTML = (write ? ICON.pencil : ICON.eye) + '<span class="slls-sx-track"></span>';
+        sw.appendChild(document.createTextNode(write ? "Edit" : "Read-only"));
+        sw.disabled = vSaving;
+        sw.addEventListener("click", () => setViewMode(write ? "read" : "write"));
+        m.actions.appendChild(sw);
+    }
+    // The view's datasets and relationships as a diagram; with several YAML
+    // files, datasets and relationships are colour-coded by the file which
+    // defines them.
+    function openViewRelationshipDiagram() {
+        const m = toolWindow("Relationship diagram", "network", "slls-sx-rd-body");
+        let focused = new Set();
+        let zoom = 1;
+        let reverse = false;
+        let listFilter = "";
+        let sidebarW = 256;
+        let sidebarCollapsed = false;
+        let panels = {};
+        let zOrder = [];
+        let layoutSig = null;
+        let hoveredKey = null;
+        let g = null;
+        let els = null;
+        let drag = null;
+        let colDrag = null;
+        const write = () => vMode === "write" && !vSaving;
+        const lc = (v) => String(v || "").trim().toLowerCase();
+        const fileColor = (file) => {
+            const i = viewYamlFiles().indexOf(file);
+            return vMultiFile() && i >= 0 ? i % RD_SOURCE_COLORS : undefined;
+        };
+
+        // Datasets are keyed by their stable key (names may repeat); a
+        // relationship end resolves to the first dataset with that name.
+        function derive() {
+            const datasets = vLive("datasets").slice().sort(byName);
+            const byKey = new Map(datasets.map((d) => [d.key, d]));
+            const byLower = new Map();
+            for (const d of datasets) if (!byLower.has(lc(d.name))) byLower.set(lc(d.name), d.key);
+            const rels = [], dangling = [];
+            for (const r of vLive("relationships").slice().sort(byName)) {
+                const from = byLower.get(lc(r.from)), to = byLower.get(lc(r.to));
+                if (!from || !to) { dangling.push(r); continue; }
+                rels.push({ key: r.key, node: r, from_table: from, to_table: to, from_column: r.from_column || "", to_column: r.to_column || "",
+                    from_card: "Many", to_card: "One", file: r.file || "" });
+            }
+            const relCols = {}, neighbors = {}, keyRole = {};
+            for (const d of datasets) { relCols[d.key] = new Set(); neighbors[d.key] = new Set(); keyRole[d.key] = {}; }
+            for (const r of rels) {
+                relCols[r.from_table].add(r.from_column);
+                relCols[r.to_table].add(r.to_column);
+                if (keyRole[r.from_table][r.from_column] !== "pk") keyRole[r.from_table][r.from_column] = "fk";
+                keyRole[r.to_table][r.to_column] = "pk";
+                if (r.from_table !== r.to_table) { neighbors[r.from_table].add(r.to_table); neighbors[r.to_table].add(r.from_table); }
+            }
+            for (const k of Object.keys(relCols)) relCols[k] = [...relCols[k]].filter(Boolean).sort(cmpText);
+            const names = datasets.map((d) => d.key);
+            let visible = names;
+            if (focused.size) {
+                const vis = new Set();
+                for (const seed of focused) { if (!byKey.has(seed)) continue; vis.add(seed); for (const nb of neighbors[seed]) vis.add(nb); }
+                visible = names.filter((k) => vis.has(k));
+            }
+            const files = vMultiFile() ? viewYamlFiles() : [];
+            return { datasets, byKey, rels, dangling, relCols, neighbors, keyRole, names, visible,
+                legend: files.map((f) => ({ label: f, color: fileColor(f) })) };
+        }
+        const panelH = (k) => {
+            const p = panels[k];
+            return p.collapsed ? RD.HEADER_H + Math.max(1, (g.relCols[k] || []).length) * RD.ROW_H + RD.BODY_PAD : p.h;
+        };
+        function ensureLayout() {
+            const sig = g.visible.join("\u0001");
+            if (sig !== layoutSig) {
+                panels = rdLayout(g.visible, g.rels, g.relCols);
+                zOrder = g.visible.slice();
+                layoutSig = sig;
+            }
+            for (const k of g.visible) if (!panels[k]) { panels[k] = { x: 40, y: 40, w: RD.W, h: RD.H, collapsed: true }; zOrder.push(k); }
+        }
+        function canvasSize() {
+            let w = 1000, hh = 700;
+            for (const k of g.visible) { const p = panels[k]; w = Math.max(w, p.x + p.w); hh = Math.max(hh, p.y + panelH(k)); }
+            return { w: w + RD.MARGIN, h: hh + RD.MARGIN };
+        }
+        const endText = (k, col) => `'${(g.byKey.get(k) || {}).name || ""}'[${col || "?"}]`;
+        const relPath = (r) => `${endText(r.from_table, r.from_column)} \u2192 ${endText(r.to_table, r.to_column)}`;
+        function connectors() {
+            const vis = new Set(g.visible);
+            return g.rels.filter((r) => vis.has(r.from_table) && vis.has(r.to_table)).map((r) => {
+                const a = panels[r.from_table], b = panels[r.to_table];
+                const aH = panelH(r.from_table), bH = panelH(r.to_table);
+                return { r, key: r.key,
+                    p1: rdEdgePoint(a.x, a.y, a.w, aH, b.x + b.w / 2, b.y + bH / 2),
+                    p2: rdEdgePoint(b.x, b.y, b.w, bH, a.x + a.w / 2, a.y + aH / 2) };
+            });
+        }
+        function paintEdges() {
+            if (!els) return;
+            const size = canvasSize();
+            els.sizer.style.width = size.w * zoom + "px";
+            els.sizer.style.height = size.h * zoom + "px";
+            els.layer.style.width = size.w + "px";
+            els.layer.style.height = size.h + "px";
+            els.svg.setAttribute("width", size.w);
+            els.svg.setAttribute("height", size.h);
+            let out = "";
+            for (const c of connectors()) {
+                const dx = c.p2.x - c.p1.x, dy = c.p2.y - c.p1.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+                const off = Math.min(22, len / 2 - 2);
+                const hov = c.key === hoveredKey;
+                const cls = ["slls-sx-rd-edge", hov ? "hov" : "", c.r.node.isNew ? "new" : ""].filter(Boolean).join(" ");
+                const color = fileColor(c.r.file);
+                const style = color !== undefined ? ` style="--edge: var(--sx-src-${color})"` : "";
+                const aOff = Math.min(off + 16, len / 2);
+                const head = reverse ? [c.p1.x + ux * aOff, c.p1.y + uy * aOff, -ux, -uy] : [c.p2.x - ux * aOff, c.p2.y - uy * aOff, ux, uy];
+                const mk = (x, y, mark) => `<g class="card"><circle cx="${x}" cy="${y}" r="10"/>`
+                    + `<text x="${x}" y="${y}" dy="${mark === "*" ? "0.5em" : "0.35em"}" text-anchor="middle">${mark}</text></g>`;
+                out += `<g class="${cls}"${style} data-file="${esc(c.r.file)}" aria-label="${esc(relPath(c.r))}">`
+                    + `<line class="ln" x1="${c.p1.x}" y1="${c.p1.y}" x2="${c.p2.x}" y2="${c.p2.y}" stroke-width="${hov ? 3 : 1.5}"/>`
+                    + `<polygon class="arrow" points="${rdArrow(head[0], head[1], head[2], head[3], hov ? 8 : 7)}"/>`
+                    + `<circle class="end" cx="${c.p1.x}" cy="${c.p1.y}" r="3"/><circle class="end" cx="${c.p2.x}" cy="${c.p2.y}" r="3"/>`
+                    + mk(c.p1.x + ux * off, c.p1.y + uy * off, "*") + mk(c.p2.x - ux * off, c.p2.y - uy * off, "1")
+                    + `<line class="hit" data-key="${esc(c.key)}" x1="${c.p1.x}" y1="${c.p1.y}" x2="${c.p2.x}" y2="${c.p2.y}"/></g>`;
+            }
+            els.svg.innerHTML = out;
+            paintEdgeTip();
+        }
+        const definedInText = (file) => file || "(inferred when published)";
+        function paintEdgeTip() {
+            if (els.edgeTip) { els.edgeTip.remove(); els.edgeTip = null; }
+            for (const p of els.panelEls.values()) for (const row of p.cols.values()) row.classList.remove("hl");
+            const c = hoveredKey ? connectors().find((x) => x.key === hoveredKey) : null;
+            if (!c) return;
+            for (const [k, col] of [[c.r.from_table, c.r.from_column], [c.r.to_table, c.r.to_column]]) {
+                const p = els.panelEls.get(k);
+                const row = p && p.cols.get(col);
+                if (row) row.classList.add("hl");
+            }
+            const tip = h("div", "slls-sx-rd-tip");
+            const head = h("div", "slls-sx-rd-tip-head");
+            head.append(iconEl("relationship", ""), h("span", "name", c.r.node.name || "(unnamed)"));
+            if (c.r.node.isNew) head.appendChild(h("span", "slls-sx-pill new", "New"));
+            tip.appendChild(head);
+            tip.appendChild(h("div", "slls-sx-rd-tip-path", relPath(c.r)));
+            tip.appendChild(rdTipGrid([["Cardinality", "Many \u2192 One"], ["Cross filter", "Single"], ["Defined in", definedInText(c.r.file)]]));
+            tip.style.left = ((c.p1.x + c.p2.x) / 2) * zoom + 14 + "px";
+            tip.style.top = ((c.p1.y + c.p2.y) / 2) * zoom + 14 + "px";
+            els.sizer.appendChild(tip);
+            els.edgeTip = tip;
+        }
+        function showTableTip(k) {
+            hideTableTip();
+            const d = g.byKey.get(k), p = panels[k];
+            if (!d || !p) return;
+            const tip = h("div", "slls-sx-rd-tip");
+            const head = h("div", "slls-sx-rd-tip-head");
+            head.append(iconEl("table", ""), h("span", "name", d.name || "(unnamed)"), h("span", "kind", "Dataset"));
+            tip.appendChild(head);
+            tip.appendChild(rdTipGrid([["Source", d.source], ["Defined in", definedInText(d.file)], ["Columns", String(vCols(d).length)],
+                ["Relationships", String(g.rels.filter((r) => r.from_table === k || r.to_table === k).length)]]));
+            tip.style.left = (p.x + p.w) * zoom + 10 + "px";
+            tip.style.top = p.y * zoom + "px";
+            els.sizer.appendChild(tip);
+            els.tableTip = tip;
+        }
+        function hideTableTip() { if (els && els.tableTip) { els.tableTip.remove(); els.tableTip = null; } }
+        function placePanel(k) {
+            const pe = els.panelEls.get(k), p = panels[k];
+            if (!pe) return;
+            pe.el.style.left = p.x + "px";
+            pe.el.style.top = p.y + "px";
+            pe.el.style.width = p.w + "px";
+            pe.el.style.height = panelH(k) + "px";
+        }
+        function bringToFront(k) {
+            zOrder = [...zOrder.filter((x) => x !== k), k];
+            const pe = els.panelEls.get(k);
+            if (pe) els.layer.appendChild(pe.el);
+        }
+        function startDrag(ev, k, kind) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            bringToFront(k);
+            const p = panels[k];
+            drag = { kind, x0: ev.clientX, y0: ev.clientY, px: p.x, py: p.y, pw: p.w, ph: p.h };
+            const move = (e) => {
+                const dx = (e.clientX - drag.x0) / zoom, dy = (e.clientY - drag.y0) / zoom;
+                if (drag.kind === "move") { p.x = Math.max(0, drag.px + dx); p.y = Math.max(0, drag.py + dy); }
+                else { p.w = Math.max(RD.MIN_W, drag.pw + dx); p.h = Math.max(RD.MIN_H, drag.ph + dy); }
+                placePanel(k);
+                paintEdges();
+            };
+            const up = () => { drag = null; window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+            window.addEventListener("pointermove", move);
+            window.addEventListener("pointerup", up);
+        }
+        // Goes to an object in the editor, closing the diagram.
+        const goTo = (key) => { m.close(); vReveal(key); };
+        function columnRow(k, c) {
+            const role = (g.keyRole[k] || {})[c.name];
+            const row = h("div", "slls-sx-rd-col");
+            row.style.height = RD.ROW_H + "px";
+            row.appendChild(iconEl(role ? "key_round" : "column", role ? "key " + role : ""));
+            row.appendChild(h("span", "name", c.name));
+            if (c.data_type) row.appendChild(h("span", "dt", c.data_type));
+            row.title = c.name;
+            if (write()) {
+                row.draggable = true;
+                row.title = `${c.name} \u2014 drag onto another dataset to create a relationship`;
+                row.addEventListener("dragstart", (ev) => {
+                    colDrag = { fromKey: k, fromColumn: c.name, dataType: c.data_type || "" };
+                    ev.dataTransfer.effectAllowed = "link";
+                    ev.dataTransfer.setData("text/plain", `${(g.byKey.get(k) || {}).name}[${c.name}]`);
+                });
+                row.addEventListener("dragend", () => { colDrag = null; els.layer.querySelectorAll(".drop").forEach((x) => x.classList.remove("drop")); });
+            }
+            return row;
+        }
+        // Stages a new relationship from a dropped column (many side) to a
+        // column of the target dataset (one side).
+        function linkDialog(spec) {
+            const from = g.byKey.get(spec.fromKey), to = g.byKey.get(spec.toKey);
+            if (!from || !to) return;
+            const d = modal("Create relationship", "relationship");
+            const cols = vCols(to).map((c) => c.name).sort(cmpText);
+            const lcol = lc(spec.fromColumn);
+            const dtOf = (n) => (vCols(to).find((c) => c.name === n) || {}).data_type || "";
+            const guess = cols.find((n) => lc(n) === lcol && (!spec.dataType || dtOf(n) === spec.dataType))
+                || cols.find((n) => lc(n) === lcol) || (spec.dataType && cols.find((n) => dtOf(n) === spec.dataType)) || cols[0] || "";
+            const head = h("div", "slls-sx-rd-link-from");
+            head.append(h("span", "slls-sx-tool-label", "From (many side)"), h("span", "slls-sx-mono", `'${from.name}'[${spec.fromColumn}]`));
+            if (spec.dataType) head.appendChild(h("span", "slls-sx-pill", spec.dataType));
+            d.body.appendChild(head);
+            let toColumn = guess;
+            let name = uniqueViewName("relationships", `${from.name}_to_${to.name}`);
+            let file = vFileFilter || defaultViewFile("relationships");
+            const nameIn = h("input", "slls-sx-input");
+            nameIn.value = name;
+            nameIn.setAttribute("aria-label", "Relationship name");
+            nameIn.addEventListener("input", () => { name = nameIn.value; });
+            d.body.appendChild(field("Name", nameIn));
+            if (cols.length) {
+                d.body.appendChild(field(`To column in '${to.name}' (one side)`, selectEl(cols.map((n) => [n, n]), toColumn, (v) => { toColumn = v; }, "To column")));
+            } else {
+                const colIn = h("input", "slls-sx-input");
+                colIn.placeholder = "column name";
+                colIn.setAttribute("aria-label", "To column");
+                colIn.addEventListener("input", () => { toColumn = colIn.value.trim(); });
+                d.body.appendChild(field(`To column in '${to.name}' (one side)`, colIn));
+            }
+            if (vMultiFile()) {
+                const files = ((viewData && viewData.files) || []).filter((f) => f.area === "definition" && !f.ignored && !f.error).map((f) => f.path);
+                d.body.appendChild(field("Defined in", selectEl(files.map((f) => [f, f]), file, (v) => { file = v; }, "Defined in")));
+            }
+            d.body.appendChild(h("p", "slls-sx-dlm-note", "Staged as a pending change \u2014 commit with Save. View relationships are many to one "
+                + "with a single cross-filter direction; the target column is pre-selected by matching name and data type."));
+            const foot = h("div", "slls-sx-modal-foot");
+            const ok = button("slls-sx-btn primary", "Create", "plus", () => {
+                if (!toColumn || !name.trim()) return;
+                d.close();
+                vBeginStep("");
+                const id = `new-relationship-${++vNewSeq}`;
+                vWork.relationships.push({ id, key: id, type: "relationship", isNew: true, deleted: false, file, name: name.trim(),
+                    from: from.name, to: to.name, from_column: spec.fromColumn, to_column: toColumn });
+                vExpanded.add("view");
+                vExpanded.add("v:relationships");
+                vAfterChange(false);
+            });
+            foot.append(button("slls-sx-btn", "Cancel", "", () => d.close()), ok);
+            d.box.appendChild(foot);
+        }
+        function drawPanel(k) {
+            const d = g.byKey.get(k), p = panels[k];
+            const color = fileColor(d.file);
+            const el = h("div", "slls-sx-rd-panel" + (p.collapsed ? " collapsed" : "") + (color !== undefined ? ` src src-${color}` : ""));
+            el.dataset.file = d.file || "";
+            const head = h("div", "slls-sx-rd-head");
+            head.style.height = RD.HEADER_H + "px";
+            const stop = (b) => { b.addEventListener("pointerdown", (e) => e.stopPropagation()); return b; };
+            head.appendChild(stop(caretBtn(!p.collapsed, () => { p.collapsed = !p.collapsed; drawPanels(); })));
+            head.appendChild(iconEl("table", "kind"));
+            head.appendChild(h("span", "name", d.name || "(unnamed)"));
+            head.appendChild(stop(button("slls-sx-iconbtn", "", "focus", () => { focused = new Set([k]); draw(); }, "Focus on this dataset and its related datasets")));
+            head.addEventListener("pointerdown", (e) => startDrag(e, k, "move"));
+            head.addEventListener("mouseenter", () => { if (!drag) showTableTip(k); });
+            head.addEventListener("mouseleave", hideTableTip);
+            head.addEventListener("contextmenu", (ev) => {
+                ev.preventDefault();
+                const items = [["Go to dataset", "table", () => goTo(k)]];
+                if (write() && vEditable(d)) items.push(null, ["Delete dataset", "trash", () => vToggleDelete(d), false, true]);
+                showMenu(ev.clientX, ev.clientY, items);
+            });
+            el.appendChild(head);
+            const body = h("div", "slls-sx-rd-cols");
+            const cols = new Map();
+            const all = vCols(d);
+            const list = p.collapsed ? (g.relCols[k] || []).map((n) => all.find((c) => c.name === n) || { name: n }) : all;
+            if (!list.length) body.appendChild(h("div", "slls-sx-rd-none", p.collapsed ? "No relationship columns" : "No columns"));
+            for (const c of list) {
+                const row = columnRow(k, c);
+                cols.set(c.name, row);
+                body.appendChild(row);
+            }
+            el.appendChild(body);
+            if (!p.collapsed) {
+                const rz = h("div", "slls-sx-rd-resize");
+                rz.title = "Resize";
+                rz.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M11 15L15 11M7 15L15 7"/></svg>';
+                rz.addEventListener("pointerdown", (e) => startDrag(e, k, "resize"));
+                el.appendChild(rz);
+            }
+            el.addEventListener("pointerdown", () => bringToFront(k));
+            if (write()) {
+                el.addEventListener("dragover", (ev) => {
+                    if (colDrag && colDrag.fromKey !== k) { ev.preventDefault(); ev.dataTransfer.dropEffect = "link"; el.classList.add("drop"); }
+                });
+                el.addEventListener("dragleave", () => el.classList.remove("drop"));
+                el.addEventListener("drop", (ev) => {
+                    el.classList.remove("drop");
+                    if (!colDrag || colDrag.fromKey === k) return;
+                    ev.preventDefault();
+                    const spec = Object.assign({ toKey: k }, colDrag);
+                    colDrag = null;
+                    linkDialog(spec);
+                });
+            }
+            els.panelEls.set(k, { el, cols });
+            els.layer.appendChild(el);
+            placePanel(k);
+        }
+        function drawPanels() {
+            els.layer.querySelectorAll(".slls-sx-rd-panel").forEach((x) => x.remove());
+            els.panelEls = new Map();
+            hideTableTip();
+            for (const k of zOrder.filter((x) => g.visible.includes(x))) drawPanel(k);
+            paintEdges();
+        }
+        function drawSidebar(main) {
+            const side = h("div", "slls-sx-rd-side" + (sidebarCollapsed ? " collapsed" : ""));
+            if (!sidebarCollapsed) side.style.width = sidebarW + "px";
+            const reverseBtn = (labelled) => {
+                const b = labelled ? switchEl(reverse, "Reverse arrow direction", () => { reverse = !reverse; draw(); }, "Reverse arrows")
+                    : button("slls-sx-iconbtn" + (reverse ? " on" : ""), "", "arrow_left_right", () => { reverse = !reverse; draw(); }, "Reverse arrow direction");
+                b.title = reverse ? "Direction arrows point to \u2192 from. Click to point from \u2192 to." : "Direction arrows point from \u2192 to. Click to reverse (to \u2192 from).";
+                return b;
+            };
+            const reset = () => button("slls-sx-iconbtn", "", "reset", () => { layoutSig = null; draw(); }, "Reset layout");
+            if (sidebarCollapsed) {
+                side.append(button("slls-sx-iconbtn", "", "panel_expand", () => { sidebarCollapsed = false; draw(); }, "Expand dataset list"),
+                    h("span", "slls-sx-rd-rail", "Datasets"), reverseBtn(false), reset());
+                main.appendChild(side);
+                return;
+            }
+            const head = h("div", "slls-sx-rd-side-head");
+            head.appendChild(h("span", "slls-sx-pane-label", "Datasets"));
+            if (focused.size) head.appendChild(button("slls-sx-btn small", `Clear (${focused.size})`, "", () => { focused = new Set(); draw(); }));
+            head.append(reset(), button("slls-sx-iconbtn", "", "panel_collapse", () => { sidebarCollapsed = true; draw(); }, "Collapse dataset list"));
+            side.appendChild(head);
+            const listEl = h("div", "slls-sx-rd-tables");
+            listEl.dataset.scroll = "tables";
+            const paint = () => {
+                clear(listEl);
+                const q = listFilter.trim().toLowerCase();
+                const keys = g.names.filter((k) => !q || lc(g.byKey.get(k).name).includes(q));
+                if (!keys.length) listEl.appendChild(h("div", "slls-sx-empty", "No datasets match."));
+                for (const k of keys) {
+                    const d = g.byKey.get(k);
+                    const row = h("div", "slls-sx-rd-trow" + (focused.has(k) ? " on" : ""));
+                    const cb = h("input", "slls-sx-tool-check");
+                    cb.type = "checkbox";
+                    cb.checked = focused.has(k);
+                    cb.setAttribute("aria-label", `Focus on ${d.name}`);
+                    const toggle = () => { if (focused.has(k)) focused.delete(k); else focused.add(k); draw(); };
+                    cb.addEventListener("change", toggle);
+                    const color = fileColor(d.file);
+                    const ic = color !== undefined ? vSwatch(d.file) : iconEl("table", "");
+                    ic.title = `Defined in ${definedInText(d.file)}`;
+                    const nb = h("button", "name", d.name || "(unnamed)");
+                    nb.type = "button";
+                    nb.title = d.name;
+                    nb.addEventListener("click", toggle);
+                    row.append(cb, ic, nb, h("span", "meta", String(g.neighbors[k].size)),
+                        button("slls-sx-iconbtn", "", "focus", () => { focused = new Set([k]); draw(); }, "Focus only on this dataset"));
+                    listEl.appendChild(row);
+                }
+            };
+            side.appendChild(searchBox("Search datasets\u2026", listFilter, (v) => { listFilter = v; paint(); }));
+            side.appendChild(h("p", "slls-sx-dlm-note", "Select datasets to focus on them and their related datasets."));
+            side.appendChild(listEl);
+            const foot = h("div", "slls-sx-rd-side-foot");
+            foot.appendChild(reverseBtn(true));
+            side.appendChild(foot);
+            const grip = h("div", "slls-sx-rd-grip");
+            grip.setAttribute("role", "separator");
+            grip.setAttribute("aria-label", "Resize dataset list");
+            grip.addEventListener("pointerdown", (ev) => {
+                ev.preventDefault();
+                const x0 = ev.clientX, w0 = side.getBoundingClientRect().width;
+                const move = (e) => { sidebarW = Math.min(480, Math.max(200, w0 + e.clientX - x0)); side.style.width = sidebarW + "px"; };
+                const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+                window.addEventListener("pointermove", move);
+                window.addEventListener("pointerup", up);
+            });
+            side.appendChild(grip);
+            paint();
+            main.appendChild(side);
+        }
+        function drawCanvas(main) {
+            const wrapEl = h("div", "slls-sx-rd-canvas");
+            const scroller = h("div", "slls-sx-rd-scroll");
+            scroller.dataset.scroll = "canvas";
+            const sizer = h("div", "slls-sx-rd-sizer");
+            const layer = h("div", "slls-sx-rd-layer");
+            layer.style.transform = `scale(${zoom})`;
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("class", "slls-sx-rd-svg");
+            layer.appendChild(svg);
+            sizer.appendChild(layer);
+            scroller.appendChild(sizer);
+            wrapEl.appendChild(scroller);
+            els = { scroller, sizer, layer, svg, panelEls: new Map(), edgeTip: null, tableTip: null };
+            svg.addEventListener("mouseover", (ev) => {
+                const k = ev.target.getAttribute && ev.target.getAttribute("data-key");
+                if (k && k !== hoveredKey) { hoveredKey = k; paintEdges(); }
+            });
+            svg.addEventListener("mouseout", (ev) => {
+                const k = ev.target.getAttribute && ev.target.getAttribute("data-key");
+                if (k && hoveredKey === k) { hoveredKey = null; paintEdges(); }
+            });
+            svg.addEventListener("contextmenu", (ev) => {
+                const k = ev.target.getAttribute && ev.target.getAttribute("data-key");
+                const r = k && g.rels.find((x) => x.key === k);
+                if (!r) return;
+                ev.preventDefault();
+                const items = [["Go to relationship", "relationship", () => goTo(r.key)]];
+                if (write() && vEditable(r.node)) items.push(null, ["Delete relationship", "trash", () => vToggleDelete(r.node), false, true]);
+                showMenu(ev.clientX, ev.clientY, items);
+            });
+            scroller.addEventListener("pointerdown", (ev) => {
+                if (ev.target.closest(".slls-sx-rd-panel") || (ev.target.getAttribute && ev.target.getAttribute("data-key"))) return;
+                ev.preventDefault();
+                const x0 = ev.clientX, y0 = ev.clientY, l0 = scroller.scrollLeft, t0 = scroller.scrollTop;
+                scroller.classList.add("panning");
+                const move = (e) => { scroller.scrollLeft = l0 - (e.clientX - x0); scroller.scrollTop = t0 - (e.clientY - y0); };
+                const up = () => { scroller.classList.remove("panning"); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+                window.addEventListener("pointermove", move);
+                window.addEventListener("pointerup", up);
+            });
+            if (g.legend.length) {
+                const legend = h("div", "slls-sx-rd-legend");
+                const pill = h("div", "pill");
+                pill.append(iconEl("file", ""), h("span", "", plural(g.legend.length, "YAML file")));
+                const dots = h("span", "dots");
+                g.legend.slice(0, 8).forEach((s) => dots.appendChild(h("span", `sw src-${s.color}`)));
+                pill.appendChild(dots);
+                const full = h("div", "full");
+                full.appendChild(h("div", "slls-sx-pane-label", "YAML files"));
+                for (const s of g.legend) {
+                    const li = h("div", "item");
+                    li.append(h("span", `sw src-${s.color}`), h("span", "label", s.label));
+                    li.title = s.label;
+                    full.appendChild(li);
+                }
+                legend.append(pill, full);
+                wrapEl.appendChild(legend);
+            }
+            const zoomBox = h("div", "slls-sx-rd-zoom");
+            const zin = h("input", "slls-sx-input");
+            zin.value = String(Math.round(zoom * 100));
+            zin.setAttribute("aria-label", "Zoom percentage");
+            zin.title = "Enter a zoom percentage";
+            const setZoom = (z) => {
+                const keepX = (scroller.scrollLeft + scroller.clientWidth / 2) / zoom, keepY = (scroller.scrollTop + scroller.clientHeight / 2) / zoom;
+                zoom = Math.min(2.5, Math.max(0.3, Math.round(z * 100) / 100));
+                layer.style.transform = `scale(${zoom})`;
+                zin.value = String(Math.round(zoom * 100));
+                paintEdges();
+                scroller.scrollLeft = keepX * zoom - scroller.clientWidth / 2;
+                scroller.scrollTop = keepY * zoom - scroller.clientHeight / 2;
+            };
+            zin.addEventListener("keydown", (ev) => { if (ev.key === "Enter") zin.blur(); });
+            zin.addEventListener("change", () => { const n = parseInt(zin.value, 10); if (Number.isFinite(n)) setZoom(n / 100); else zin.value = String(Math.round(zoom * 100)); });
+            zoomBox.append(button("slls-sx-iconbtn", "", "zoom_in", () => setZoom(zoom * 1.2), "Zoom in"), zin, h("span", "", "%"),
+                button("slls-sx-iconbtn", "", "zoom_out", () => setZoom(zoom / 1.2), "Zoom out"));
+            wrapEl.appendChild(zoomBox);
+            main.appendChild(wrapEl);
+        }
+        function draw() {
+            if (!viewOpen()) { m.close(); return; }
+            g = derive();
+            if (focused.size && ![...focused].some((k) => g.byKey.has(k))) focused = new Set();
+            ensureLayout();
+            toolSubtitle(m, focused.size ? `Focused on ${plural(focused.size, "dataset")} \u00b7 showing ${g.visible.length} of ${g.names.length}`
+                : `${plural(g.names.length, "dataset")} \u00b7 ${plural(g.rels.length, "relationship")}`);
+            viewToolActions(m);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                const bar = h("div", "slls-sx-tool-toolbar slls-sx-rd-toolbar");
+                if (focused.size) bar.appendChild(button("slls-sx-btn small", "Clear focus", "close", () => { focused = new Set(); draw(); }, "Show all datasets"));
+                if (g.dangling.length) {
+                    const warn = h("span", "slls-sx-pill warn", `${plural(g.dangling.length, "relationship")} not shown`);
+                    warn.title = "These relationships use a dataset which isn\u2019t in the view: "
+                        + g.dangling.map((r) => `${r.name} (${r.from} \u2192 ${r.to})`).join(", ");
+                    bar.appendChild(warn);
+                }
+                const hint = vMultiFile() ? "Datasets and relationships are coloured by the YAML file which defines them" : "";
+                const editHint = write() ? "Drag a column onto another dataset to create a relationship \u00b7 right-click a line or a dataset for more" : "";
+                const text = [hint, editHint].filter(Boolean).join(" \u00b7 ");
+                if (text) bar.appendChild(h("span", "slls-sx-tool-count", text));
+                m.body.appendChild(bar);
+                const main = h("div", "slls-sx-rd-main");
+                drawSidebar(main);
+                drawCanvas(main);
+                m.body.appendChild(main);
+                drawPanels();
+            });
+        }
+        registerTool(m, draw, () => viewToolActions(m));
+        draw();
+    }
     // ------------------------------------------------------------------
     // Perspective editor
     // ------------------------------------------------------------------
@@ -14731,7 +15291,9 @@ def semantic_explorer(
     can be removed from a combined view: it moves to a folder of its own in
     Context/Semantic Views (nothing there is overwritten). Deleting a dataset
     or metric lists the relationships and metrics which depend on it, and
-    deletes them too once confirmed. Dataset,
+    deletes them too once confirmed. The view's Tools menu opens a relationship
+    diagram of its datasets and relationships, colour-coded by the YAML file
+    which defines them. Dataset,
     relationship and metric names must be unique across all of a view's YAML
     files: duplicates are flagged, and edits which create one can't be saved.
 
