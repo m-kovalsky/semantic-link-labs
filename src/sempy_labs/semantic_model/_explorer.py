@@ -111,6 +111,13 @@ _WIDGET_CSS = """
 .slls-sx-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .slls-sx-btn svg { width: 15px; height: 15px; }
 .slls-sx-btn.icon { width: 32px; padding: 0; }
+/* DAX Formatter logo buttons (no text); the logo pulses while formatting. */
+.slls-sx-btn.slls-sx-daxfmt svg { width: 18px; height: auto; }
+.slls-sx-btn.small.slls-sx-daxfmt { width: 28px; }
+.slls-sx-btn.small.slls-sx-daxfmt svg { width: 16px; }
+.slls-sx-btn.slls-sx-daxfmt.loading { cursor: progress; }
+.slls-sx-btn.slls-sx-daxfmt.loading svg { animation: slls-sx-daxfmt-pulse 0.9s ease-in-out infinite; }
+@keyframes slls-sx-daxfmt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .slls-sx-btn.primary { background: var(--ui-accent); border-color: var(--ui-accent); color: var(--ui-on-accent); }
 .slls-sx-btn.primary:hover:not(:disabled) { background: var(--ui-accent-hover); }
 .slls-sx-btn.danger { color: var(--ui-danger-text); border-color: var(--ui-danger-border); }
@@ -3216,12 +3223,99 @@ function render({ model, el }) {
         vSelected = id;
         vAfterChange(false);
     }
+    // Tables and metrics a metric's DAX refers to (lower-cased names). A bare
+    // [x] counts as metric x; whether a name is a dataset or a metric is
+    // decided by the caller, so unknown names are harmless.
+    function viewDaxRefs(dax) {
+        const tables = new Set(), metrics = new Set();
+        const tokens = tokenizeDax(String(dax || ""));
+        tokens.forEach((tok, i) => {
+            if (tok.type === "COLUMN") metrics.add(tok.text.slice(1, -1).toLowerCase());
+            else if (tok.type === "TABLE_COLUMN") {
+                const at = tok.text.indexOf("[");
+                const table = unquoteTable(tok.text.slice(0, at)).toLowerCase();
+                tables.add(table);
+                if (table === "metrics") metrics.add(tok.text.slice(at + 1, -1).toLowerCase());
+            } else if (tok.type === "QUOTED_IDENTIFIER") tables.add(unquoteTable(tok.text).toLowerCase());
+            else if (tok.type === "IDENTIFIER") {
+                const next = nextSignificant(tokens, i + 1);
+                if (!next || next.type !== "LPAREN") tables.add(tok.text.toLowerCase());
+            }
+        });
+        return { tables, metrics };
+    }
+    // What breaks when the datasets / metrics in `gone` leave the view: the
+    // relationships using a dataset and the metrics referring to one of them,
+    // transitively (a metric using a broken metric breaks too). Names still
+    // defined by an object which stays are not broken.
+    function viewDependents(gone) {
+        const lc = (v) => String(v || "").trim().toLowerCase();
+        const broken = [];
+        // Whether an object which stays (not gone, not broken) defines a name.
+        const kept = (kind, name, except) => vLive(kind).some((o) => o !== except && !gone.includes(o) && !broken.includes(o) && lc(o.name) === name);
+        const tables = new Set(gone.filter((o) => o.type === "dataset").map((o) => lc(o.name)).filter((n) => n && !kept("datasets", n)));
+        const metrics = new Set(gone.filter((o) => o.type === "metric").map((o) => lc(o.name)).filter((n) => n && !kept("metrics", n)));
+        const relationships = vLive("relationships").filter((r) => !gone.includes(r) && (tables.has(lc(r.from)) || tables.has(lc(r.to))));
+        const candidates = vLive("metrics").filter((m) => !gone.includes(m)).map((m) => ({ m, refs: viewDaxRefs(m.dax) }));
+        let grew = true;
+        while (grew) {
+            grew = false;
+            for (const c of candidates) {
+                if (broken.includes(c.m)) continue;
+                if ([...c.refs.tables].some((t) => tables.has(t)) || [...c.refs.metrics].some((x) => metrics.has(x))) {
+                    broken.push(c.m);
+                    if (!kept("metrics", lc(c.m.name), c.m)) metrics.add(lc(c.m.name));
+                    grew = true;
+                }
+            }
+        }
+        return { relationships, metrics: broken };
+    }
+    // Deleting a dataset or metric also deletes what depends on it, after the
+    // user confirms; everything is one undo step. Restoring is per object.
     function vToggleDelete(node) {
+        if (!node.deleted && (node.type === "dataset" || node.type === "metric")) {
+            const deps = viewDependents([vFind(node.key) || node]);
+            const extra = [...deps.relationships, ...deps.metrics].filter(vEditable);
+            if (extra.length) { confirmViewDelete(node, extra); return; }
+        }
         vBeginStep("");
         const kind = VIEW_LISTS[node.type];
         if (node.isNew) vWork[kind] = vWork[kind].filter((x) => x.key !== node.key);
         else { const w = vFind(node.key); if (w) w.deleted = !w.deleted; }
         vAfterChange(false);
+    }
+    function vDeleteAll(nodes) {
+        vBeginStep("");
+        for (const n of nodes) {
+            const kind = VIEW_LISTS[n.type];
+            if (n.isNew) vWork[kind] = vWork[kind].filter((x) => x.key !== n.key);
+            else { const w = vFind(n.key); if (w) w.deleted = true; }
+        }
+        vAfterChange(false);
+    }
+    function confirmViewDelete(node, extra) {
+        const label = VIEW_TYPE_LABEL[node.type].toLowerCase();
+        const m = modal("Delete with dependencies", "alert");
+        m.body.appendChild(h("div", "", `Deleting the ${label} \u201c${node.name}\u201d also deletes ${plural(extra.length, "object")} which depend${extra.length === 1 ? "s" : ""} on it:`));
+        const list = h("div", "slls-sx-sublist");
+        list.style.margin = "10px 0";
+        for (const o of extra) {
+            const it = h("div", "slls-sx-subitem");
+            const why = o.type === "relationship" ? `${o.from}[${o.from_column}] \u2192 ${o.to}[${o.to_column}]` : "Metric";
+            it.append(iconEl(VIEW_ICON[o.type], ""), h("span", "", o.name || "(unnamed)"), h("span", "meta", why));
+            list.appendChild(it);
+        }
+        m.body.appendChild(list);
+        m.body.appendChild(h("div", "slls-sx-picker-note", "Nothing is written until you save; Undo brings them all back."));
+        const foot = h("div", "slls-sx-modal-foot");
+        const ok = button("slls-sx-btn danger", `Delete ${plural(extra.length + 1, "object")}`, "trash", () => {
+            m.close();
+            vDeleteAll([vFind(node.key) || node, ...extra]);
+        });
+        foot.append(button("slls-sx-btn", "Cancel", "", () => m.close()), ok);
+        m.box.appendChild(foot);
+        setTimeout(() => ok.focus(), 0);
     }
     // Adds a YAML file (a semantic view of its own) to the view. A view with
     // one YAML file becomes a combined view: its folder is renamed to the
@@ -3320,6 +3414,96 @@ function render({ model, el }) {
             input.addEventListener("input", () => { err.style.display = "none"; refresh(); });
             input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") add.click(); });
         }
+        refresh();
+        setTimeout(() => nameInput.focus(), 0);
+    }
+    // Moves a YAML file out of a combined view into a folder of its own in
+    // Context/Semantic Views, where it is a semantic view by itself. Nothing
+    // is overwritten (checked again by the kernel).
+    function openRemoveViewFile(initial) {
+        if (vSaving || model.get("busy") || !vMultiFile()) return;
+        if (viewPendingCount()) {
+            confirmDialog(`Removing a YAML file reloads the view and discards ${plural(viewPendingCount(), "pending change")}.`, "Discard", () => {
+                discardViewChanges();
+                renderAll();
+                openRemoveViewFile(initial);
+            });
+            return;
+        }
+        const view = viewData.view;
+        const files = ((viewData && viewData.files) || []).filter((f) => f.area === "definition" && !f.ignored);
+        const m = modal("Remove a YAML file", "unlink");
+        const intro = h("div", "slls-sx-picker-note");
+        intro.style.margin = "0 0 12px";
+        intro.textContent = `Removes a YAML file from the \u201c${view.name}\u201d combined view. The file moves to a folder of its own in `
+            + "Context/Semantic Views and becomes a semantic view by itself.";
+        const row = h("div", "slls-sx-picker-row");
+        const sel = h("select", "slls-sx-select");
+        sel.setAttribute("aria-label", "YAML file");
+        for (const f of files) { const o = h("option", "", f.path); o.value = f.path; sel.appendChild(o); }
+        sel.value = files.some((f) => f.path === initial) ? initial : files[0].path;
+        const nameInput = h("input", "slls-sx-input");
+        nameInput.setAttribute("aria-label", "New semantic view name");
+        row.append(pickerField("YAML file", sel), pickerField("New semantic view name", nameInput));
+        const impact = h("div", "slls-sx-picker-note");
+        const note = h("div", "slls-sx-picker-note");
+        const err = h("div", "slls-sx-picker-error");
+        err.style.display = "none";
+        m.body.append(intro, row, impact, note, err);
+        // The new view is named after the semantic view the file defines.
+        const suggest = (p) => {
+            const f = files.find((x) => x.path === p);
+            return (f && f.view_name) || p.split("/").pop().replace(/\.yaml$/i, "").replace(/_semantic_view$/i, "");
+        };
+        let edited = false;
+        nameInput.value = suggest(sel.value);
+        const foot = h("div", "slls-sx-modal-foot");
+        let removing = false;
+        const remove = button("slls-sx-btn danger", "Remove", "unlink", () => {
+            if (remove.disabled) return;
+            removing = true;
+            err.style.display = "none";
+            refresh();
+            const file = sel.value;
+            request("remove_view_file", { file, name: nameInput.value.trim() }, (res) => {
+                removing = false;
+                if (res.ok) {
+                    if (vFileFilter === file) vFileFilter = "";
+                    viewList.key = null;
+                    m.close();
+                    renderAll();
+                    return;
+                }
+                err.textContent = res.error || "The YAML file could not be removed.";
+                err.style.display = "";
+                refresh();
+            });
+        });
+        foot.append(button("slls-sx-btn", "Cancel", "", () => m.close()), remove);
+        m.box.appendChild(foot);
+        const invalid = (s) => /[\\/:*?"<>|#%\u0000-\u001f]/.test(s) || s.endsWith(".");
+        const refresh = () => {
+            const p = sel.value, name = nameInput.value.trim();
+            const leaving = [...vLive("datasets"), ...vLive("relationships"), ...vLive("metrics")].filter((o) => o.file === p);
+            const count = (t) => leaving.filter((o) => o.type === t).length;
+            const deps = viewDependents(leaving);
+            const broken = [...deps.relationships, ...deps.metrics];
+            impact.textContent = `${plural(count("dataset"), "dataset")}, ${plural(count("relationship"), "relationship")} and `
+                + `${plural(count("metric"), "metric")} leave the \u201c${view.name}\u201d view.`
+                + (broken.length ? ` These objects in its other files use them and will break: ${broken.map((o) => o.name).join(", ")}.` : "");
+            impact.classList.toggle("error", broken.length > 0);
+            const bad = !!name && invalid(name);
+            nameInput.classList.toggle("invalid", bad);
+            note.classList.toggle("error", bad);
+            note.textContent = bad ? "A name can\u2019t contain \\ / : * ? \" < > | # % or end with a period."
+                : name ? `Moves ${p} to Context/Semantic Views/${name}/${p.split("/").pop()}. A folder or file with that name is never overwritten.`
+                : "Enter the name of the semantic view the file becomes.";
+            remove.disabled = removing || !name || bad;
+            sel.disabled = nameInput.disabled = removing;
+        };
+        sel.addEventListener("change", () => { if (!edited) nameInput.value = suggest(sel.value); err.style.display = "none"; refresh(); });
+        nameInput.addEventListener("input", () => { edited = true; err.style.display = "none"; refresh(); });
+        nameInput.addEventListener("keydown", (ev) => { if (ev.key === "Enter") remove.click(); });
         refresh();
         setTimeout(() => nameInput.focus(), 0);
     }
@@ -3483,11 +3667,10 @@ function render({ model, el }) {
         header.appendChild(group);
         if (write) {
             const targets = vFormatTargets();
-            const fmt = button("slls-sx-btn", "Format DAX", vFormatting ? "refresh" : "wand", vFormatAll,
+            const fmt = button("slls-sx-btn icon slls-sx-daxfmt" + (vFormatting ? " loading" : ""), "", "daxformatter", vFormatAll,
                 vFormatting ? "Formatting the DAX of the metrics\u2026"
                     : targets.length ? `Format the DAX of ${plural(targets.length, "metric")} with DAX Formatter (daxformatter.com)`
                     : "No metrics with DAX to format");
-            if (vFormatting) fmt.querySelector("svg").classList.add("slls-sx-spin");
             fmt.disabled = !targets.length || vFormatting || vSaving;
             header.appendChild(fmt);
         }
@@ -3619,7 +3802,11 @@ function render({ model, el }) {
             return type ? [add[type]] : [];
         }
         if (!node) return [];
-        if (node.type === "view") return [add.dataset, add.relationship, add.metric, null, ["Add YAML file", "file", openAddViewFile, off || !!model.get("busy")]];
+        if (node.type === "view") {
+            const items = [add.dataset, add.relationship, add.metric, null, ["Add YAML file", "file", openAddViewFile, off || !!model.get("busy")]];
+            if (vMultiFile()) items.push(["Remove YAML file\u2026", "unlink", () => openRemoveViewFile(vFileFilter), off || !!model.get("busy")]);
+            return items;
+        }
         if (!add[node.type]) return [];
         const items = [add[node.type]];
         if (vEditable(node)) {
@@ -4015,6 +4202,12 @@ function render({ model, el }) {
                     vMultiFile() ? "Add a YAML file (a semantic view) to this combined view" : "Add a YAML file, making this a combined view");
                 yf.disabled = !!model.get("busy");
                 actions.appendChild(yf);
+                if (vMultiFile()) {
+                    const rf = button("slls-sx-btn small", "Remove YAML file", "unlink", () => openRemoveViewFile(vFileFilter),
+                        "Remove a YAML file from this combined view (it becomes a semantic view of its own)");
+                    rf.disabled = !!model.get("busy");
+                    actions.appendChild(rf);
+                }
             } else if (vEditable(node)) {
                 actions.appendChild(node.deleted
                     ? button("slls-sx-btn small", "Restore", "undo", () => vToggleDelete(node))
@@ -4074,6 +4267,12 @@ function render({ model, el }) {
                 it.append(h("span", "slls-sx-files-name", f.path), h("span", "meta", f.ignored ? "ignored" : fmtBytes(f.size)));
                 it.title = f.ignored ? `${f.path}\nIgnored \u2014 only .yaml files are part of the view` : f.path;
                 it.addEventListener("click", () => openViewFiles(f.path));
+                if (write && vMultiFile() && !f.ignored) {
+                    const rm = button("slls-sx-iconbtn", "", "unlink", (ev) => { ev.stopPropagation(); openRemoveViewFile(f.path); },
+                        "Remove from the combined view (it becomes a semantic view of its own)");
+                    rm.disabled = !!model.get("busy");
+                    it.appendChild(rm);
+                }
                 list.appendChild(it);
             }
             if (!files.length) list.appendChild(h("div", "slls-sx-kv-empty", "The view folder is empty."));
@@ -4194,16 +4393,17 @@ function render({ model, el }) {
             else body.appendChild(h("div", "slls-sx-code-error", "This metric has no DAX dialect, so it is omitted from the generated semantic model."));
         }, { dirty: vIsDirty(node) && (vBaseOf(node) || {}).dax !== node.dax });
         if (write) {
-            const fmt = button("slls-sx-btn small", "Format DAX", "wand", () => {
+            const fmt = button("slls-sx-btn small icon slls-sx-daxfmt", "", "daxformatter", () => {
                 const text = (vFind(node.key) || {}).dax || "";
                 if (!text.trim()) return;
                 fmt.disabled = true;
+                fmt.classList.add("loading");
                 request("format_dax", { expression: text }, (res) => {
                     if (res.ok && res.data.formatted && res.data.formatted !== text) vEdit(node.key, "dax", res.data.formatted);
                     else if (!res.ok) { model.set("status", { message: `Error: ${res.error}`, kind: "error" }); model.save_changes(); renderViewDetail(); }
                     else renderViewDetail();
                 });
-            }, "Format the expression with DAX Formatter");
+            }, "Format the expression with DAX Formatter (daxformatter.com)");
             c.actions.appendChild(fmt);
         }
         const rows = write ? [
@@ -10223,6 +10423,18 @@ _EXPLORER_ICON_NAMES = (
     "warehouse", "upload",
 )  # fmt: skip
 
+# The DAX Formatter logo mark (https://www.daxformatter.com/), as used by the
+# DAX Perf Optimizer, in the SQLBI brand orange which reads on both themes.
+_DAXFORMATTER_LOGO = (
+    '<svg viewBox="0 2.1 35 27.3" aria-hidden="true">'
+    '<rect x="0" y="2.1" width="19.8" height="7.2" fill="#E14E37"/>'
+    '<rect x="22.1" y="2.1" width="8.1" height="7.2" fill="#E14E37"/>'
+    '<rect x="11.6" y="12.2" width="16.5" height="7.2" fill="#E14E37"/>'
+    '<rect x="30.1" y="12.2" width="4.9" height="7.2" fill="#E14E37"/>'
+    '<rect x="6.2" y="22.2" width="10.5" height="7.2" fill="#E14E37"/>'
+    "</svg>"
+)
+
 _WIDGET_CSS = (
     _WIDGET_CSS.replace("__SLLS_LIGHT_VARS__", _UI_LIGHT_VARS)
     .replace("__SLLS_DARK_VARS__", _UI_DARK_VARS)
@@ -10246,7 +10458,12 @@ _WIDGET_JS = (
     + "\n"
     + _WIDGET_JS.replace(
         "__SLLS_EXPLORER_ICONS__",
-        json.dumps({name: _UI_ICONS[name] for name in _EXPLORER_ICON_NAMES}),
+        json.dumps(
+            {
+                **{name: _UI_ICONS[name] for name in _EXPLORER_ICON_NAMES},
+                "daxformatter": _DAXFORMATTER_LOGO,
+            }
+        ),
     ).replace("__SLLS_ATTRIBUTION__", _ui_render_attribution_html())
 )
 
@@ -12445,6 +12662,80 @@ def _onelake_rename(
         _onelake_raise(response, f"rename '{source}' to '{destination}'")
 
 
+def _onelake_delete_empty_directory(workspace_id: str, item_id: str, path: str) -> bool:
+    """Deletes a folder only if it is empty; returns whether it was deleted."""
+
+    response = _onelake_request(
+        "DELETE", workspace_id, f"{item_id}/{path}", params={"recursive": "false"}
+    )
+    return response.status_code in (200, 202)
+
+
+def _remove_view_yaml_file(
+    workspace_id: str, lakehouse_id: str, view_name: str, path: str, new_name: str
+) -> str:
+    """Moves a YAML file out of a combined view: it becomes the ``new_name``
+    semantic view, Context/Semantic Views/<new_name>/<file name>. Nothing is
+    overwritten. Returns the new view's name."""
+
+    new_name = str(new_name or "").strip()
+    if not new_name:
+        raise ValueError("Enter a name for the semantic view the file becomes.")
+    _check_view_name(new_name, "A semantic view name")
+    folder = f"{_VIEWS_FOLDER}/{view_name}"
+    listing = _onelake_list(workspace_id, lakehouse_id, folder, recursive=True)
+    if listing is None:
+        raise ValueError(f"The '{view_name}' semantic view no longer exists.")
+    yaml_files = [
+        _relative_path(p["path"], folder)
+        for p in listing
+        if not p["is_dir"] and p["path"].endswith(".yaml")
+    ]
+    if path not in yaml_files:
+        raise ValueError(
+            f"'{path}' is no longer in the semantic view. Reload the view."
+        )
+    if len(yaml_files) < 2:
+        raise ValueError(
+            "Only a YAML file of a combined view (a view with several YAML files) "
+            "can be removed from it."
+        )
+    # Anything directly in Context/Semantic Views (a view folder or a file)
+    # with that name would be overwritten.
+    taken = {
+        _relative_path(p["path"], _VIEWS_FOLDER).lower(): p["is_dir"]
+        for p in _onelake_list(workspace_id, lakehouse_id, _VIEWS_FOLDER) or []
+    }
+    if new_name.lower() in taken:
+        what = "semantic view" if taken[new_name.lower()] else "file"
+        raise ValueError(
+            f"A {what} named '{new_name}' already exists in Context/Semantic Views. "
+            "Choose another name."
+        )
+    destination = f"{_VIEWS_FOLDER}/{new_name}"
+    # Creating the folder fails if it appeared since; the file is then moved.
+    _onelake_create_directory(workspace_id, lakehouse_id, destination)
+    try:
+        _onelake_rename(
+            workspace_id,
+            lakehouse_id,
+            f"{folder}/{path}",
+            f"{destination}/{path.rsplit('/', 1)[-1]}",
+        )
+    except Exception:
+        _onelake_delete_empty_directory(workspace_id, lakehouse_id, destination)
+        raise
+    # Subfolders of the combined view left empty by the move are removed.
+    parts = path.split("/")[:-1]
+    while parts:
+        if not _onelake_delete_empty_directory(
+            workspace_id, lakehouse_id, f"{folder}/{'/'.join(parts)}"
+        ):
+            break
+        parts.pop()
+    return new_name
+
+
 def _text(value) -> str:
     return "" if value is None else str(value)
 
@@ -12924,7 +13215,11 @@ def _semantic_view_payload(
         yaml_bytes += p["size"]
         entry["content"] = _onelake_read(workspace_id, lakehouse_id, p["path"])
         try:
-            documents.append((rel, yaml.safe_load(entry["content"])))
+            document = yaml.safe_load(entry["content"])
+            documents.append((rel, document))
+            # The semantic view the file defines (its 'name').
+            if isinstance(document, dict):
+                entry["view_name"] = _text(document.get("name"))
         except yaml.YAMLError as e:
             entry["error"] = " ".join(str(e).split())
     merged = _merge_view_documents(documents)
@@ -14432,7 +14727,11 @@ def semantic_explorer(
     in the YAML files are kept when the ruamel.yaml package is installed. A YAML
     file (a semantic view of its own, in a subfolder named after it) can be
     added to a view; a view with a single YAML file then becomes a combined
-    view, and its folder is renamed to the combined view's name. Dataset,
+    view, and its folder is renamed to the combined view's name. A YAML file
+    can be removed from a combined view: it moves to a folder of its own in
+    Context/Semantic Views (nothing there is overwritten). Deleting a dataset
+    or metric lists the relationships and metrics which depend on it, and
+    deletes them too once confirmed. Dataset,
     relationship and metric names must be unique across all of a view's YAML
     files: duplicates are flagged, and edits which create one can't be saved.
 
@@ -14724,6 +15023,22 @@ def semantic_explorer(
                     "kind": "success",
                 }
                 _reply(data, True, {"view": target, "file": path})
+                return
+            if action == "remove_view_file":
+                if not ctx["view"]:
+                    raise ValueError("Select a semantic view first.")
+                workspace_id, lakehouse_id, view_name = ctx["view"]
+                path = str(data.get("file") or "")
+                new_name = _remove_view_yaml_file(
+                    workspace_id, lakehouse_id, view_name, path, data.get("name")
+                )
+                _load_view(workspace_id, lakehouse_id, view_name)
+                widget.status = {
+                    "message": f"Removed '{path}' from the '{view_name}' view; it is "
+                    f"now the '{new_name}' semantic view.",
+                    "kind": "success",
+                }
+                _reply(data, True, {"view": new_name})
                 return
             if action == "save_view":
                 if not ctx["view"]:

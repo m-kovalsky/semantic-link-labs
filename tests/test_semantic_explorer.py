@@ -1177,6 +1177,13 @@ class _FakeOneLake:
         if method == "PATCH" and params.get("action") == "append":
             self.files[rel] += data
             return _FakeResponse(202)
+        if method == "DELETE" and params.get("recursive") == "false":
+            if rel not in self.folders:
+                return _FakeResponse(404)
+            if any(p.startswith(rel + "/") for p in [*self.files, *self.folders]):
+                return _FakeResponse(409)
+            self.folders.discard(rel)
+            return _FakeResponse(200)
         return _FakeResponse(200)
 
 
@@ -1658,6 +1665,57 @@ metrics:
             "finance/finance.yaml",
         ),
     ]
+
+
+def test_removing_a_yaml_file_makes_it_a_view_of_its_own(monkeypatch):
+    read_payload = sx._semantic_view_payload
+    root = "Context/Semantic Views"
+    lake = _FakeOneLake(
+        files={
+            f"{root}/all/sales_semantic_view.yaml": _VIEW_SCHEMA,
+            f"{root}/all/finance/finance_semantic_view.yaml": _VIEW_METRICS.replace(
+                "name: sales\nmetrics", "name: finance\nmetrics"
+            ),
+            f"{root}/other/other.yaml": _VIEW_METRICS,
+            f"{root}/notes": "x",
+        }
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    files = read_payload("ws", "lh", "all")["files"]
+    assert {f["path"]: f.get("view_name") for f in files} == {
+        "finance/finance_semantic_view.yaml": "finance",
+        "sales_semantic_view.yaml": "sales",
+    }
+    widget, send = _view_explorer_widget(monkeypatch)
+    send(action="open_view", workspace_id="ws-id", lakehouse_id="lh-id", view="all")
+    finance = "finance/finance_semantic_view.yaml"
+    before = dict(lake.files)
+
+    # Neither a view folder nor a file is overwritten.
+    for taken, what in (("Other", "semantic view"), ("notes", "file")):
+        result = send(action="remove_view_file", file=finance, name=taken, request_id=1)
+        assert not result["ok"] and f"A {what} named" in result["error"]
+    assert lake.files == before
+
+    result = send(action="remove_view_file", file=finance, name="finance", request_id=2)
+
+    assert result["ok"] and result["data"] == {"view": "finance"}
+    assert sorted(lake.files) == [
+        f"{root}/all/sales_semantic_view.yaml",
+        f"{root}/finance/finance_semantic_view.yaml",
+        f"{root}/notes",
+        f"{root}/other/other.yaml",
+    ]
+    # The emptied subfolder is removed with it.
+    assert f"{root}/all/finance" not in lake.folders
+    # A view with one YAML file isn't a combined view.
+    result = send(
+        action="remove_view_file",
+        file="sales_semantic_view.yaml",
+        name="sales",
+        request_id=3,
+    )
+    assert not result["ok"] and "combined view" in result["error"]
 
 
 def test_save_semantic_view_refuses_to_overwrite_changed_files(monkeypatch):
