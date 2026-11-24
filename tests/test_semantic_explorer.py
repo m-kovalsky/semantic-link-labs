@@ -1139,6 +1139,25 @@ class _FakeOneLake:
                     )
             return _FakeResponse(body={"paths": paths})
         rel = path.split("/", 1)[1]
+        if method == "PUT" and "x-ms-rename-source" in (headers or {}):
+            from urllib.parse import unquote
+
+            # '/<workspace>/<item>/<path>'
+            source = unquote(headers["x-ms-rename-source"]).split("/", 3)[3]
+            if rel in self.files or rel in self.folders:
+                return _FakeResponse(409)
+
+            def moved(p):
+                return p.replace(source, rel, 1)
+
+            def inside(p):
+                return p == source or p.startswith(source + "/")
+
+            self.files = {
+                (moved(k) if inside(k) else k): v for k, v in self.files.items()
+            }
+            self.folders = {moved(f) if inside(f) else f for f in self.folders}
+            return _FakeResponse(201)
         if method == "GET":
             if rel not in self.files:
                 return _FakeResponse(404)
@@ -1532,6 +1551,65 @@ def test_save_semantic_view_moves_objects_between_yaml_files(monkeypatch):
         sx._save_semantic_view(
             "ws", "lh", "sales", {"moves": [dict(rel, to="gone.yaml")]}
         )
+
+
+def test_adding_a_yaml_file_makes_a_single_file_view_a_combined_view(monkeypatch):
+    import yaml
+
+    lake = _FakeOneLake(
+        files={
+            "Context/Semantic Views/sales/sales_semantic_view.yaml": _VIEW_SCHEMA,
+            "Context/Semantic Views/other/other.yaml": _VIEW_METRICS,
+        }
+    )
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    result = send(action="add_view_file", name="finance", request_id=1)
+    assert not result["ok"] and "name for the combined view" in result["error"]
+    result = send(
+        action="add_view_file", name="finance", combined_name="Other", request_id=2
+    )
+    assert not result["ok"] and "already exists" in result["error"]
+
+    result = send(
+        action="add_view_file", name="finance", combined_name="all", request_id=3
+    )
+
+    assert result["ok"] and result["data"] == {
+        "view": "all",
+        "file": "finance_semantic_view.yaml",
+    }
+    folder = "Context/Semantic Views/all"
+    assert sorted(p for p in lake.files if p.startswith("Context/Semantic Views/")) == [
+        f"{folder}/finance_semantic_view.yaml",
+        f"{folder}/sales_semantic_view.yaml",
+        "Context/Semantic Views/other/other.yaml",
+    ]
+    new = yaml.safe_load(lake.files[f"{folder}/finance_semantic_view.yaml"])
+    assert (new["name"], new["version"]) == ("finance", sx._VIEW_YAML_VERSION)
+    # The renamed view is the one edited from now on.
+    result = send(action="add_view_file", name="hr", request_id=4)
+    assert result["ok"] and result["data"]["view"] == "all"
+    assert f"{folder}/hr_semantic_view.yaml" in lake.files
+
+
+def test_adding_a_yaml_file_to_a_combined_view_keeps_its_name(monkeypatch):
+    lake = _saved_view_lake()
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    # Both files already define a semantic view named 'sales'.
+    result = send(action="add_view_file", name="Sales", request_id=1)
+    assert not result["ok"] and "already defines" in result["error"]
+
+    result = send(
+        action="add_view_file", name="finance", combined_name="ignored", request_id=2
+    )
+
+    assert result["ok"] and result["data"]["view"] == "sales"
+    assert "Context/Semantic Views/sales/finance_semantic_view.yaml" in lake.files
+    assert not any("ignored" in p for p in lake.files)
 
 
 def test_save_semantic_view_refuses_to_overwrite_changed_files(monkeypatch):

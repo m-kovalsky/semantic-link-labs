@@ -3187,6 +3187,104 @@ function render({ model, el }) {
         else { const w = vFind(node.key); if (w) w.deleted = !w.deleted; }
         vAfterChange(false);
     }
+    // Adds a YAML file (a semantic view of its own) to the view. A view with
+    // one YAML file becomes a combined view: its folder is renamed to the
+    // combined view's name. The file is written right away, so staged changes
+    // are discarded first.
+    function openAddViewFile() {
+        if (vSaving || model.get("busy")) return;
+        if (viewPendingCount()) {
+            confirmDialog(`Adding a YAML file reloads the view and discards ${plural(viewPendingCount(), "pending change")}.`, "Discard", () => {
+                discardViewChanges();
+                renderAll();
+                openAddViewFile();
+            });
+            return;
+        }
+        const view = viewData.view;
+        const combined = vMultiFile();
+        const m = modal("Add a YAML file", "file");
+        const intro = h("div", "slls-sx-picker-note");
+        intro.style.margin = "0 0 12px";
+        intro.textContent = combined
+            ? `Adds a semantic view to the \u201c${view.name}\u201d combined view. Every YAML file in the view\u2019s folder is merged into it when it is published.`
+            : `Adding a YAML file makes \u201c${view.name}\u201d a combined view of its YAML files. The combined view name is the name `
+                + "of its folder in Context/Semantic Views and of the semantic model it publishes.";
+        const row = h("div", "slls-sx-picker-row");
+        const nameInput = h("input", "slls-sx-input");
+        nameInput.placeholder = "e.g. finance";
+        nameInput.setAttribute("aria-label", "New semantic view name");
+        row.appendChild(pickerField("Semantic view name", nameInput));
+        let comboInput = null;
+        if (!combined) {
+            comboInput = h("input", "slls-sx-input");
+            comboInput.placeholder = `e.g. ${view.name}_combined`;
+            comboInput.setAttribute("aria-label", "Combined view name");
+            row.appendChild(pickerField("Combined view name", comboInput));
+        }
+        const note = h("div", "slls-sx-picker-note");
+        const err = h("div", "slls-sx-picker-error");
+        err.style.display = "none";
+        m.body.append(intro, row, note, err);
+        const foot = h("div", "slls-sx-modal-foot");
+        let adding = false;
+        const add = button("slls-sx-btn primary", "Add", "", () => {
+            if (add.disabled) return;
+            adding = true;
+            err.style.display = "none";
+            refresh();
+            const name = nameInput.value.trim();
+            request("add_view_file", { name, combined_name: comboInput ? comboInput.value.trim() : "" }, (res) => {
+                adding = false;
+                if (res.ok) {
+                    if (res.data.view && res.data.view !== view.name) { viewPick = res.data.view; viewList.key = null; }
+                    // New objects go to the new file while the tree shows it.
+                    if (viewYamlFiles().includes(res.data.file)) vFileFilter = res.data.file;
+                    m.close();
+                    renderAll();
+                    return;
+                }
+                err.textContent = res.error || "The YAML file could not be added.";
+                err.style.display = "";
+                // A failure after the folder was renamed leaves the dialog
+                // describing the old view; the reloaded view is shown instead.
+                if (viewData && viewData.view && viewData.view.name !== view.name) { m.close(); renderAll(); return; }
+                refresh();
+            });
+        });
+        foot.append(button("slls-sx-btn", "Cancel", "", () => m.close()), add);
+        m.box.appendChild(foot);
+        const invalid = (s) => /[\\/:*?"<>|#%\u0000-\u001f]/.test(s) || s.endsWith(".");
+        const refresh = () => {
+            const name = nameInput.value.trim();
+            const combo = comboInput ? comboInput.value.trim() : view.name;
+            const file = `${name}_semantic_view.yaml`;
+            const clash = !!name && ((viewData.files || []).some((f) => f.area === "definition" && f.path.toLowerCase() === file.toLowerCase()));
+            const bad = (!!name && invalid(name)) || (!!combo && invalid(combo));
+            nameInput.classList.toggle("invalid", clash || (!!name && invalid(name)));
+            if (comboInput) comboInput.classList.toggle("invalid", !!combo && invalid(combo));
+            note.classList.toggle("error", clash || bad);
+            if (clash) note.textContent = `The view already has a \u201c${file}\u201d file.`;
+            else if (bad) note.textContent = "A name can\u2019t contain \\ / : * ? \" < > | # % or end with a period.";
+            else if (name && combo) {
+                const renamed = combo !== view.name;
+                note.textContent = `Creates Context/Semantic Views/${combo}/${file}`
+                    + (renamed ? ` and renames the view\u2019s folder from \u201c${view.name}\u201d to \u201c${combo}\u201d.` : ".")
+                    + (renamed && view.published ? ` The \u201c${view.name}\u201d semantic model published from it is kept; `
+                        + `publishing the combined view creates a \u201c${combo}\u201d semantic model.` : "");
+            } else note.textContent = combined ? "The new file defines a semantic view with this name." : "Enter the new semantic view\u2019s name and the combined view\u2019s name.";
+            add.textContent = adding ? "Adding\u2026" : "Add";
+            add.disabled = adding || !name || !combo || clash || bad;
+            nameInput.disabled = adding;
+            if (comboInput) comboInput.disabled = adding;
+        };
+        for (const input of [nameInput, comboInput].filter(Boolean)) {
+            input.addEventListener("input", () => { err.style.display = "none"; refresh(); });
+            input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") add.click(); });
+        }
+        refresh();
+        setTimeout(() => nameInput.focus(), 0);
+    }
     function discardViewChanges() {
         if (vBase) vWork = JSON.parse(JSON.stringify(vBase));
         vUndo = []; vRedo = []; vEditKey = "";
@@ -3479,7 +3577,7 @@ function render({ model, el }) {
             return type ? [add[type]] : [];
         }
         if (!node) return [];
-        if (node.type === "view") return [add.dataset, add.relationship, add.metric];
+        if (node.type === "view") return [add.dataset, add.relationship, add.metric, null, ["Add YAML file", "file", openAddViewFile, off || !!model.get("busy")]];
         if (!add[node.type]) return [];
         const items = [add[node.type]];
         if (vEditable(node)) {
@@ -3837,6 +3935,10 @@ function render({ model, el }) {
                 actions.appendChild(button("slls-sx-btn small", "Dataset", "plus", () => vAdd("dataset"), "Add a dataset"));
                 actions.appendChild(button("slls-sx-btn small", "Relationship", "plus", () => vAdd("relationship"), "Add a relationship"));
                 actions.appendChild(button("slls-sx-btn small", "Metric", "plus", () => vAdd("metric"), "Add a metric"));
+                const yf = button("slls-sx-btn small", "YAML file", "plus", openAddViewFile,
+                    vMultiFile() ? "Add a YAML file (a semantic view) to this combined view" : "Add a YAML file, making this a combined view");
+                yf.disabled = !!model.get("busy");
+                actions.appendChild(yf);
             } else if (vEditable(node)) {
                 actions.appendChild(node.deleted
                     ? button("slls-sx-btn small", "Restore", "undo", () => vToggleDelete(node))
@@ -12169,6 +12271,103 @@ def _create_semantic_view(workspace_id: str, lakehouse_id: str, name: str) -> st
     return name
 
 
+def _check_view_name(name: str, what: str) -> None:
+    if _VIEW_NAME_INVALID.search(name) or name.endswith("."):
+        raise ValueError(
+            f'{what} cannot contain \\ / : * ? " < > | # % or end with a period.'
+        )
+
+
+def _plan_view_yaml_file(
+    workspace_id: str,
+    lakehouse_id: str,
+    view_name: str,
+    name: str,
+    combined_name: str = "",
+) -> Tuple[str, str]:
+    """Checks that a YAML file defining the ``name`` semantic view can be added
+    to a view; returns the view's folder name afterwards and the file's path.
+
+    A view with fewer than two YAML files isn't a combined view yet:
+    ``combined_name`` names the combined view, and the view's folder is renamed
+    to it (the folder name is the view's name). A combined view keeps its name.
+    """
+
+    import yaml
+
+    name = str(name or "").strip()
+    combined_name = str(combined_name or "").strip()
+    if not name:
+        raise ValueError("Enter a name for the new semantic view.")
+    _check_view_name(name, "A semantic view name")
+    folder = f"{_VIEWS_FOLDER}/{view_name}"
+    listing = _onelake_list(workspace_id, lakehouse_id, folder, recursive=True)
+    if listing is None:
+        raise ValueError(f"The '{view_name}' semantic view no longer exists.")
+    files = {
+        _relative_path(p["path"], folder): p["path"] for p in listing if not p["is_dir"]
+    }
+    yaml_files = sorted(f for f in files if f.endswith(".yaml"))
+    if len(yaml_files) >= _VIEW_MAX_FILES:
+        raise ValueError(
+            f"A semantic view can have at most {_VIEW_MAX_FILES} .yaml files."
+        )
+    path = f"{name}_semantic_view.yaml"
+    if path.lower() in {f.lower() for f in files}:
+        raise ValueError(f"The view already has a '{path}' file.")
+    for f in yaml_files:
+        try:
+            doc = yaml.safe_load(_onelake_read(workspace_id, lakehouse_id, files[f]))
+        except yaml.YAMLError:
+            continue
+        if isinstance(doc, dict) and _text(doc.get("name")).lower() == name.lower():
+            raise ValueError(f"'{f}' already defines a semantic view named '{name}'.")
+    if len(yaml_files) >= 2:
+        return view_name, path
+    if not combined_name:
+        raise ValueError(
+            "Enter a name for the combined view: the view becomes a combined view "
+            "of its YAML files."
+        )
+    _check_view_name(combined_name, "A combined view name")
+    if combined_name != view_name:
+        taken = {
+            v["name"].lower()
+            for v in _list_semantic_views(workspace_id, lakehouse_id)
+            if v["name"] != view_name
+        }
+        if combined_name.lower() in taken:
+            raise ValueError(
+                f"A semantic view named '{combined_name}' already exists in this "
+                "lakehouse. Choose another name."
+            )
+    return combined_name, path
+
+
+def _onelake_rename(
+    workspace_id: str, item_id: str, source: str, destination: str
+) -> None:
+    """Renames (moves) a file or folder within an item."""
+
+    from urllib.parse import quote
+
+    response = _onelake_request(
+        "PUT",
+        workspace_id,
+        f"{item_id}/{destination}",
+        params={"mode": "legacy"},
+        headers={
+            "x-ms-rename-source": f"/{quote(workspace_id)}/{quote(f'{item_id}/{source}')}",
+            # Fails (409) rather than replacing an existing destination.
+            "If-None-Match": "*",
+        },
+    )
+    if response.status_code == 409:
+        raise ValueError(f"'{destination}' already exists.")
+    if response.status_code not in (200, 201):
+        _onelake_raise(response, f"rename '{source}' to '{destination}'")
+
+
 def _text(value) -> str:
     return "" if value is None else str(value)
 
@@ -14146,7 +14345,10 @@ def semantic_explorer(
     the references to them), moved to another of the view's YAML files, and the
     DAX of every metric can be formatted at once with DAX Formatter; changes are
     staged with undo / redo and written to the YAML files only on Save. Comments
-    in the YAML files are kept when the ruamel.yaml package is installed.
+    in the YAML files are kept when the ruamel.yaml package is installed. A YAML
+    file (a semantic view of its own) can be added to a view; a view with a
+    single YAML file then becomes a combined view, and its folder is renamed to
+    the combined view's name.
 
     Parameters
     ----------
@@ -14396,6 +14598,46 @@ def semantic_explorer(
                     "kind": "success",
                 }
                 _reply(data, True, {"view": name})
+                return
+            if action == "add_view_file":
+                if not ctx["view"]:
+                    raise ValueError("Select a semantic view first.")
+                workspace_id, lakehouse_id, view_name = ctx["view"]
+                name = str(data.get("name") or "").strip()
+                target, path = _plan_view_yaml_file(
+                    workspace_id,
+                    lakehouse_id,
+                    view_name,
+                    name,
+                    str(data.get("combined_name") or ""),
+                )
+                if target != view_name:
+                    _onelake_rename(
+                        workspace_id,
+                        lakehouse_id,
+                        f"{_VIEWS_FOLDER}/{view_name}",
+                        f"{_VIEWS_FOLDER}/{target}",
+                    )
+                    ctx["view"] = (workspace_id, lakehouse_id, target)
+                try:
+                    _onelake_create_file(
+                        workspace_id,
+                        lakehouse_id,
+                        f"{_VIEWS_FOLDER}/{target}/{path}",
+                        _view_starter_yaml(name).encode("utf-8"),
+                    )
+                finally:
+                    # Shows the renamed folder even if the file wasn't created.
+                    _load_view(workspace_id, lakehouse_id, target)
+                widget.status = {
+                    "message": (
+                        f"Added '{path}' and combined the view as '{target}'."
+                        if target != view_name
+                        else f"Added '{path}' to the '{target}' semantic view."
+                    ),
+                    "kind": "success",
+                }
+                _reply(data, True, {"view": target, "file": path})
                 return
             if action == "save_view":
                 if not ctx["view"]:
