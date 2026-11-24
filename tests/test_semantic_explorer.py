@@ -1609,16 +1609,23 @@ def _view_explorer_widget(monkeypatch):
     return widget, send
 
 
+def _step_states(status):
+    return {s["id"]: s["state"] for s in status.get("steps") or []}
+
+
 def test_publishing_a_view_refreshes_its_semantic_model(monkeypatch):
     from sempy_labs import _refresh_semantic_model as rsm
 
-    calls = []
+    calls, seen = [], []
     monkeypatch.setattr(
         sx, "_publish_view", lambda *a: calls.append(("publish", a)) or []
     )
-    monkeypatch.setattr(
-        rsm, "refresh_semantic_model", lambda **kw: calls.append(("refresh", kw))
-    )
+
+    def _refresh(**kw):
+        calls.append(("refresh", kw))
+        seen.append(_step_states(widget.status))
+
+    monkeypatch.setattr(rsm, "refresh_semantic_model", _refresh)
     widget, send = _view_explorer_widget(monkeypatch)
 
     result = send(action="save_view", changes={}, publish=True, request_id=1)
@@ -1628,8 +1635,10 @@ def test_publishing_a_view_refreshes_its_semantic_model(monkeypatch):
         ("publish", ("ws-id", "lh-id", "sales")),
         ("refresh", {"dataset": "sales", "workspace": "ws-id"}),
     ]
+    # The status bar shows the progress from one step to the next.
+    assert seen == [{"publish": "done", "refresh": "active"}]
     assert widget.status["kind"] == "success"
-    assert "Refreshed the 'sales' semantic model." in widget.status["message"]
+    assert _step_states(widget.status) == {"publish": "done", "refresh": "done"}
 
 
 def test_view_model_refresh_failure_is_reported_and_skipped_if_not_published(
@@ -1658,6 +1667,22 @@ def test_view_model_refresh_failure_is_reported_and_skipped_if_not_published(
     send(action="save_view", changes={}, publish=True, request_id=2)
     assert refreshes == []
     assert "Publishing failed: bad yaml" in widget.status["message"]
+    assert _step_states(widget.status) == {"publish": "error", "refresh": "skipped"}
+
+    def _save_fails(*a):
+        raise RuntimeError("etag mismatch")
+
+    monkeypatch.setattr(sx, "_save_semantic_view", _save_fails)
+    result = send(
+        action="save_view", changes={"description": "x"}, publish=True, request_id=3
+    )
+    assert not result["ok"]
+    assert _step_states(widget.status) == {
+        "save": "error",
+        "publish": "skipped",
+        "refresh": "skipped",
+    }
+    assert "Saving failed: etag mismatch" in widget.status["message"]
 
 
 def test_saved_changes_which_are_not_published_are_reported(monkeypatch):

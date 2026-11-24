@@ -525,6 +525,31 @@ pre.slls-sx-dialect {
 .slls-sx-status.error { background: var(--ui-danger-bg); color: var(--ui-danger-text); }
 .slls-sx-status.info { background: var(--ui-surface-2); color: var(--ui-text-secondary); }
 .slls-sx-status span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.slls-sx-steps { display: flex; align-items: center; flex: none; gap: 8px; color: var(--ui-text-secondary); }
+.slls-sx-steps span { flex: none; min-width: 0; }
+.slls-sx-step { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.slls-sx-step-mark {
+    display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%;
+    font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums;
+    border: 1.5px solid var(--ui-border-strong); color: var(--ui-text-tertiary); box-sizing: border-box;
+}
+.slls-sx-step-mark svg { width: 18px; height: 18px; }
+.slls-sx-step.active .slls-sx-step-mark, .slls-sx-step.done .slls-sx-step-mark, .slls-sx-step.error .slls-sx-step-mark { border: none; }
+.slls-sx-step.active .slls-sx-step-mark { color: var(--ui-accent); }
+.slls-sx-step.active .slls-sx-step-mark svg { width: 15px; height: 15px; }
+.slls-sx-step.done .slls-sx-step-mark { color: var(--sx-success); }
+.slls-sx-step.error .slls-sx-step-mark { color: var(--ui-danger-text); }
+.slls-sx-step-label { font-weight: 600; color: var(--ui-text-secondary); }
+.slls-sx-step.active .slls-sx-step-label { color: var(--ui-text); }
+.slls-sx-step.error .slls-sx-step-label { color: var(--ui-danger-text); }
+.slls-sx-step.pending .slls-sx-step-label, .slls-sx-step.skipped .slls-sx-step-label { font-weight: 500; color: var(--ui-text-tertiary); }
+.slls-sx-step.skipped { opacity: 0.6; }
+.slls-sx-step.skipped .slls-sx-step-label { text-decoration: line-through; }
+.slls-sx-step-detail { font-size: 11.5px; color: var(--ui-text-tertiary); }
+.slls-sx-step-line { width: 28px; height: 2px; border-radius: 1px; background: var(--ui-border-strong); transition: background 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+.slls-sx-step-line.done { background: var(--sx-success); }
+.slls-sx-status.has-steps { flex-wrap: wrap; row-gap: 6px; }
+.slls-sx-status.has-steps .slls-sx-status-msg { padding-left: 8px; }
 .slls-sx-footer { padding: 6px 18px 10px; }
 .slls-sx-overlay {
     position: absolute; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
@@ -3331,7 +3356,34 @@ function render({ model, el }) {
         }
         row.addEventListener("click", () => { if (node) vSelect(node.key); else vToggle(r.id); });
         row.addEventListener("dblclick", () => { if (r.hasChildren && node) vToggle(r.id); });
+        row.addEventListener("contextmenu", (ev) => {
+            ev.preventDefault();
+            if (node) vSelect(node.key);
+            showMenu(ev.clientX, ev.clientY, vMenuItems(r));
+        });
         return row;
+    }
+    // Context menu of a tree row; edits are disabled in read-only mode.
+    function vMenuItems(r) {
+        const node = r.node;
+        const off = vMode !== "write" || vSaving;
+        const add = {
+            dataset: ["Add dataset", "table", () => vAdd("dataset"), off],
+            relationship: ["Add relationship", "relationship", () => vAdd("relationship"), off],
+            metric: ["Add metric", "measure", () => vAdd("metric"), off],
+        };
+        if (r.folder) {
+            const type = { "v:datasets": "dataset", "v:relationships": "relationship", "v:metrics": "metric" }[r.id];
+            return type ? [add[type]] : [];
+        }
+        if (!node) return [];
+        if (node.type === "view") return [add.dataset, add.relationship, add.metric];
+        if (!add[node.type]) return [];
+        const items = [add[node.type]];
+        if (vEditable(node)) {
+            items.push(null, [node.deleted ? "Restore" : "Delete", node.deleted ? "undo" : "trash", () => vToggleDelete(node), off, !node.deleted]);
+        }
+        return items;
     }
     function renderViewTree() {
         if (!vTreeEl) return;
@@ -3602,8 +3654,6 @@ function render({ model, el }) {
         detailPane.appendChild(head);
 
         const actions = h("div", "slls-sx-detail-actions");
-        if (node.type === "view") actions.appendChild(button("slls-sx-btn small", "YAML", "file", () => openViewFiles(), "View the YAML files behind the semantic view"));
-        else if (node.file && !node.isNew) actions.appendChild(button("slls-sx-btn small", "YAML", "file", () => openViewFiles(node.file), `View ${node.file}`));
         if (node.type === "column") actions.appendChild(button("slls-sx-btn small", "Dataset", "table", () => vReveal(node.datasetKey), "Go to the dataset"));
         if (vMode === "write" && !vSaving) {
             if (node.type === "view") {
@@ -3772,7 +3822,13 @@ function render({ model, el }) {
         notApplied(b, node);
     }
     function metricDetail(node, b, write) {
-        const c = vCard(b, "DAX expression", (body) => {
+        const c = vCard(b, "Expression", (body) => {
+            const dialect = h("span", "slls-sx-pill", "DAX");
+            dialect.style.marginLeft = "0";
+            dialect.title = "Only the DAX dialect is currently supported";
+            const meta = vProps([["Dialect", dialect]]);
+            meta.style.marginBottom = "8px";
+            body.appendChild(meta);
             if (write) {
                 const ed = codeEditor(node.dax || "", "dax", false, (v) => vEdit(node.key, "dax", v, { typing: true }));
                 ed.el.querySelector("textarea").addEventListener("blur", () => { vEditKey = ""; });
@@ -9687,13 +9743,41 @@ function render({ model, el }) {
         renderTreePane();
         renderDetail();
     }
+    // Multi-step operations (e.g. save -> publish -> refresh) as a stepper:
+    // each step is pending, active, done, error or skipped.
+    function statusSteps(steps) {
+        const wrap = h("div", "slls-sx-steps");
+        wrap.setAttribute("role", "list");
+        wrap.setAttribute("aria-label", "Progress");
+        const stateText = { pending: "Waiting", active: "In progress", done: "Done", error: "Failed", skipped: "Skipped" };
+        steps.forEach((s, i) => {
+            const state = s.state || "pending";
+            if (i) wrap.appendChild(h("div", "slls-sx-step-line" + (steps[i - 1].state === "done" ? " done" : "")));
+            const step = h("div", "slls-sx-step " + state);
+            step.setAttribute("role", "listitem");
+            step.title = `${s.label}: ${stateText[state] || state}${s.detail ? ` (${s.detail})` : ""}`;
+            const mark = state === "done" ? iconEl("check_circle", "slls-sx-step-mark")
+                : state === "error" ? iconEl("alert", "slls-sx-step-mark")
+                : state === "active" ? iconEl("refresh", "slls-sx-step-mark")
+                : h("span", "slls-sx-step-mark", String(i + 1));
+            if (state === "active") mark.querySelector("svg").classList.add("slls-sx-spin");
+            step.append(mark, h("span", "slls-sx-step-label", s.label));
+            if (s.detail) step.appendChild(h("span", "slls-sx-step-detail", s.detail));
+            wrap.appendChild(step);
+        });
+        return wrap;
+    }
     function renderStatus() {
         const st = model.get("status") || {};
         clear(statusBar);
         statusBar.className = "slls-sx-status";
-        if (!st.message) return;
+        if (!st.message && !(st.steps || []).length) return;
         statusBar.classList.add("show", st.kind || "info");
-        statusBar.appendChild(h("span", "", st.message));
+        if ((st.steps || []).length) {
+            statusBar.classList.add("has-steps");
+            statusBar.appendChild(statusSteps(st.steps));
+        }
+        statusBar.appendChild(h("span", "slls-sx-status-msg", st.message || ""));
         statusBar.appendChild(button("slls-sx-iconbtn", "", "close", () => { model.set("status", {}); model.save_changes(); }, "Dismiss"));
         if (statusTimer) clearTimeout(statusTimer);
         if (st.kind === "success") {
@@ -14066,15 +14150,60 @@ def semantic_explorer(
                 if not ctx["view"]:
                     raise ValueError("Select a semantic view first.")
                 changes = dict(data.get("changes") or {})
-                count, comments_kept = 0, True
-                if any(changes.get(k) for k in ("updates", "deletes", "creates")) or (
-                    changes.get("description") is not None
-                ):
-                    count, comments_kept = _save_semantic_view(
-                        *ctx["view"], changes, data.get("etags")
+                has_changes = any(
+                    changes.get(k) for k in ("updates", "deletes", "creates")
+                ) or (changes.get("description") is not None)
+                publish = bool(data.get("publish"))
+                workspace_id, _, view_name = ctx["view"]
+                # Publishing reports its progress as steps (save -> publish ->
+                # refresh) which the status bar draws as a stepper.
+                steps = []
+                if publish:
+                    if has_changes:
+                        steps.append({"id": "save", "label": "Save changes"})
+                    steps.append({"id": "publish", "label": "Publish"})
+                    steps.append(
+                        {"id": "refresh", "label": "Refresh model", "detail": view_name}
                     )
+                    for s in steps:
+                        s["state"] = "pending"
+
+                def _step(step_id, state, detail=None, kind="info", message=""):
+                    for s in steps:
+                        if s["id"] == step_id:
+                            s["state"] = state
+                            if detail is not None:
+                                s["detail"] = detail
+                        elif state == "error" and s["state"] == "pending":
+                            s["state"] = "skipped"
+                    widget.status = {
+                        "message": message,
+                        "kind": kind,
+                        "steps": [dict(s) for s in steps],
+                    }
+
+                count, comments_kept = 0, True
+                if has_changes:
+                    if publish:
+                        _step("save", "active")
+                    try:
+                        count, comments_kept = _save_semantic_view(
+                            *ctx["view"], changes, data.get("etags")
+                        )
+                    except Exception as e:
+                        if not publish:
+                            raise
+                        _step(
+                            "save", "error", kind="error", message=f"Saving failed: {e}"
+                        )
+                        _reply(data, False, error=str(e))
+                        return
+                    if publish:
+                        _step(
+                            "save", "done", f"{count} change{'s' if count != 1 else ''}"
+                        )
                 parts = []
-                if count:
+                if count and not publish:
                     parts.append(
                         f"Saved {count} change{'s' if count != 1 else ''} to the "
                         "semantic view's YAML files."
@@ -14086,46 +14215,59 @@ def semantic_explorer(
                     )
                 kind = "success"
                 published = False
-                if data.get("publish"):
+                if publish:
                     if count:
                         _load_view(*ctx["view"])
-                    widget.status = {
-                        "message": " ".join(parts + ["Publishing\u2026"]),
-                        "kind": "info",
-                    }
+                    _step("publish", "active", message=" ".join(parts))
                     try:
                         warnings = _publish_view(*ctx["view"])
                         published = True
-                        parts.append("Published the semantic view.")
                         if warnings:
                             kind = "info"
                             parts.append(
-                                f"{len(warnings)} warning"
+                                f"Published with {len(warnings)} warning"
                                 f"{'s' if len(warnings) != 1 else ''}: "
                                 + "; ".join(warnings[:5])
                             )
+                        _step(
+                            "publish",
+                            "done",
+                            (
+                                f"{len(warnings)} warning{'s' if len(warnings) != 1 else ''}"
+                                if warnings
+                                else ""
+                            ),
+                            message=" ".join(parts),
+                        )
                     except Exception as e:
                         kind = "error"
                         parts.append(f"Publishing failed: {e}")
+                        _step("publish", "error", kind=kind, message=" ".join(parts))
                     if published:
-                        workspace_id, _, view_name = ctx["view"]
-                        widget.status = {
-                            "message": " ".join(
-                                parts
-                                + [f"Refreshing the '{view_name}' semantic model\u2026"]
-                            ),
-                            "kind": "info",
-                        }
+                        _step("refresh", "active", message=" ".join(parts))
                         try:
                             _refresh_view_model(workspace_id, view_name)
-                            parts.append(f"Refreshed the '{view_name}' semantic model.")
+                            _step("refresh", "done", message=" ".join(parts))
                         except Exception as e:
                             kind = "error"
                             parts.append(
                                 f"Refreshing the '{view_name}' semantic model failed: {e}"
                             )
+                            _step(
+                                "refresh", "error", kind=kind, message=" ".join(parts)
+                            )
                 _load_view(*ctx["view"])
-                widget.status = {"message": " ".join(parts) or "Saved.", "kind": kind}
+                if publish:
+                    widget.status = {
+                        "message": " ".join(parts),
+                        "kind": kind,
+                        "steps": [dict(s) for s in steps],
+                    }
+                else:
+                    widget.status = {
+                        "message": " ".join(parts) or "Saved.",
+                        "kind": kind,
+                    }
                 _reply(data, True, {"count": count, "published": published})
                 return
             if action == "view_tables":
