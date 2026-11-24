@@ -261,7 +261,22 @@ _WIDGET_CSS = """
 .slls-sx-subitem .meta { white-space: nowrap; flex-shrink: 0; }
 .slls-sx-verrors { border: 1px solid var(--ui-danger-border); border-radius: var(--sx-radius); background: var(--ui-danger-bg); padding: 2px 10px; }
 .slls-sx-vnote { margin: 0; }
-.slls-sx-vsource { width: 100%; }
+.slls-sx-vsource { width: 100%; position: relative; display: flex; align-items: center; }
+.slls-sx-vsource > input.slls-sx-input { flex: 1 1 auto; min-width: 0; padding-right: 30px; }
+.slls-sx-vsource-btn {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 6px;
+    background: transparent; color: var(--ui-text-secondary); cursor: pointer;
+}
+.slls-sx-vsource-btn:hover { background: var(--ui-surface-2); color: var(--ui-text); }
+.slls-sx-vsource-btn svg { width: 14px; height: 14px; }
+/* Source table dropdown: aligned with the input, scrolls when long. */
+.slls-sx-menu.slls-sx-tablepick { min-width: 0; max-height: 280px; overflow-y: auto; }
+.slls-sx-tablepick .slls-sx-menu-item { padding: 5px 8px; }
+.slls-sx-tablepick .slls-sx-menu-item.active { background: var(--ui-accent-soft); }
+.slls-sx-tablepick-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-tablepick [data-kind="shortcut"] svg { color: var(--ui-accent); }
+.slls-sx-tablepick-note { padding: 6px 8px; font-size: 12px; color: var(--ui-text-tertiary); font-style: italic; }
 .slls-sx-unpub { display: inline-flex; color: var(--sx-warn); }
 .slls-sx-unpub svg { width: 12px; height: 12px; }
 .slls-sx-unpub-text { color: var(--sx-warn); font-weight: 500; }
@@ -1669,6 +1684,8 @@ function render({ model, el }) {
     let vColCache = {};
     let vColumns = new Map();
     let vTables = null;
+    let vTablesLoading = false;
+    let vTablePicker = null;
     let vPendingSelect = null;
     let requestSeq = 0;
     const callbacks = new Map();
@@ -2742,6 +2759,7 @@ function render({ model, el }) {
         propFilter = "";
         vMode = "read";
         vTables = null;
+        vTablesLoading = false;
         vColCache = {};
     }
     function renderViewPicker() {
@@ -3567,15 +3585,119 @@ function render({ model, el }) {
     function ensureViewTables() {
         if (vTables !== null) return;
         vTables = [];
+        vTablesLoading = true;
         request("view_tables", {}, (res) => {
             vTables = res.ok ? (res.data.items || []) : [];
-            const list = root.querySelector("#slls-sx-vtables");
-            if (list) fillTableList(list);
+            vTablesLoading = false;
+            if (vTablePicker) vTablePicker.paint();
         });
     }
-    function fillTableList(list) {
-        clear(list);
-        for (const t of vTables || []) { const o = h("option"); o.value = t; list.appendChild(o); }
+    // Lakehouse table picker for a dataset source: an in-widget dropdown
+    // aligned with the input (a native datalist is placed and sized by the
+    // browser). Tables and shortcuts have their own icons; typing filters.
+    const tableItemName = (t) => (typeof t === "string" ? t : String((t && t.name) || ""));
+    function attachTablePicker(wrap, input) {
+        let menu = null;
+        let active = -1;
+        let items = [];
+        const place = () => {
+            if (!menu) return;
+            if (!input.isConnected) { close(); return; }
+            const r = input.getBoundingClientRect();
+            const below = window.innerHeight - r.bottom - 8, above = r.top - 8;
+            const up = below < 160 && above > below;
+            menu.style.left = r.left + "px";
+            menu.style.width = r.width + "px";
+            menu.style.maxHeight = Math.max(120, Math.min(280, up ? above : below)) + "px";
+            menu.style.top = up ? "" : r.bottom + 4 + "px";
+            menu.style.bottom = up ? window.innerHeight - r.top + 4 + "px" : "";
+        };
+        const close = () => {
+            if (menu) { menu.remove(); menu = null; }
+            active = -1;
+            if (vTablePicker === api) vTablePicker = null;
+            window.removeEventListener("scroll", place, true);
+            window.removeEventListener("resize", place);
+        };
+        const pick = (name) => {
+            close();
+            input.value = name;
+            input.dispatchEvent(new Event("input"));
+            // Leave the field before committing: the commit re-renders the
+            // detail pane, and removing a still-focused input makes the
+            // browser fire 'change' again in the middle of that render.
+            let committed = false;
+            const mark = () => { committed = true; };
+            input.addEventListener("change", mark);
+            input.blur();
+            input.removeEventListener("change", mark);
+            if (!committed && input.isConnected) input.dispatchEvent(new Event("change"));
+        };
+        const paint = () => {
+            if (!input.isConnected) { close(); return; }
+            const q = input.value.trim().toLowerCase();
+            items = (vTables || []).filter((t) => !q || tableItemName(t).toLowerCase().includes(q));
+            if (active >= items.length) active = items.length - 1;
+            if (!menu) {
+                menu = h("div", "slls-sx-menu slls-sx-ctx slls-sx-tablepick");
+                menu.setAttribute("role", "listbox");
+                menu.setAttribute("aria-label", "Lakehouse tables");
+                // Clicks in the list keep the focus (and the list) in the input.
+                menu.addEventListener("mousedown", (ev) => ev.preventDefault());
+                root.appendChild(menu);
+                window.addEventListener("scroll", place, true);
+                window.addEventListener("resize", place);
+                vTablePicker = api;
+            }
+            clear(menu);
+            if (vTablesLoading) menu.appendChild(h("div", "slls-sx-tablepick-note", "Loading the lakehouse tables\u2026"));
+            else if (!items.length) menu.appendChild(h("div", "slls-sx-tablepick-note", (vTables || []).length ? "No matching tables" : "No tables found in the lakehouse"));
+            items.forEach((t, i) => {
+                const name = tableItemName(t);
+                const shortcut = !!(t && t.shortcut);
+                const it = h("button", "slls-sx-menu-item" + (i === active ? " active" : ""));
+                it.type = "button";
+                it.tabIndex = -1;
+                it.setAttribute("role", "option");
+                it.setAttribute("aria-selected", String(i === active));
+                it.title = `${name} (${shortcut ? "shortcut" : "table"})`;
+                const ic = iconEl(shortcut ? "link" : "table", "");
+                ic.dataset.kind = shortcut ? "shortcut" : "table";
+                it.append(ic, h("span", "slls-sx-tablepick-name", name));
+                it.addEventListener("click", () => pick(name));
+                menu.appendChild(it);
+            });
+            place();
+            const on = menu.querySelector(".slls-sx-menu-item.active");
+            if (on) on.scrollIntoView({ block: "nearest" });
+        };
+        const api = { paint };
+        input.setAttribute("role", "combobox");
+        input.setAttribute("aria-autocomplete", "list");
+        input.autocomplete = "off";
+        input.addEventListener("focus", paint);
+        input.addEventListener("click", () => { if (!menu) paint(); });
+        input.addEventListener("input", () => { active = -1; paint(); });
+        input.addEventListener("blur", close);
+        input.addEventListener("keydown", (ev) => {
+            if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+                ev.preventDefault();
+                if (!menu) { paint(); return; }
+                if (!items.length) return;
+                active = ev.key === "ArrowDown" ? Math.min(items.length - 1, active + 1) : Math.max(0, active - 1);
+                paint();
+            } else if (ev.key === "Enter" && menu && active >= 0 && items[active]) {
+                ev.preventDefault();
+                pick(tableItemName(items[active]));
+            } else if (ev.key === "Escape" && menu) {
+                ev.stopPropagation();
+                close();
+            }
+        });
+        const toggle = button("slls-sx-vsource-btn", "", "chevron_down", () => { if (menu) close(); else { input.focus(); paint(); } }, "Show the lakehouse tables");
+        toggle.tabIndex = -1;
+        toggle.addEventListener("mousedown", (ev) => ev.preventDefault());
+        wrap.appendChild(toggle);
     }
     function ensureViewColumns(source) {
         const key = String(source || "").trim().toLowerCase();
@@ -4295,7 +4417,7 @@ function render({ model, el }) {
         if (write) {
             const wrap = h("div", "slls-sx-vsource");
             const input = vInput(node, "source", {
-                label: "Source", placeholder: "schema.table, e.g. dbo.sales", list: "slls-sx-vtables",
+                label: "Source", placeholder: "schema.table, e.g. dbo.sales",
                 onCommit: (value) => {
                     ensureViewColumns(value);
                     // A new dataset is named after its table until it is renamed.
@@ -4306,10 +4428,8 @@ function render({ model, el }) {
                     } else renderViewDetail();
                 },
             });
-            const list = h("datalist");
-            list.id = "slls-sx-vtables";
-            fillTableList(list);
-            wrap.append(input, list);
+            wrap.appendChild(input);
+            attachTablePicker(wrap, input);
             source = wrap;
         }
         vCard(b, "General", (body) => body.appendChild(vProps([
@@ -14485,6 +14605,37 @@ def _lakehouse_tables(workspace_id: str, lakehouse_id: str) -> List[str]:
         )
 
 
+def _lakehouse_shortcut_tables(workspace_id: str, lakehouse_id: str) -> set:
+    """The lakehouse tables which are shortcuts, as lower-cased 'schema.table';
+    a schema which is itself a shortcut is included as 'schema.*'. Empty if the
+    shortcuts can't be listed."""
+
+    from sempy_labs._helper_functions import _base_api
+
+    try:
+        responses = _base_api(
+            request=f"/v1/workspaces/{workspace_id}/items/{lakehouse_id}/shortcuts",
+            uses_pagination=True,
+            client="fabric_sp",
+        )
+    except Exception:
+        return set()
+    out = set()
+    for r in responses:
+        for s in r.get("value") or []:
+            name = str(s.get("name") or "")
+            parts = [p for p in str(s.get("path") or "").split("/") if p]
+            if not name or not parts or parts[0].lower() != "tables":
+                continue
+            if len(parts) == 1:
+                # A table in a lakehouse without schemas, or a whole schema.
+                out.add(f"dbo.{name}".lower())
+                out.add(f"{name}.*".lower())
+            else:
+                out.add(f"{parts[1]}.{name}".lower())
+    return out
+
+
 def _generate_measure_descriptions(workspace_id: str, measures: List[dict]) -> list:
     """Generates measure descriptions with the Fabric Copilot completions API.
 
@@ -15731,7 +15882,16 @@ def semantic_explorer(
                     raise ValueError("Select a semantic view first.")
                 workspace_id, lakehouse_id, _ = ctx["view"]
                 tables = _lakehouse_tables(workspace_id, lakehouse_id)
-                _reply(data, True, {"items": tables})
+                shortcuts = _lakehouse_shortcut_tables(workspace_id, lakehouse_id)
+                items = [
+                    {
+                        "name": t,
+                        "shortcut": t.lower() in shortcuts
+                        or f"{t.split('.', 1)[0]}.*".lower() in shortcuts,
+                    }
+                    for t in tables
+                ]
+                _reply(data, True, {"items": items})
                 return
             if action == "view_columns":
                 if not ctx["view"]:

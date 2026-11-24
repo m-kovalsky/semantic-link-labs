@@ -1718,6 +1718,45 @@ def test_removing_a_yaml_file_makes_it_a_view_of_its_own(monkeypatch):
     assert not result["ok"] and "combined view" in result["error"]
 
 
+def test_view_tables_marks_shortcuts(monkeypatch):
+    import sempy_labs._helper_functions as hf
+
+    shortcuts = [
+        {"name": "sales", "path": "/Tables/dbo"},
+        {"name": "ext", "path": "Tables"},  # a whole schema, or a dbo table
+        {"name": "docs", "path": "Files"},
+    ]
+
+    def _api(request, **kwargs):
+        assert request.endswith("/shortcuts")
+        return [{"value": shortcuts}]
+
+    monkeypatch.setattr(hf, "_base_api", _api)
+    assert sx._lakehouse_shortcut_tables("ws", "lh") == {
+        "dbo.sales",
+        "dbo.ext",
+        "ext.*",
+    }
+
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(
+        sx, "_lakehouse_tables", lambda *a: ["dbo.customers", "dbo.sales", "ext.orders"]
+    )
+    result = send(action="view_tables", request_id=1)
+    assert result["ok"] and result["data"]["items"] == [
+        {"name": "dbo.customers", "shortcut": False},
+        {"name": "dbo.sales", "shortcut": True},
+        {"name": "ext.orders", "shortcut": True},
+    ]
+
+    def _fails(request, **kwargs):
+        raise RuntimeError("forbidden")
+
+    # Without access to the shortcuts, tables are listed without the marks.
+    monkeypatch.setattr(hf, "_base_api", _fails)
+    assert sx._lakehouse_shortcut_tables("ws", "lh") == set()
+
+
 def test_save_semantic_view_refuses_to_overwrite_changed_files(monkeypatch):
     lake = _saved_view_lake()
     monkeypatch.setattr(sx, "_onelake_request", lake)
