@@ -3009,6 +3009,11 @@ function render({ model, el }) {
         return n.file || "";
     }
     function vInFile(n) { return !vFileFilter || vNodeFile(n) === vFileFilter; }
+    // How the tree shows a relationship: 'From'[column] → 'To'[column].
+    function vRelLabel(r) {
+        const end = (table, column) => `'${table || "?"}'[${column || "?"}]`;
+        return `${end(r.from, r.from_column)} \u2192 ${end(r.to, r.to_column)}`;
+    }
     function vSwatch(path) {
         const s = h("span", "slls-sx-vswatch");
         s.style.setProperty("--sx-vfile", vFileColor(path));
@@ -3948,7 +3953,9 @@ function render({ model, el }) {
                 if (open(d.key)) for (const c of columns) rows.push({ id: c.key, depth: 3, node: c, trailing: c.data_type || "", trailTitle: "Data type" });
             }
         }
-        const rels = vNodes("relationship", true).filter((r) => vInFile(r) && (hit(r.name) || hit(r.from) || hit(r.to)));
+        const rels = vNodes("relationship", true)
+            .filter((r) => vInFile(r) && (hit(r.name) || hit(vRelLabel(r))))
+            .sort((a, b) => cmpText(vRelLabel(a), vRelLabel(b)));
         if (folder("v:relationships", "Relationships", "relationship", rels.length, "relationship")) {
             for (const r of rels) rows.push({ id: r.key, depth: 2, node: r });
         }
@@ -3974,10 +3981,10 @@ function render({ model, el }) {
         }
         row.appendChild(caret);
         row.appendChild(iconEl(node ? VIEW_ICON[node.type] : r.icon));
-        const text = node ? (node.name || "(unnamed)") : r.label;
+        const text = node ? (node.type === "relationship" ? vRelLabel(node) : node.name || "(unnamed)") : r.label;
         const label = h("span", "slls-sx-rlabel", text);
         label.title = node && node.description ? `${text}\n${node.description}` : text;
-        if (node && node.type === "relationship") label.title = `${text}\n${node.from}[${node.from_column}] \u2192 ${node.to}[${node.to_column}]`;
+        if (node && node.type === "relationship") label.title = `${node.name || "(unnamed)"}\n${text}`;
         if (node && node.type !== "view" && vMultiFile()) {
             const file = vNodeFile(node);
             if (vFileColor(file)) {
