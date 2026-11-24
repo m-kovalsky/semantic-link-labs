@@ -1704,7 +1704,8 @@ def list_picker_workspaces(
     """
     Returns the workspaces to offer in an interactive tool's workspace picker.
 
-    Queries the Fabric REST API first and falls back to semantic link. When
+    Queries the Fabric REST API first and also consults semantic link's
+    ``list_workspaces`` when that fails or returns at most one workspace. When
     neither is available, ``fallback_id`` (usually the workspace the tool was
     opened against) is returned on its own so the picker is never empty.
 
@@ -1721,23 +1722,43 @@ def list_picker_workspaces(
         A list of ``{"id": ..., "name": ...}`` dicts sorted by name.
     """
 
+    rows, _ = _list_picker_workspaces_checked(fallback_id, fallback_name)
+    return rows
+
+
+def _list_picker_workspaces_checked(
+    fallback_id: Optional[str] = None,
+    fallback_name: Optional[str] = None,
+) -> Tuple[List[Dict[str, str]], str]:
+    """``list_picker_workspaces`` plus why the workspaces couldn't be listed
+    ("" when they could), so a tool can report it rather than silently
+    offering only the fallback workspace."""
+
+    errors: List[str] = []
     rows: List[Dict[str, str]] = []
     try:
         rows = _picker_items_from_api("/v1/workspaces")
-    except Exception:
-        rows = []
-    if not rows:
+    except Exception as e:
+        errors.append(f"Fabric REST API: {e}")
+    # A single workspace usually means the REST call ran with a restricted
+    # identity, so semantic link's list_workspaces is consulted as well.
+    if len(rows) <= 1:
         try:
             import sempy.fabric as fabric
 
-            rows = _picker_items_from_df(
+            listed = _picker_items_from_df(
                 fabric.list_workspaces(), ["Id", "ID"], ["Name"]
             )
-        except Exception:
-            rows = []
+            if len(listed) > len(rows):
+                rows = listed
+        except Exception as e:
+            errors.append(f"list_workspaces: {e}")
     if not rows:
-        return _picker_fallback(fallback_id, fallback_name)
-    return _picker_sorted(rows)
+        return (
+            _picker_fallback(fallback_id, fallback_name),
+            "; ".join(errors) or "No workspaces were returned.",
+        )
+    return _picker_sorted(rows), ""
 
 
 def list_picker_datasets(

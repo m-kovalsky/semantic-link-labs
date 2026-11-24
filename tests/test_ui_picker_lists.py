@@ -187,6 +187,46 @@ def test_workspaces_fall_back_to_the_current_workspace(ui, monkeypatch, fake_fab
     assert ui.list_picker_workspaces() == []
 
 
+def test_a_single_rest_workspace_also_consults_list_workspaces(
+    ui, monkeypatch, fake_fabric
+):
+    # e.g. a REST identity which only sees the current workspace.
+    monkeypatch.setattr(
+        ui, "_picker_items_from_api", lambda request: [{"id": "c", "name": "Current"}]
+    )
+    fake_fabric.list_workspaces = lambda: pd.DataFrame(
+        {"Id": ["c", "a"], "Name": ["Current", "Alpha"]}
+    )
+
+    assert ui.list_picker_workspaces() == [
+        {"id": "a", "name": "Alpha"},
+        {"id": "c", "name": "Current"},
+    ]
+
+
+def test_checked_workspaces_report_why_they_could_not_be_listed(
+    ui, monkeypatch, fake_fabric
+):
+    def rest_fails(request):
+        raise RuntimeError("401 Unauthorized")
+
+    def sempy_fails():
+        raise RuntimeError("gateway timeout")
+
+    monkeypatch.setattr(ui, "_picker_items_from_api", rest_fails)
+    fake_fabric.list_workspaces = sempy_fails
+
+    rows, error = ui._list_picker_workspaces_checked("wid", "Mine")
+    assert rows == [{"id": "wid", "name": "Mine"}]
+    assert "401 Unauthorized" in error and "gateway timeout" in error
+
+    fake_fabric.list_workspaces = lambda: pd.DataFrame({"Id": ["a"], "Name": ["A"]})
+    assert ui._list_picker_workspaces_checked("wid", "Mine") == (
+        [{"id": "a", "name": "A"}],
+        "",
+    )
+
+
 def test_datasets_use_the_semantic_models_endpoint(ui, monkeypatch):
     calls = []
 

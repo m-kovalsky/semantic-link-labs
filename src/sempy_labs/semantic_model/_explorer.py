@@ -1606,7 +1606,8 @@ function render({ model, el }) {
     let newModelName = "";
     let createError = null;
     let creating = false;
-    let workspacesRequested = false;
+    // Seeded with the full list when the widget opens on the picker.
+    let workspacesRequested = model.get("workspaces_loaded") === true;
     // Semantic view picker: "existing" opens a view, "new" creates one.
     let viewPickerMode = "existing";
     let viewWs = pickerWs;
@@ -2396,6 +2397,9 @@ function render({ model, el }) {
             return;
         }
         pickerOpen = true;
+        // A lost or failed earlier reply leaves just the current workspace, so
+        // the full list is requested again.
+        if (!model.get("workspaces_loaded") && (model.get("available_workspaces") || []).length <= 1) workspacesRequested = false;
         pickerWs = model.get("active_workspace_id") || pickerWs;
         pickerDs = model.get("active_dataset_id") || "";
         pickerStep = kind() || "landing";
@@ -13015,6 +13019,13 @@ def _save_semantic_view(
     return count, comments_kept
 
 
+def _workspaces_error_text(error: str) -> str:
+    return (
+        "The workspaces couldn't be listed, so only the current workspace is "
+        f"shown. {error}"
+    )
+
+
 def _publish_view(workspace_id: str, lakehouse_id: str, view_name: str) -> List[str]:
     """Publishes a view; returns the publish warnings as text."""
 
@@ -13953,6 +13964,7 @@ def semantic_explorer(
         resolve_workspace_name_and_id,
     )
     from sempy_labs._ui_components import (
+        _list_picker_workspaces_checked,
         list_picker_datasets,
         list_picker_lakehouses,
         list_picker_workspaces,
@@ -13980,6 +13992,24 @@ def semantic_explorer(
         "view": None,
     }
 
+    # Without a model the picker opens straight away. Its lists are seeded
+    # before the widget is constructed: a request made by the first render
+    # races the comm handshake in Fabric PySpark notebooks and its reply never
+    # reaches the browser, which left the picker on the current workspace.
+    workspaces_error = ""
+    if dataset_chosen:
+        initial_workspaces = (
+            [{"id": state["workspace_id"], "name": state["workspace_name"]}]
+            if state["workspace_id"]
+            else []
+        )
+        initial_datasets = [{"id": state["dataset_id"], "name": state["dataset_name"]}]
+    else:
+        initial_workspaces, workspaces_error = _list_picker_workspaces_checked(
+            state["workspace_id"], state["workspace_name"]
+        )
+        initial_datasets = list_picker_datasets(state["workspace_id"])
+
     class SemanticExplorerWidget(anywidget.AnyWidget):
         _esm = _WIDGET_JS
         _css = _WIDGET_CSS
@@ -13997,6 +14027,8 @@ def semantic_explorer(
         active_workspace_id = traitlets.Unicode("").tag(sync=True)
         active_dataset_id = traitlets.Unicode("").tag(sync=True)
         available_workspaces = traitlets.List().tag(sync=True)
+        # True when available_workspaces already holds the full list.
+        workspaces_loaded = traitlets.Bool(False).tag(sync=True)
         available_datasets = traitlets.List().tag(sync=True)
         picker_loading = traitlets.Bool(False).tag(sync=True)
         dark_mode = traitlets.Bool(False).tag(sync=True)
@@ -14010,7 +14042,11 @@ def semantic_explorer(
         model_data=state["payload"],
         model_version=1 if dataset_chosen else 0,
         result={},
-        status={},
+        status=(
+            {"message": _workspaces_error_text(workspaces_error), "kind": "error"}
+            if workspaces_error
+            else {}
+        ),
         pending_action={},
         run=0,
         busy="",
@@ -14019,16 +14055,9 @@ def semantic_explorer(
         dataset_chosen=dataset_chosen,
         active_workspace_id=state["workspace_id"],
         active_dataset_id=state["dataset_id"],
-        available_workspaces=(
-            [{"id": state["workspace_id"], "name": state["workspace_name"]}]
-            if state["workspace_id"]
-            else []
-        ),
-        available_datasets=(
-            [{"id": state["dataset_id"], "name": state["dataset_name"]}]
-            if dataset_chosen
-            else []
-        ),
+        available_workspaces=initial_workspaces,
+        workspaces_loaded=not dataset_chosen and not workspaces_error,
+        available_datasets=initial_datasets,
         picker_loading=False,
         dark_mode=bool(dark_mode),
     )
@@ -14076,9 +14105,16 @@ def semantic_explorer(
         action = data.get("action")
         try:
             if action == "list_workspaces":
-                widget.available_workspaces = list_picker_workspaces(
+                workspaces, error = _list_picker_workspaces_checked(
                     ctx["workspace_id"], widget.workspace_name
                 )
+                widget.available_workspaces = workspaces
+                widget.workspaces_loaded = not error
+                if error:
+                    widget.status = {
+                        "message": _workspaces_error_text(error),
+                        "kind": "error",
+                    }
                 target = str(data.get("workspace_id") or "")
                 if target:
                     widget.available_datasets = list_picker_datasets(target)

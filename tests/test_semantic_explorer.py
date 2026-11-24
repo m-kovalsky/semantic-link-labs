@@ -1584,6 +1584,55 @@ def test_publish_semantic_view_calls_the_publish_api(monkeypatch):
     assert (calls[0]["method"], calls[0]["client"]) == ("post", "internal")
 
 
+def _explorer_without_a_model(monkeypatch, workspaces, error=""):
+    import IPython.display
+    import sempy_labs._helper_functions as hf
+    import sempy_labs._ui_components as ui
+
+    shown = []
+    # What the browser receives as initial state, before any comm round trip.
+    monkeypatch.setattr(
+        IPython.display,
+        "display",
+        lambda w: shown.append((w, dict(w.get_state()))),
+    )
+    monkeypatch.setattr(
+        hf, "resolve_workspace_name_and_id", lambda w: ("Current", "ws-cur")
+    )
+    monkeypatch.setattr(
+        ui, "_list_picker_workspaces_checked", lambda *a: (workspaces, error)
+    )
+    monkeypatch.setattr(
+        ui, "list_picker_datasets", lambda ws, *a: [{"id": "d1", "name": f"{ws} m"}]
+    )
+    sx.semantic_explorer()
+    return shown[0]
+
+
+def test_explorer_seeds_all_workspaces_before_display(monkeypatch):
+    workspaces = [
+        {"id": "ws-a", "name": "Alpha"},
+        {"id": "ws-cur", "name": "Current"},
+    ]
+    _, state = _explorer_without_a_model(monkeypatch, workspaces)
+
+    assert state["available_workspaces"] == workspaces
+    assert state["workspaces_loaded"] is True
+    assert state["available_datasets"] == [{"id": "d1", "name": "ws-cur m"}]
+    assert state["status"] == {}
+
+
+def test_explorer_reports_why_the_workspaces_could_not_be_listed(monkeypatch):
+    current = [{"id": "ws-cur", "name": "Current"}]
+    _, state = _explorer_without_a_model(monkeypatch, current, "Fabric REST API: 401")
+
+    assert state["available_workspaces"] == current
+    # Not loaded, so the picker asks again when it is opened.
+    assert state["workspaces_loaded"] is False
+    assert state["status"]["kind"] == "error"
+    assert "Fabric REST API: 401" in state["status"]["message"]
+
+
 def _view_explorer_widget(monkeypatch):
     import IPython.display
     import sempy_labs._helper_functions as hf
@@ -1596,6 +1645,8 @@ def _view_explorer_widget(monkeypatch):
         hf, "resolve_lakehouse_name_and_id", lambda *a, **k: ("LH", "lh-id")
     )
     monkeypatch.setattr(ui, "run_widget_task", lambda fn, args: fn(*args))
+    monkeypatch.setattr(ui, "_list_picker_workspaces_checked", lambda *a: ([], ""))
+    monkeypatch.setattr(ui, "list_picker_datasets", lambda *a: [])
     monkeypatch.setattr(sx, "_semantic_view_payload", lambda *a: {"view": {}})
     sx.semantic_explorer()
     widget = shown[0]
