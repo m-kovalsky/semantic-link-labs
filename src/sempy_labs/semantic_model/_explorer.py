@@ -237,6 +237,13 @@ _WIDGET_CSS = """
 .slls-sx-defined-in { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .slls-sx-defined-in.edit { display: flex; flex: 1 1 auto; flex-wrap: wrap; row-gap: 4px; }
 .slls-sx-defined-in.edit .slls-sx-select { flex: 1 1 0; width: auto; min-width: 0; }
+/* YAML file picker: a select-like button and list showing the file colours. */
+.slls-sx-select.slls-sx-filepick { display: flex; align-items: center; gap: 6px; cursor: pointer; text-align: left; }
+.slls-sx-filepick-value { display: inline-flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.slls-sx-filepick > svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--ui-text-secondary); }
+.slls-sx-filepick .none { color: var(--ui-text-tertiary); font-style: italic; }
+.slls-sx-menu.slls-sx-filepick-menu { min-width: 0; overflow-y: auto; }
+.slls-sx-filepick-menu .slls-sx-menu-item.active:not(.on) { background: var(--ui-surface-2); }
 .slls-sx-vmoved { flex-basis: 100%; padding-left: 16px; color: var(--sx-warn); font-size: 11.5px; font-weight: 500; }
 .slls-sx-err.slls-sx-warnicon { color: var(--sx-warn); }
 .slls-sx-vdupes {
@@ -3596,6 +3603,109 @@ function render({ model, el }) {
     // aligned with the input (a native datalist is placed and sized by the
     // browser). Tables and shortcuts have their own icons; typing filters.
     const tableItemName = (t) => (typeof t === "string" ? t : String((t && t.name) || ""));
+    // Places a fixed dropdown under its anchor (above it when there's no room
+    // below), as wide as the anchor and scrolling past `maxH`.
+    function placeMenu(menu, anchor, maxH) {
+        const r = anchor.getBoundingClientRect();
+        const below = window.innerHeight - r.bottom - 8, above = r.top - 8;
+        const up = below < 160 && above > below;
+        menu.style.left = r.left + "px";
+        menu.style.width = r.width + "px";
+        menu.style.maxHeight = Math.max(120, Math.min(maxH, up ? above : below)) + "px";
+        menu.style.top = up ? "" : r.bottom + 4 + "px";
+        menu.style.bottom = up ? window.innerHeight - r.top + 4 + "px" : "";
+    }
+    // Picker of one of the view's YAML files showing each file's colour (a
+    // native select can't show the swatches); `onPick` gets the chosen path.
+    function yamlFilePicker(current, files, onPick, label) {
+        const options = files.slice();
+        if (current && !options.includes(current)) options.unshift(current);
+        const btn = h("button", "slls-sx-select slls-sx-filepick");
+        btn.type = "button";
+        btn.setAttribute("aria-haspopup", "listbox");
+        btn.setAttribute("aria-expanded", "false");
+        btn.setAttribute("aria-label", label);
+        let menu = null;
+        let active = -1;
+        const paintButton = () => {
+            clear(btn);
+            const value = h("span", "slls-sx-filepick-value");
+            if (current) value.append(vSwatch(current), h("span", "slls-sx-vfile-name", current));
+            else value.appendChild(h("span", "none", "Select a YAML file\u2026"));
+            btn.appendChild(value);
+            btn.insertAdjacentHTML("beforeend", ICON.chevron_down);
+            btn.title = current ? `${label}: ${current}` : label;
+        };
+        const place = () => { if (!menu) return; if (!btn.isConnected) close(); else placeMenu(menu, btn, 280); };
+        const outside = (ev) => { if (menu && !menu.contains(ev.target) && !btn.contains(ev.target)) close(); };
+        // Escape closes the list, not a dialog the picker is in (window
+        // capture runs before the dialogs' document listeners).
+        const onKey = (ev) => { if (ev.key === "Escape" && menu) { ev.stopPropagation(); ev.preventDefault(); close(); btn.focus(); } };
+        const close = () => {
+            if (!menu) return;
+            menu.remove();
+            menu = null;
+            active = -1;
+            btn.setAttribute("aria-expanded", "false");
+            document.removeEventListener("mousedown", outside, true);
+            window.removeEventListener("keydown", onKey, true);
+            window.removeEventListener("scroll", place, true);
+            window.removeEventListener("resize", place);
+        };
+        const choose = (path) => {
+            close();
+            if (btn.isConnected) btn.focus();
+            if (!path || path === current) return;
+            current = path;
+            paintButton();
+            onPick(path);
+        };
+        const paintMenu = () => {
+            clear(menu);
+            options.forEach((path, i) => {
+                const it = h("button", "slls-sx-menu-item" + (path === current ? " on" : "") + (i === active ? " active" : ""));
+                it.type = "button";
+                it.tabIndex = -1;
+                it.setAttribute("role", "option");
+                it.setAttribute("aria-selected", String(path === current));
+                it.title = path;
+                it.append(vSwatch(path), h("span", "slls-sx-vfile-name", path));
+                it.addEventListener("click", () => choose(path));
+                menu.appendChild(it);
+            });
+            const on = menu.querySelector(".slls-sx-menu-item.active");
+            if (on) on.scrollIntoView({ block: "nearest" });
+        };
+        const open = () => {
+            if (menu || btn.disabled) return;
+            menu = h("div", "slls-sx-menu slls-sx-ctx slls-sx-filepick-menu");
+            menu.setAttribute("role", "listbox");
+            menu.setAttribute("aria-label", label);
+            active = Math.max(0, options.indexOf(current));
+            root.appendChild(menu);
+            paintMenu();
+            place();
+            btn.setAttribute("aria-expanded", "true");
+            document.addEventListener("mousedown", outside, true);
+            window.addEventListener("keydown", onKey, true);
+            window.addEventListener("scroll", place, true);
+            window.addEventListener("resize", place);
+        };
+        btn.addEventListener("click", () => { if (menu) close(); else open(); });
+        btn.addEventListener("keydown", (ev) => {
+            if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+                ev.preventDefault();
+                if (!menu) { open(); return; }
+                active = ev.key === "ArrowDown" ? Math.min(options.length - 1, active + 1) : Math.max(0, active - 1);
+                paintMenu();
+            } else if ((ev.key === "Enter" || ev.key === " ") && menu) {
+                ev.preventDefault();
+                choose(options[active]);
+            } else if (ev.key === "Tab") close();
+        });
+        paintButton();
+        return btn;
+    }
     function attachTablePicker(wrap, input) {
         let menu = null;
         let active = -1;
@@ -3603,14 +3713,7 @@ function render({ model, el }) {
         const place = () => {
             if (!menu) return;
             if (!input.isConnected) { close(); return; }
-            const r = input.getBoundingClientRect();
-            const below = window.innerHeight - r.bottom - 8, above = r.top - 8;
-            const up = below < 160 && above > below;
-            menu.style.left = r.left + "px";
-            menu.style.width = r.width + "px";
-            menu.style.maxHeight = Math.max(120, Math.min(280, up ? above : below)) + "px";
-            menu.style.top = up ? "" : r.bottom + 4 + "px";
-            menu.style.bottom = up ? window.innerHeight - r.top + 4 + "px" : "";
+            placeMenu(menu, input, 280);
         };
         const close = () => {
             if (menu) { menu.remove(); menu = null; }
@@ -4155,13 +4258,12 @@ function render({ model, el }) {
         const files = ((viewData && viewData.files) || [])
             .filter((f) => f.area === "definition" && !f.ignored && !f.error).map((f) => f.path);
         const wrap = h("span", "slls-sx-defined-in edit");
-        const sel = vChoice(node, "file", files, "Select a YAML file\u2026", (path) => {
+        const picker = yamlFilePicker(node.file, files, (path) => {
+            vEdit(node.key, "file", path);
             // Keep the moved object visible when the tree shows one file.
             if (vFileFilter && vFileFilter !== path) { vFileFilter = path; renderViewTreePane(); }
-        });
-        sel.setAttribute("aria-label", "Defined in");
-        sel.title = "The YAML file which defines this object";
-        wrap.append(vSwatch(node.file), sel);
+        }, "Defined in");
+        wrap.appendChild(picker);
         const base = vBaseOf(node);
         if (vMoved(node)) {
             const note = h("span", "slls-sx-vmoved", `Moves from ${base.file} when saved`);
@@ -9869,7 +9971,7 @@ function render({ model, el }) {
             }
             if (vMultiFile()) {
                 const files = ((viewData && viewData.files) || []).filter((f) => f.area === "definition" && !f.ignored && !f.error).map((f) => f.path);
-                d.body.appendChild(field("Defined in", selectEl(files.map((f) => [f, f]), file, (v) => { file = v; }, "Defined in")));
+                d.body.appendChild(field("Defined in", yamlFilePicker(file, files, (v) => { file = v; }, "Defined in")));
             }
             d.body.appendChild(h("p", "slls-sx-dlm-note", "Staged as a pending change \u2014 commit with Save. View relationships are many to one "
                 + "with a single cross-filter direction; the target column is pre-selected by matching name and data type."));
