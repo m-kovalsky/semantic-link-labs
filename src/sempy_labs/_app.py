@@ -41,6 +41,9 @@ _TOOLS: tuple = (
             "Add, duplicate and delete objects; renames automatically update "
             "the DAX expressions which reference them.",
             "View an object's TMDL, its dependencies and the model's errors.",
+            "Open or create a lakehouse semantic view, browse and edit its "
+            "datasets, relationships and metrics, and view the YAML and "
+            "published TMDL behind it.",
         ),
         "when": (
             "Get oriented in an unfamiliar model and see how objects depend "

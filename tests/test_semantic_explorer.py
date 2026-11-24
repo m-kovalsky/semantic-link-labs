@@ -1081,3 +1081,632 @@ def test_create_blank_model_validates_and_creates_at_level_1706(monkeypatch):
         "workspace": "ws",
         "overwrite": False,
     }
+
+
+# ---------------------------------------------------------------------------
+# Semantic views (OneLake DFS stand-in)
+# ---------------------------------------------------------------------------
+class _FakeResponse:
+    def __init__(self, status_code=200, body=None, content=b"", headers=None):
+        self.status_code = status_code
+        self._body = body or {}
+        self.content = content
+        self.headers = headers or {}
+
+    def json(self):
+        return self._body
+
+
+class _FakeOneLake:
+    """An in-memory lakehouse (paths relative to the item root)."""
+
+    def __init__(self, files=None, folders=()):
+        self.files = {k: v.encode("utf-8") for k, v in (files or {}).items()}
+        self.folders = set(folders)
+        for path in self.files:
+            parts = path.split("/")[:-1]
+            for i in range(1, len(parts) + 1):
+                self.folders.add("/".join(parts[:i]))
+        self.calls = []
+
+    def etag(self, name):
+        return '"%s"' % hash(self.files.get(name, b""))
+
+    def __call__(
+        self, method, workspace_id, path="", params=None, data=None, headers=None
+    ):
+        params = params or {}
+        self.calls.append((method, path, dict(params), data, dict(headers or {})))
+        if method == "GET" and params.get("resource") == "filesystem":
+            item, directory = params["directory"].split("/", 1)
+            if directory not in self.folders:
+                return _FakeResponse(404)
+            recursive = params["recursive"] == "true"
+            paths = []
+            for folder in sorted(self.folders):
+                rest = sx._relative_path(folder, directory)
+                if rest and (recursive or "/" not in rest):
+                    paths.append({"name": f"{item}/{folder}", "isDirectory": "true"})
+            for name, content in sorted(self.files.items()):
+                rest = sx._relative_path(name, directory)
+                if rest and (recursive or "/" not in rest):
+                    paths.append(
+                        {
+                            "name": f"{item}/{name}",
+                            "contentLength": str(len(content)),
+                            "etag": self.etag(name),
+                        }
+                    )
+            return _FakeResponse(body={"paths": paths})
+        rel = path.split("/", 1)[1]
+        if method == "GET":
+            if rel not in self.files:
+                return _FakeResponse(404)
+            return _FakeResponse(content=self.files[rel])
+        if method == "PUT":
+            headers = headers or {}
+            exists = rel in self.files or rel in self.folders
+            if exists and headers.get("If-None-Match") == "*":
+                return _FakeResponse(409)
+            if "If-Match" in headers and headers["If-Match"] != self.etag(rel):
+                return _FakeResponse(412)
+            if params.get("resource") == "directory":
+                self.folders.add(rel)
+            else:
+                self.files[rel] = b""
+            return _FakeResponse(201)
+        if method == "PATCH" and params.get("action") == "append":
+            self.files[rel] += data
+            return _FakeResponse(202)
+        return _FakeResponse(200)
+
+
+def test_list_semantic_views_lists_only_view_folders(monkeypatch):
+    lake = _FakeOneLake(
+        files={
+            "Context/Semantic Views/sales/schema/schema.yaml": "x",
+            "Context/Semantic Views/sales/metrics.yaml": "x",
+            "Context/Semantic Views/Finance/finance.yaml": "x",
+            "Context/Semantic Views/readme.txt": "x",
+        }
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    assert [v["name"] for v in sx._list_semantic_views("ws", "lh")] == [
+        "Finance",
+        "sales",
+    ]
+
+    monkeypatch.setattr(sx, "_onelake_request", _FakeOneLake())
+    assert sx._list_semantic_views("ws", "lh") == []
+
+
+def test_create_semantic_view_writes_a_valid_starter_definition(monkeypatch):
+    import yaml
+
+    lake = _FakeOneLake(files={"Context/Semantic Views/Sales/s.yaml": "x"})
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    assert sx._create_semantic_view("ws", "lh", " orders ") == "orders"
+    path = "Context/Semantic Views/orders/orders_semantic_view.yaml"
+    starter = yaml.safe_load(lake.files[path].decode("utf-8"))
+    assert starter == {"version": "0.2.0.dev0", "name": "orders"}
+    puts = [c for c in lake.calls if c[0] == "PUT"]
+    assert all(c[4].get("If-None-Match") == "*" for c in puts)
+    flush = [c for c in lake.calls if c[2].get("action") == "flush"][-1]
+    assert flush[2]["position"] == str(len(lake.files[path]))
+
+    with pytest.raises(ValueError, match="already exists"):
+        sx._create_semantic_view("ws", "lh", "SALES")
+    with pytest.raises(ValueError, match="cannot contain"):
+        sx._create_semantic_view("ws", "lh", "a/b")
+
+
+_VIEW_SCHEMA = """
+version: 0.2.0.dev0
+name: sales
+description: Sales definitions.
+datasets:
+  - name: sales
+    source: dbo.sales
+    description: One row per sales line.
+    primary_key: [sale_id]
+  - name: customers
+    source: dbo.customers
+relationships:
+  - name: sales_to_customers
+    from: sales
+    to: customers
+    from_columns: [customer_id]
+    to_columns: [customer_id]
+"""
+
+_VIEW_METRICS = """
+version: 0.2.0.dev0
+name: sales
+metrics:
+  - name: Total Net Sales
+    description: Sales after discounts.
+    expression:
+      dialects:
+        - dialect: DAX
+          expression: "SUM('sales'[net_amount])"
+        - dialect: ANSI_SQL
+          expression: SUM(net_amount)
+  - name: SQL only
+    expression:
+      dialects:
+        - dialect: SNOWFLAKE
+          expression: COUNT(*)
+"""
+
+_VIEW_TMDL = """model Model
+\tculture: en-US
+
+/// One row per sales line.
+table sales
+\tlineageTag: 1
+
+\t/// Net amount after discounts.
+\tcolumn net_amount
+\t\tdataType: decimal
+\t\tsourceColumn: net_amount
+
+\tcolumn customer_id
+\t\tdataType: int64
+\t\tisHidden
+\t\tsourceColumn: customer_id
+
+\tpartition sales = entity
+\t\tmode: directLake
+\t\tsource
+\t\t\tentityName: sales
+\t\t\tschemaName: dbo
+
+table customers
+
+\tcolumn customer_id
+\t\tdataType: int64
+
+table date
+
+\tcolumn date
+\t\tdataType: dateTime
+
+\tpartition date = entity
+\t\tsource
+\t\t\tentityName: date
+\t\t\tschemaName: dbo
+
+table Metrics
+
+\t/// Sales after discounts.
+\tmeasure 'Total Net Sales' =
+\t\t\tSUM(
+\t\t\t\t'sales'[net_amount]
+\t\t\t)
+\t\tformatString: #,0.00
+
+relationship 4b1d
+\tfromColumn: sales.customer_id
+\ttoColumn: customers.customer_id
+"""
+
+
+def test_semantic_view_payload_merges_yaml_with_published_tmdl(monkeypatch):
+    lake = _FakeOneLake(
+        files={
+            "Context/Semantic Views/sales/schema.yaml": _VIEW_SCHEMA,
+            "Context/Semantic Views/sales/metrics/metrics.yaml": _VIEW_METRICS,
+            "Context/Semantic Views/sales/notes.yml": "ignored",
+            "SystemContext/Semantic Views/sales/definition/model.tmdl": _VIEW_TMDL,
+        }
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    monkeypatch.setattr(
+        sx,
+        "_lakehouse_table_columns",
+        lambda *a: pytest.fail("published views use TMDL"),
+    )
+
+    payload = sx._semantic_view_payload("ws", "lh", "sales")
+
+    assert payload["view"]["published"] is True
+    assert payload["view"]["description"] == "Sales definitions."
+    datasets = {d["name"]: d for d in payload["datasets"]}
+    sales = datasets["sales"]
+    assert sales["file"] == "schema.yaml" and sales["columns_from"] == "published"
+    assert sales["ignored"] == ["primary_key"]
+    assert [(c["name"], c["data_type"], c["is_hidden"]) for c in sales["columns"]] == [
+        ("net_amount", "decimal", False),
+        ("customer_id", "int64", True),
+    ]
+    assert sales["columns"][0]["description"] == "Net amount after discounts."
+    # A table Fabric inferred is shown; the Metrics table isn't a dataset.
+    assert datasets["date"]["inferred"] and datasets["date"]["source"] == "dbo.date"
+    assert "Metrics" not in datasets
+    rel = payload["relationships"][0]
+    assert (rel["from_column"], rel["to_column"], rel["published"]) == (
+        "customer_id",
+        "customer_id",
+        True,
+    )
+    metrics = {m["name"]: m for m in payload["metrics"]}
+    total = metrics["Total Net Sales"]
+    assert total["file"] == "metrics/metrics.yaml"
+    assert total["dax"] == "SUM('sales'[net_amount])"
+    assert total["published"] and total["format_string"] == "#,0.00"
+    assert [d["dialect"] for d in total["dialects"]] == ["DAX", "ANSI_SQL"]
+    assert metrics["SQL only"]["dax"] == "" and not metrics["SQL only"]["published"]
+    messages = [i["message"] for i in payload["issues"]]
+    assert any("SQL only" in m and "no DAX" in m for m in messages)
+    assert any("primary_key" in m for m in messages)
+    files = {(f["area"], f["path"]): f for f in payload["files"]}
+    assert files[("definition", "notes.yml")]["ignored"]
+    assert files[("generated", "definition/model.tmdl")]["language"] == "tmdl"
+
+
+def test_unpublished_semantic_view_reads_columns_from_the_lakehouse(monkeypatch):
+    lake = _FakeOneLake(
+        files={
+            "Context/Semantic Views/v/v.yaml": (
+                "version: 0.2.0.dev0\nname: v\ndescription: A\n"
+                "datasets:\n  - name: s\n    source: sales.orders\n"
+            ),
+            "Context/Semantic Views/v/w.yaml": (
+                "version: 0.1\nname: v\ndescription: B\n"
+                "relationships:\n  - name: r\n    from: s\n    to: c\n"
+                "    from_columns: [a, b]\n    to_columns: [a, b]\n"
+            ),
+            "Context/Semantic Views/v/bad.yaml": "name: [unclosed",
+        }
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    monkeypatch.setattr(
+        sx,
+        "_lakehouse_table_columns",
+        lambda ws, lh, source: [{"name": source, "data_type": "string"}],
+    )
+
+    payload = sx._semantic_view_payload("ws", "lh", "v")
+
+    assert payload["view"]["published"] is False
+    ds = payload["datasets"][0]
+    assert (
+        ds["columns_from"] == "lakehouse" and ds["columns"][0]["name"] == "sales.orders"
+    )
+    assert payload["relationships"][0]["published"] is False
+    messages = " | ".join(i["message"] for i in payload["issues"])
+    assert "Invalid YAML" in messages
+    assert "Version '0.1' is not supported" in messages
+    assert "exactly one column" in messages
+    assert "description differs" in messages
+    with pytest.raises(ValueError, match="not found"):
+        sx._semantic_view_payload("ws", "lh", "missing")
+
+
+def _saved_view_lake():
+    return _FakeOneLake(
+        files={
+            "Context/Semantic Views/sales/schema.yaml": "# Shared schema\n"
+            + _VIEW_SCHEMA,
+            "Context/Semantic Views/sales/metrics/metrics.yaml": _VIEW_METRICS,
+        }
+    )
+
+
+def test_save_semantic_view_writes_staged_edits_to_the_yaml_files(monkeypatch):
+    import yaml
+
+    lake = _saved_view_lake()
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    payload = sx._semantic_view_payload("ws", "lh", "sales")
+    etags = {f["path"]: f["etag"] for f in payload["files"]}
+    customers = next(d for d in payload["datasets"] if d["name"] == "customers")
+    changes = {
+        "description": "Sales, refreshed daily.",
+        "updates": [
+            {
+                "kind": "datasets",
+                "file": "schema.yaml",
+                "index": 0,
+                "name": "sales",
+                "values": {"name": "orders", "description": ""},
+            },
+            {
+                "kind": "relationships",
+                "file": "schema.yaml",
+                "index": 0,
+                "name": "sales_to_customers",
+                "values": {"from": "orders", "to_column": "id"},
+            },
+            {
+                "kind": "metrics",
+                "file": "metrics/metrics.yaml",
+                "index": 1,
+                "name": "SQL only",
+                "values": {"dax": "COUNTROWS(\n    'orders'\n)"},
+            },
+        ],
+        "deletes": [
+            {
+                "kind": "datasets",
+                "file": customers["file"],
+                "index": customers["index"],
+                "name": "customers",
+            }
+        ],
+        "creates": [
+            {
+                "kind": "metrics",
+                "file": "",
+                "values": {"name": "Orders", "description": "", "dax": "[SQL only]"},
+            }
+        ],
+    }
+
+    count, comments_kept = sx._save_semantic_view("ws", "lh", "sales", changes, etags)
+
+    assert count == 6
+    # Comments ('# Shared schema') are kept only with ruamel.yaml.
+    assert comments_kept is sx._ViewYaml().keeps_comments
+
+    def read(path):
+        return yaml.safe_load(lake.files[f"Context/Semantic Views/sales/{path}"])
+
+    schema, metrics = read("schema.yaml"), read("metrics/metrics.yaml")
+    assert schema["description"] == "Sales, refreshed daily."
+    assert schema["datasets"] == [
+        {"name": "orders", "source": "dbo.sales", "primary_key": ["sale_id"]}
+    ]
+    rel = schema["relationships"][0]
+    assert (rel["from"], rel["to"], rel["from_columns"], rel["to_columns"]) == (
+        "orders",
+        "customers",
+        ["customer_id"],
+        ["id"],
+    )
+    dialects = metrics["metrics"][1]["expression"]["dialects"]
+    assert dialects[0] == {
+        "dialect": "DAX",
+        "expression": "COUNTROWS(\n    'orders'\n)",
+    }
+    assert dialects[1]["dialect"] == "SNOWFLAKE"
+    assert metrics["metrics"][2] == {
+        "name": "Orders",
+        "expression": {"dialects": [{"dialect": "DAX", "expression": "[SQL only]"}]},
+    }
+    assert "description" not in metrics  # Only files defining it are changed.
+    written = lake.files["Context/Semantic Views/sales/metrics/metrics.yaml"].decode()
+    assert "expression: |" in written  # Multi-line DAX is a literal block.
+
+
+def test_save_semantic_view_refuses_to_overwrite_changed_files(monkeypatch):
+    lake = _saved_view_lake()
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    update = {
+        "kind": "datasets",
+        "file": "schema.yaml",
+        "index": 0,
+        "name": "sales",
+        "values": {"description": "x"},
+    }
+
+    with pytest.raises(ValueError, match="changed after the view was loaded"):
+        sx._save_semantic_view(
+            "ws", "lh", "sales", {"updates": [update]}, {"schema.yaml": '"stale"'}
+        )
+    with pytest.raises(ValueError, match="has changed"):
+        sx._save_semantic_view(
+            "ws", "lh", "sales", {"updates": [dict(update, name="other")]}
+        )
+    assert (
+        b"description: x" not in lake.files["Context/Semantic Views/sales/schema.yaml"]
+    )
+
+
+def test_crlf_view_files_are_read_with_lf_line_endings(monkeypatch):
+    lake = _FakeOneLake(
+        files={
+            "Context/Semantic Views/v/v.yaml": "version: 0.2.0.dev0\r\nname: v\r\n",
+            "SystemContext/Semantic Views/v/v.tmdl": _VIEW_TMDL.replace("\n", "\r\n"),
+        }
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    payload = sx._semantic_view_payload("ws", "lh", "v")
+
+    tmdl = next(f for f in payload["files"] if f["language"] == "tmdl")
+    assert "\r" not in tmdl["content"] and tmdl["content"].startswith("model Model\n")
+    assert {d["name"] for d in payload["datasets"]} == {"sales", "customers", "date"}
+
+
+def test_single_file_tmdl_marks_published_objects(monkeypatch):
+    # A single .tmdl file nests everything in the model (as Fabric writes it).
+    body = _VIEW_TMDL.split("\n", 2)[2]  # drop 'model Model' and its culture
+    nested = "createOrReplace\n\tdatabase sales\n\t\tmodel Model\n" + "\n".join(
+        "\t\t\t" + line if line else "" for line in body.split("\n")
+    )
+    lake = _FakeOneLake(
+        files={
+            "Context/Semantic Views/sales/schema.yaml": _VIEW_SCHEMA
+            + "  - name: renamed_rel\n    from: customers\n    to: sales\n"
+            "    from_columns: [customer_id]\n    to_columns: [net_amount]\n",
+            "Context/Semantic Views/sales/metrics.yaml": _VIEW_METRICS,
+            "SystemContext/Semantic Views/sales/sales.tmdl": nested,
+        }
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    monkeypatch.setattr(sx, "_lakehouse_table_columns", lambda *a: [])
+
+    payload = sx._semantic_view_payload("ws", "lh", "sales")
+
+    datasets = {d["name"]: d for d in payload["datasets"]}
+    assert (
+        datasets["sales"]["published"]
+        and datasets["sales"]["columns_from"] == "published"
+    )
+    rels = {r["name"]: r["published"] for r in payload["relationships"]}
+    assert rels == {"sales_to_customers": True, "renamed_rel": False}
+    metrics = {m["name"]: m["published"] for m in payload["metrics"]}
+    assert metrics == {"Total Net Sales": True, "SQL only": False}
+
+
+def test_publish_semantic_view_calls_the_publish_api(monkeypatch):
+    from sempy_labs.semantic_model import _semantic_view as sv
+
+    calls = []
+
+    class _Resp:
+        def json(self):
+            return {
+                "warnings": [
+                    {
+                        "code": "W1",
+                        "message": "Omitted",
+                        "sourcePath": "m.yaml",
+                        "line": 3,
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(sv, "resolve_workspace_name_and_id", lambda w: ("WS", "ws-id"))
+    monkeypatch.setattr(
+        sv,
+        "resolve_lakehouse_name_and_id",
+        lambda lakehouse, workspace: ("LH", "lh-id"),
+    )
+    monkeypatch.setattr(sv, "_base_api", lambda **kw: calls.append(kw) or _Resp())
+
+    assert sx._publish_view("ws-id", "lh-id", "sales view") == ["Omitted (m.yaml:3)"]
+    assert calls[0]["request"] == (
+        "modeling/workspaces/ws-id/items/lh-id/semanticViews/sales%20view/publish"
+    )
+    assert (calls[0]["method"], calls[0]["client"]) == ("post", "internal")
+
+
+def _view_explorer_widget(monkeypatch):
+    import IPython.display
+    import sempy_labs._helper_functions as hf
+    import sempy_labs._ui_components as ui
+
+    shown = []
+    monkeypatch.setattr(IPython.display, "display", shown.append)
+    monkeypatch.setattr(hf, "resolve_workspace_name_and_id", lambda w: ("WS", "ws-id"))
+    monkeypatch.setattr(
+        hf, "resolve_lakehouse_name_and_id", lambda *a, **k: ("LH", "lh-id")
+    )
+    monkeypatch.setattr(ui, "run_widget_task", lambda fn, args: fn(*args))
+    monkeypatch.setattr(sx, "_semantic_view_payload", lambda *a: {"view": {}})
+    sx.semantic_explorer()
+    widget = shown[0]
+
+    def send(**data):
+        widget.pending_action = data
+        widget.run += 1
+        return widget.result
+
+    send(action="open_view", workspace_id="ws-id", lakehouse_id="lh-id", view="sales")
+    return widget, send
+
+
+def test_publishing_a_view_refreshes_its_semantic_model(monkeypatch):
+    from sempy_labs import _refresh_semantic_model as rsm
+
+    calls = []
+    monkeypatch.setattr(
+        sx, "_publish_view", lambda *a: calls.append(("publish", a)) or []
+    )
+    monkeypatch.setattr(
+        rsm, "refresh_semantic_model", lambda **kw: calls.append(("refresh", kw))
+    )
+    widget, send = _view_explorer_widget(monkeypatch)
+
+    result = send(action="save_view", changes={}, publish=True, request_id=1)
+
+    assert result["ok"] and result["data"]["published"]
+    assert calls == [
+        ("publish", ("ws-id", "lh-id", "sales")),
+        ("refresh", {"dataset": "sales", "workspace": "ws-id"}),
+    ]
+    assert widget.status["kind"] == "success"
+    assert "Refreshed the 'sales' semantic model." in widget.status["message"]
+
+
+def test_view_model_refresh_failure_is_reported_and_skipped_if_not_published(
+    monkeypatch,
+):
+    refreshes = []
+
+    def _fail(*a):
+        refreshes.append(a)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(sx, "_refresh_view_model", _fail)
+    monkeypatch.setattr(sx, "_publish_view", lambda *a: [])
+    widget, send = _view_explorer_widget(monkeypatch)
+    send(action="save_view", changes={}, publish=True, request_id=1)
+    assert widget.status["kind"] == "error"
+    assert (
+        "Refreshing the 'sales' semantic model failed: boom" in widget.status["message"]
+    )
+
+    def _publish_fails(*a):
+        raise RuntimeError("bad yaml")
+
+    monkeypatch.setattr(sx, "_publish_view", _publish_fails)
+    refreshes.clear()
+    send(action="save_view", changes={}, publish=True, request_id=2)
+    assert refreshes == []
+    assert "Publishing failed: bad yaml" in widget.status["message"]
+
+
+def test_saved_changes_which_are_not_published_are_reported(monkeypatch):
+    metrics = _VIEW_METRICS.replace(
+        "\"SUM('sales'[net_amount])\"", "\"SUM('sales'[net_amount]) * 2\""
+    )
+    schema = _VIEW_SCHEMA.replace("One row per sales line.", "One row per line.")
+    # The relationship now goes the other way round.
+    schema = schema.replace(
+        "    from: sales\n    to: customers", "    from: customers\n    to: sales"
+    )
+    lake = _FakeOneLake(
+        files={
+            "Context/Semantic Views/sales/schema.yaml": schema,
+            "Context/Semantic Views/sales/metrics.yaml": metrics,
+            "SystemContext/Semantic Views/sales/sales.tmdl": _VIEW_TMDL.replace(
+                "\t\tformatString: #,0.00\n",
+                "\t\tformatString: #,0.00\n\n\tmeasure Removed = 1\n",
+            ),
+        }
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    payload = sx._semantic_view_payload("ws", "lh", "sales")
+
+    def status(items, name):
+        o = next(i for i in items if i["name"] == name)
+        return o["published"], o["publish_state"], o["publish_diff"]
+
+    assert status(payload["metrics"], "Total Net Sales") == (
+        True,
+        "changed",
+        ["expression"],
+    )
+    assert status(payload["metrics"], "SQL only") == (False, "missing", [])
+    assert status(payload["datasets"], "sales") == (True, "changed", ["description"])
+    assert status(payload["datasets"], "customers") == (True, "published", [])
+    assert status(payload["relationships"], "sales_to_customers") == (
+        True,
+        "changed",
+        ["from / to"],
+    )
+    # The view description isn't in the published model either.
+    assert payload["view"]["publish_diff"] == ["description"]
+    assert payload["view"]["unpublished_count"] == 5
+    assert any("Metric 'Removed'" in i["message"] for i in payload["issues"])
+
+
+def test_dax_layout_differences_are_not_unpublished_changes():
+    assert sx._same_dax("SUM('sales'[net_amount])", "SUM(\n\t'sales'[net_amount]\n)")
+    assert sx._same_dax("[A] + [B]", "[A]+[B]")
+    assert not sx._same_dax("SUM('sales'[net_amount])", "SUM('sales'[amount])")

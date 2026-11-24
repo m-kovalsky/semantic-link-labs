@@ -30,6 +30,9 @@ from ._cancel_query import (
     list_commands,
     cancel_long_running_queries,
 )
+from ._semantic_view import (
+    publish_semantic_view,
+)
 
 __all__ = [
     "approved_for_copilot",
@@ -46,4 +49,5 @@ __all__ = [
     "list_sessions",
     "list_commands",
     "cancel_long_running_queries",
+    "publish_semantic_view",
 ]

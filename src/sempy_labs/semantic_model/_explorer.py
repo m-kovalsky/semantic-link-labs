@@ -189,6 +189,79 @@ _WIDGET_CSS = """
 .slls-sx-picker-actions .slls-sx-btn:hover:not(:disabled) { background: var(--ui-surface-2); border-color: var(--ui-text-tertiary); }
 .slls-sx-picker-actions .slls-sx-btn.primary { background: var(--ui-accent); border-color: var(--ui-accent); color: var(--ui-on-accent); }
 .slls-sx-picker-actions .slls-sx-btn.primary:hover:not(:disabled) { background: var(--ui-accent-hover); border-color: var(--ui-accent-hover); }
+.slls-sx-picker-toprow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.slls-sx-picker-head { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.slls-sx-picker-back { margin: -3px 0 0 -6px; flex-shrink: 0; }
+.slls-sx-picker-card.slls-sx-view-picker { max-width: 760px; }
+.slls-sx-picker-row.three .slls-sx-field { flex-basis: 180px; }
+/* Picker text boxes line up with the searchable selects beside them. */
+.slls-sx-picker-row .slls-sx-field > .slls-sx-input { padding: 10px 12px; font-size: 14px; border-radius: 10px; }
+
+/* Landing: semantic model or semantic view */
+.slls-sx-picker-card.slls-sx-landing { max-width: 720px; }
+.slls-sx-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.slls-sx-choice {
+    appearance: none; display: flex; flex-direction: column; gap: 8px; padding: 16px; text-align: left;
+    border: 1px solid var(--ui-border-strong); border-radius: var(--sx-radius); background: var(--ui-bg);
+    color: var(--ui-text); font: inherit; cursor: pointer;
+    transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+.slls-sx-choice:hover { border-color: var(--ui-accent); background: var(--ui-bg-hover); }
+.slls-sx-choice:focus-visible { outline: none; border-color: var(--ui-accent); box-shadow: 0 0 0 3px var(--ui-accent-soft); }
+.slls-sx button.slls-sx-choice:not(:disabled):active { transform: none; }
+.slls-sx-choice-head { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+.slls-sx-choice-head .slls-sx-pill { margin-left: 0; }
+.slls-sx-choice-desc { font-size: 12.5px; line-height: 1.45; color: var(--ui-text-secondary); }
+.slls-sx-choice-meta { margin-top: auto; padding-top: 2px; display: flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--ui-accent); }
+.slls-sx-choice-meta svg { width: 14px; height: 14px; }
+
+/* Semantic view explorer */
+.slls-sx-vtree { padding: 4px 0; }
+.slls-sx-vtree .slls-sx-row { position: relative; }
+.slls-sx-issue { display: flex; align-items: flex-start; gap: 8px; padding: 6px 2px; font-size: 12.5px; border-bottom: 1px solid var(--ui-border); }
+.slls-sx-issue:last-child { border-bottom: none; }
+.slls-sx-issue > span:nth-child(2) { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.slls-sx-issue svg { width: 14px; height: 14px; }
+.slls-sx-issue .slls-sx-ricon { margin-top: 1px; }
+.slls-sx-issue.error { color: var(--ui-danger-text); }
+.slls-sx-issue.error .slls-sx-ricon { color: var(--ui-danger-text); }
+.slls-sx-issue.warning .slls-sx-ricon { color: var(--sx-warn); }
+.slls-sx-issue .file { flex-shrink: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-subitem.on { background: var(--ui-accent-soft); }
+.slls-sx-subitem.muted { color: var(--ui-text-tertiary); font-style: italic; }
+.slls-sx-files-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-subitem .meta { white-space: nowrap; flex-shrink: 0; }
+.slls-sx-verrors { border: 1px solid var(--ui-danger-border); border-radius: var(--sx-radius); background: var(--ui-danger-bg); padding: 2px 10px; }
+.slls-sx-vnote { margin: 0; }
+.slls-sx-vsource { width: 100%; }
+.slls-sx-unpub { display: inline-flex; color: var(--sx-warn); }
+.slls-sx-unpub svg { width: 12px; height: 12px; }
+.slls-sx-unpub-text { color: var(--sx-warn); font-weight: 500; }
+/* Save + options split button */
+.slls-sx-split { display: inline-flex; }
+.slls-sx-split .slls-sx-split-main { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.slls-sx-split .slls-sx-split-more { width: 20px; min-width: 20px; padding: 0; margin-left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.slls-sx-split .slls-sx-split-more svg { width: 12px; height: 12px; }
+.slls-sx-vcols td:nth-child(2) { white-space: nowrap; color: var(--ui-text-secondary); }
+pre.slls-sx-dialect {
+    margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--sx-radius-sm);
+    background: var(--ui-bg-tertiary); font-family: var(--sx-mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.slls-sx-modal-body.slls-sx-files { display: flex; padding: 0; overflow: hidden; }
+.slls-sx-files-list { width: 260px; flex-shrink: 0; overflow: auto; padding: 6px 8px 10px; border-right: 1px solid var(--ui-border); }
+.slls-sx-files-group { padding: 8px 8px 4px; }
+.slls-sx-files-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ui-text-tertiary); }
+.slls-sx-files-folder { font-size: 11.5px; color: var(--ui-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-files-none { padding: 2px 8px 6px; }
+.slls-sx-files-pane { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px 14px; }
+.slls-sx-files-pane .slls-sx-picker-note, .slls-sx-files-pane .slls-sx-code-error { margin: 0; }
+.slls-sx-files-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 12.5px; }
+.slls-sx-files-head b { font-weight: 600; flex-shrink: 0; }
+.slls-sx-files-head span { color: var(--ui-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-files-code {
+    flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px 12px;
+    border: 1px solid var(--ui-border); border-radius: var(--sx-radius-sm); background: var(--ui-bg-tertiary);
+}
 
 /* Body */
 .slls-sx-body { display: flex; height: 700px; min-height: 0; padding: 12px; gap: 0; }
@@ -1496,15 +1569,51 @@ function render({ model, el }) {
     let lastCoalesce = { key: "", at: 0 };
     let history = [];
     let createSeq = 0;
-    let pickerOpen = model.get("dataset_chosen") !== true;
+    // A re-rendered widget (e.g. the notebook reloaded) reopens what was open.
+    let pickerOpen = !model.get("explorer_kind") && model.get("dataset_chosen") !== true;
     let pickerWs = model.get("active_workspace_id") || "";
     let pickerDs = model.get("active_dataset_id") || "";
+    // Picker screens: "landing" (semantic model or semantic view?), "model"
+    // and "view".
+    let pickerStep = "landing";
     // "existing" connects to a model; "new" creates an empty one first.
     let pickerMode = "existing";
     let newModelName = "";
     let createError = null;
     let creating = false;
     let workspacesRequested = false;
+    // Semantic view picker: "existing" opens a view, "new" creates one.
+    let viewPickerMode = "existing";
+    let viewWs = pickerWs;
+    let viewLh = "";
+    let viewPick = "";
+    let newViewName = "";
+    let viewError = null;
+    let lakehouseList = { ws: null, items: [], loading: false, error: "" };
+    let viewList = { key: null, items: [], loading: false, error: "" };
+    let viewNameFocused = false;
+    // Open semantic view (read-only): its payload, an index of its objects by
+    // key, and the tree / detail state.
+    let viewData = null;
+    let vIndex = new Map();
+    let vSelected = "view";
+    let vExpanded = new Set(["view", "v:datasets", "v:relationships", "v:metrics"]);
+    let vSearch = "";
+    let vTreeEl = null;
+    // Editing a view: the saved objects (vBase), the staged working copy
+    // (vWork), undo / redo snapshots and lookups for the editors.
+    let vBase = null;
+    let vWork = null;
+    let vUndo = [];
+    let vRedo = [];
+    let vEditKey = "";
+    let vMode = "read";
+    let vSaving = false;
+    let vNewSeq = 0;
+    let vColCache = {};
+    let vColumns = new Map();
+    let vTables = null;
+    let vPendingSelect = null;
     let requestSeq = 0;
     const callbacks = new Map();
     const collapsedCards = new Set(["Lineage", "Timeline", "Extended properties"]);
@@ -2153,7 +2262,9 @@ function render({ model, el }) {
     model.on("change:dark_mode", renderThemeBtn);
     renderThemeBtn();
 
-    function loaded() { return model.get("dataset_chosen") === true && data && data.model; }
+    function kind() { return model.get("explorer_kind") || ""; }
+    function viewOpen() { return kind() === "view" && !!(viewData && viewData.view); }
+    function loaded() { return kind() !== "view" && model.get("dataset_chosen") === true && data && data.model; }
     function setMode(next) {
         if (saving) return;
         if (next === "read" && pendingCount()) {
@@ -2176,11 +2287,21 @@ function render({ model, el }) {
         titleWrap.appendChild(h("div", "slls-sx-title", "Semantic Explorer"));
         const sub = h("div", "slls-sx-subtitle");
         const ds = model.get("dataset_name") || "", ws = model.get("workspace_name") || "";
-        if (model.get("dataset_chosen") !== true) sub.textContent = "No semantic model selected";
-        else sub.innerHTML = `<b>${esc(ds)}</b>${ds && ws ? '<span class="slls-sx-sep">\u00b7</span>' : ""}${esc(ws)}`;
+        const sep = '<span class="slls-sx-sep">\u00b7</span>';
+        if (viewOpen()) {
+            const v = viewData.view;
+            sub.innerHTML = `<b>${esc(v.name)}</b>${sep}${esc(v.lakehouse_name)}${sep}${esc(v.workspace_name)}`;
+        } else if (model.get("dataset_chosen") !== true) sub.textContent = "No semantic model or semantic view selected";
+        else sub.innerHTML = `<b>${esc(ds)}</b>${ds && ws ? sep : ""}${esc(ws)}`;
         sub.title = sub.textContent;
         titleWrap.appendChild(sub);
         header.appendChild(titleWrap);
+        if (viewOpen()) {
+            if (!pickerOpen) renderViewHeaderControls();
+            header.appendChild(h("div", "slls-sx-head-spacer"));
+            header.append(fsBtn, themeBtn);
+            return;
+        }
         const busy = model.get("busy") || "";
         if (!pickerOpen && model.get("dataset_chosen") === true) {
             const change = button("sl-change-btn", "", "swap", () => openPicker(), "Change workspace or semantic model");
@@ -2234,6 +2355,13 @@ function render({ model, el }) {
     // Picker
     // ------------------------------------------------------------------
     function openPicker() {
+        if (kind() === "view" && viewPendingCount()) {
+            confirmDialog(`Changing the semantic view discards ${plural(viewPendingCount(), "pending change")}.`, "Discard", () => {
+                discardViewChanges();
+                openPicker();
+            });
+            return;
+        }
         if (pendingCount()) {
             confirmDialog(`Changing the semantic model discards ${plural(pendingCount(), "pending change")}.`, "Discard", () => {
                 staging = { edits: {}, ops: [], creates: [] };
@@ -2245,7 +2373,29 @@ function render({ model, el }) {
         pickerOpen = true;
         pickerWs = model.get("active_workspace_id") || pickerWs;
         pickerDs = model.get("active_dataset_id") || "";
+        pickerStep = kind() || "landing";
+        if (viewOpen()) {
+            const v = viewData.view;
+            viewWs = v.workspace_id; viewLh = v.lakehouse_id; viewPick = v.name;
+            viewPickerMode = "existing";
+        }
         renderAll();
+    }
+    function closePicker() {
+        pickerOpen = false;
+        pickerMode = "existing";
+        viewPickerMode = "existing";
+        renderAll();
+    }
+    // Back from a model / view picker to the landing screen.
+    function pickerBack(card, disabled) {
+        const back = button("slls-sx-iconbtn slls-sx-picker-back", "", "arrow_left", () => {
+            pickerStep = "landing";
+            createError = null; viewError = null;
+            renderPicker();
+        }, "Back");
+        back.disabled = !!disabled;
+        return back;
     }
     function ensureWorkspaces() {
         if (workspacesRequested) return;
@@ -2261,16 +2411,20 @@ function render({ model, el }) {
         clear(pickerHost);
         pickerHost.style.display = pickerOpen ? "" : "none";
         if (!pickerOpen) return;
+        if (pickerStep === "landing") { renderLanding(); return; }
+        if (pickerStep === "view") { renderViewPicker(); return; }
         const loading = model.get("picker_loading") === true;
         const connecting = model.get("busy") === "connect";
         const card = h("div", "slls-sx-picker-card");
         const top = h("div", "");
         top.style.cssText = "display:flex;align-items:flex-start;justify-content:space-between;gap:12px";
         const isNew = pickerMode === "new";
-        const tt = h("div", "");
-        tt.append(h("div", "slls-sx-picker-title", isNew ? "Create a semantic model" : "Select a semantic model"),
+        const tt = h("div", "slls-sx-picker-head");
+        const titles = h("div", "");
+        titles.append(h("div", "slls-sx-picker-title", isNew ? "Create a semantic model" : "Select a semantic model"),
             h("div", "slls-sx-picker-sub", isNew ? "Create a new, empty semantic model and open it in the explorer."
                 : "Choose the workspace and semantic model to explore."));
+        tt.append(pickerBack(card, connecting || creating), titles);
         const reload = button("sl-reload-btn" + (loading ? " sl-spinning" : ""), "", "refresh", () => {
             workspacesRequested = false;
             ensureWorkspaces();
@@ -2330,9 +2484,7 @@ function render({ model, el }) {
         row.append(wsField, dsField);
         card.appendChild(row);
         const actions = h("div", "slls-sx-picker-actions");
-        if (model.get("dataset_chosen") === true) {
-            actions.appendChild(button("slls-sx-btn", "Cancel", "", () => { pickerOpen = false; renderAll(); }));
-        }
+        if (kind()) actions.appendChild(button("slls-sx-btn", "Cancel", "", closePicker));
         const connect = button("slls-sx-btn primary", connecting ? "Connecting\u2026" : "Connect", "", () => {
             if (!pickerWs || !pickerDs) return;
             request("connect", { workspace_id: pickerWs, dataset_id: pickerDs }, (res) => {
@@ -2388,9 +2540,7 @@ function render({ model, el }) {
         const err = h("div", "slls-sx-picker-error");
         card.append(hint, err);
         const actions = h("div", "slls-sx-picker-actions");
-        if (model.get("dataset_chosen") === true) {
-            actions.appendChild(button("slls-sx-btn", "Cancel", "", () => { pickerOpen = false; pickerMode = "existing"; renderAll(); }));
-        }
+        if (kind()) actions.appendChild(button("slls-sx-btn", "Cancel", "", closePicker));
         const create = button("slls-sx-btn primary", creating ? "Creating\u2026" : "Create model", "", () => {
             const name = newModelName.trim();
             if (!pickerWs || !name || taken() || creating) return;
@@ -2431,6 +2581,1355 @@ function render({ model, el }) {
         input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") create.click(); });
         refresh();
         if (!creating) setTimeout(() => { if (input.isConnected && document.activeElement !== input && !newModelName) input.focus(); }, 0);
+    }
+
+    // ------------------------------------------------------------------
+    // Landing: semantic model or semantic view
+    // ------------------------------------------------------------------
+    function renderLanding() {
+        const card = h("div", "slls-sx-picker-card slls-sx-landing");
+        card.append(h("div", "slls-sx-picker-title", "What would you like to explore?"),
+            h("div", "slls-sx-picker-sub", "Open or create a semantic model, or a semantic view defined in a lakehouse."));
+        const choices = h("div", "slls-sx-choices");
+        const choice = (id, icon, title, desc, cta, badge) => {
+            const b = h("button", "slls-sx-choice");
+            b.type = "button";
+            b.dataset.choice = id;
+            const head = h("div", "slls-sx-choice-head");
+            head.append(iconEl(icon, "slls-sx-objicon"), h("span", "", title));
+            if (badge) head.appendChild(h("span", "slls-sx-pill", badge));
+            const meta = h("div", "slls-sx-choice-meta", cta);
+            meta.insertAdjacentHTML("beforeend", ICON.chevron_right);
+            b.append(head, h("div", "slls-sx-choice-desc", desc), meta);
+            b.addEventListener("click", () => {
+                pickerStep = id;
+                createError = null; viewError = null;
+                renderPicker();
+            });
+            return b;
+        };
+        choices.append(
+            choice("model", "database", "Semantic model",
+                "Browse and edit a semantic model: tables, columns, measures, relationships, security, perspectives, translations and more.",
+                "Open or create a semantic model"),
+            choice("view", "layers", "Semantic view",
+                "Explore the datasets, relationships and metrics that a semantic view defines in YAML in a lakehouse\u2019s Context folder.",
+                "Open or create a semantic view", "Preview"));
+        card.appendChild(choices);
+        if (kind()) {
+            const actions = h("div", "slls-sx-picker-actions");
+            actions.appendChild(button("slls-sx-btn", "Cancel", "", closePicker));
+            card.appendChild(actions);
+        }
+        pickerHost.appendChild(card);
+    }
+
+    // ------------------------------------------------------------------
+    // Semantic view picker (workspace -> lakehouse -> view, or a new view)
+    // ------------------------------------------------------------------
+    function viewBusy() { const b = model.get("busy"); return b === "open_view" || b === "create_view"; }
+    function loadLakehouses(force) {
+        if (!viewWs || (!force && lakehouseList.ws === viewWs)) return;
+        const ws = viewWs;
+        lakehouseList = { ws, items: [], loading: true, error: "" };
+        request("list_lakehouses", { workspace_id: ws }, (res) => {
+            if (lakehouseList.ws !== ws) return;
+            lakehouseList = { ws, items: res.ok ? (res.data.items || []) : [], loading: false,
+                error: res.ok ? "" : (res.error || "The lakehouses could not be listed.") };
+            if (viewLh && !lakehouseList.items.some((l) => l.id === viewLh)) { viewLh = ""; viewPick = ""; }
+            if (pickerOpen && pickerStep === "view") renderPicker();
+        });
+    }
+    function viewListKey() { return viewWs + "/" + viewLh; }
+    function loadViews(force) {
+        if (!viewWs || !viewLh || (!force && viewList.key === viewListKey())) return;
+        const key = viewListKey();
+        viewList = { key, items: [], loading: true, error: "" };
+        request("list_views", { workspace_id: viewWs, lakehouse_id: viewLh }, (res) => {
+            if (viewList.key !== key) return;
+            viewList = { key, items: res.ok ? (res.data.items || []) : [], loading: false,
+                error: res.ok ? "" : (res.error || "The semantic views could not be listed.") };
+            if (viewPick && !viewList.items.some((v) => v.name === viewPick)) viewPick = "";
+            if (pickerOpen && pickerStep === "view") renderPicker();
+        });
+    }
+    function segmented(label, options, value, disabled, onPick) {
+        const seg = h("div", "slls-sx-seg");
+        seg.setAttribute("role", "radiogroup");
+        seg.setAttribute("aria-label", label);
+        for (const [id, text] of options) {
+            const b = h("button", value === id ? "on" : "", text);
+            b.type = "button";
+            b.setAttribute("role", "radio");
+            b.setAttribute("aria-checked", String(value === id));
+            b.disabled = !!disabled;
+            b.addEventListener("click", () => onPick(id));
+            seg.appendChild(b);
+        }
+        return seg;
+    }
+    function pickerField(label, control) {
+        const f = h("div", "slls-sx-field");
+        f.append(h("label", "", label), control);
+        return f;
+    }
+    function viewOpened() {
+        pickerOpen = false;
+        viewPickerMode = "existing";
+        vSelected = "view";
+        vExpanded = new Set(["view", "v:datasets", "v:relationships", "v:metrics"]);
+        vSearch = "";
+        propFilter = "";
+        vMode = "read";
+        vTables = null;
+        vColCache = {};
+    }
+    function renderViewPicker() {
+        loadLakehouses(false);
+        loadViews(false);
+        const wsLoading = model.get("picker_loading") === true;
+        const busy = viewBusy();
+        const isNew = viewPickerMode === "new";
+        const card = h("div", "slls-sx-picker-card slls-sx-view-picker");
+        const top = h("div", "slls-sx-picker-toprow");
+        const tt = h("div", "slls-sx-picker-head");
+        const titles = h("div", "");
+        titles.append(h("div", "slls-sx-picker-title", isNew ? "Create a semantic view" : "Open a semantic view"),
+            h("div", "slls-sx-picker-sub", isNew
+                ? "Create a semantic view in a lakehouse, starting from a YAML definition file."
+                : "Choose the workspace, lakehouse and semantic view to explore."));
+        tt.append(pickerBack(card, busy), titles);
+        const right = h("div", "slls-sx-picker-top");
+        const seg = segmented("Semantic view source", [["existing", "Existing view"], ["new", "New view"]], viewPickerMode, busy,
+            (id) => { viewPickerMode = id; viewError = null; renderPicker(); });
+        const spinning = wsLoading || lakehouseList.loading || viewList.loading;
+        const reload = button("sl-reload-btn" + (spinning ? " sl-spinning" : ""), "", "refresh", () => {
+            workspacesRequested = false;
+            ensureWorkspaces();
+            loadLakehouses(true);
+            loadViews(true);
+            renderPicker();
+        }, "Reload workspaces, lakehouses and semantic views");
+        reload.disabled = busy || spinning;
+        right.append(seg, reload);
+        top.append(tt, right);
+        card.appendChild(top);
+
+        const row = h("div", "slls-sx-picker-row three");
+        const wsSel = createSearchSelect({
+            placeholder: "Select a workspace\u2026", searchPlaceholder: "Filter workspaces\u2026",
+            ariaLabel: "Workspace", emptyLabel: wsLoading ? "Loading workspaces\u2026" : "No workspaces",
+            onChange: (o) => {
+                viewWs = o.value; viewLh = ""; viewPick = ""; viewError = null;
+                loadLakehouses(true);
+                renderPicker();
+            },
+        });
+        wsSel.setOptions((model.get("available_workspaces") || []).map((w) => ({ value: w.id, label: w.name })), viewWs);
+        wsSel.setDisabled(busy);
+        const lhSel = createSearchSelect({
+            placeholder: "Select a lakehouse\u2026", searchPlaceholder: "Filter lakehouses\u2026", ariaLabel: "Lakehouse",
+            emptyLabel: !viewWs ? "Select a workspace first\u2026"
+                : (lakehouseList.loading ? "Loading lakehouses\u2026" : (lakehouseList.error || "No lakehouses in this workspace")),
+            onChange: (o) => {
+                viewLh = o.value; viewPick = ""; viewError = null;
+                loadViews(true);
+                renderPicker();
+            },
+        });
+        lhSel.setOptions(lakehouseList.items.map((l) => ({ value: l.id, label: l.name })), viewLh);
+        lhSel.setDisabled(!viewWs || busy);
+        row.append(pickerField("Workspace", wsSel.el), pickerField("Lakehouse", lhSel.el));
+        const listed = viewList.key === viewListKey() && !viewList.loading;
+
+        const note = h("div", "slls-sx-picker-note");
+        const err = h("div", "slls-sx-picker-error");
+        err.textContent = viewError || "";
+        err.style.display = viewError ? "" : "none";
+        const actions = h("div", "slls-sx-picker-actions");
+        if (kind()) actions.appendChild(button("slls-sx-btn", "Cancel", "", closePicker));
+
+        if (!isNew) {
+            const vSel = createSearchSelect({
+                placeholder: "Select a semantic view\u2026", searchPlaceholder: "Filter semantic views\u2026", ariaLabel: "Semantic view",
+                emptyLabel: !viewLh ? "Select a lakehouse first\u2026"
+                    : (viewList.loading ? "Loading semantic views\u2026" : (viewList.error || "No semantic views")),
+                onChange: (o) => { viewPick = o.value; viewError = null; renderPicker(); },
+            });
+            vSel.setOptions(viewList.items.map((v) => ({ value: v.name, label: v.name })), viewPick);
+            vSel.setDisabled(!viewLh || busy);
+            row.appendChild(pickerField("Semantic view", vSel.el));
+            card.append(row, note, err);
+            if (viewList.error && viewLh) {
+                note.textContent = viewList.error;
+                note.classList.add("error");
+            } else if (viewLh && listed && !viewList.items.length) {
+                note.appendChild(document.createTextNode("This lakehouse has no semantic views yet. "));
+                const link = h("a", "slls-sx-link", "Create a semantic view");
+                link.addEventListener("click", () => { viewPickerMode = "new"; viewError = null; renderPicker(); });
+                note.appendChild(link);
+            } else {
+                note.textContent = "Semantic views are the folders in the lakehouse\u2019s Context/Semantic Views folder.";
+            }
+            const open = button("slls-sx-btn primary", model.get("busy") === "open_view" ? "Opening\u2026" : "Open", "", () => {
+                if (!viewWs || !viewLh || !viewPick || viewBusy()) return;
+                viewError = null;
+                request("open_view", { workspace_id: viewWs, lakehouse_id: viewLh, view: viewPick }, (res) => {
+                    if (res.ok) viewOpened();
+                    else viewError = res.error || "The semantic view could not be opened.";
+                    renderAll();
+                });
+                renderPicker();
+            });
+            open.disabled = !viewWs || !viewLh || !viewPick || busy;
+            actions.appendChild(open);
+            card.appendChild(actions);
+            pickerHost.appendChild(card);
+            return;
+        }
+
+        const input = h("input", "slls-sx-input");
+        input.value = newViewName;
+        input.placeholder = "e.g. sales";
+        input.setAttribute("aria-label", "New semantic view name");
+        input.disabled = busy;
+        row.appendChild(pickerField("View name", input));
+        card.append(row, note, err);
+        const create = button("slls-sx-btn primary", model.get("busy") === "create_view" ? "Creating\u2026" : "Create view", "", () => {
+            const name = newViewName.trim();
+            if (create.disabled || viewBusy()) return;
+            viewError = null;
+            request("create_view", { workspace_id: viewWs, lakehouse_id: viewLh, name }, (res) => {
+                if (res.ok) {
+                    newViewName = "";
+                    viewPick = res.data.view || name;
+                    viewList.key = null;
+                    viewOpened();
+                } else viewError = res.error || "The semantic view could not be created.";
+                renderAll();
+            });
+            renderPicker();
+        });
+        actions.appendChild(create);
+        card.appendChild(actions);
+        const refresh = () => {
+            const name = newViewName.trim();
+            const clash = !!name && listed && viewList.items.some((v) => v.name.toLowerCase() === name.toLowerCase());
+            const invalid = /[\\/:*?"<>|#%\u0000-\u001f]/.test(name) || name.endsWith(".");
+            note.classList.toggle("error", clash || invalid);
+            input.classList.toggle("invalid", clash || invalid);
+            if (clash) note.textContent = `A semantic view named \u201c${name}\u201d already exists in this lakehouse.`;
+            else if (invalid) note.textContent = "A semantic view name can\u2019t contain \\ / : * ? \" < > | # % or end with a period.";
+            else if (name) {
+                note.textContent = `Creates Context/Semantic Views/${name}/${name}_semantic_view.yaml in the lakehouse. `
+                    + "Publishing the view creates a semantic model with the same name.";
+            } else note.textContent = "The view name is the name of its folder in Context/Semantic Views and of the semantic model it publishes.";
+            create.disabled = busy || !viewWs || !viewLh || !name || clash || invalid;
+        };
+        input.addEventListener("input", () => { newViewName = input.value; viewError = null; err.style.display = "none"; refresh(); });
+        input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") create.click(); });
+        input.addEventListener("focus", () => { viewNameFocused = true; });
+        input.addEventListener("blur", () => { if (input.isConnected) viewNameFocused = false; });
+        refresh();
+        pickerHost.appendChild(card);
+        // The picker re-renders as lists load; keep the caret in the name box.
+        if (!busy && (viewNameFocused || (!newViewName && viewLh))) {
+            setTimeout(() => {
+                if (!input.isConnected || document.activeElement === input) return;
+                if (root.querySelector(".slls-ss-open")) return;
+                input.focus();
+                input.setSelectionRange(input.value.length, input.value.length);
+            }, 0);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Semantic view explorer (read-only / edit)
+    // ------------------------------------------------------------------
+    // A view is edited as a working copy of its datasets, relationships and
+    // metrics. Each object keeps a stable id plus the YAML file and list
+    // position it came from; edits are staged (undo / redo are snapshots of
+    // the working copy) and only written to the YAML files on Save.
+    const VIEW_TYPE_LABEL = { view: "Semantic view", dataset: "Dataset", column: "Column", relationship: "Relationship", metric: "Metric" };
+    const VIEW_ICON = { view: "layers", dataset: "table", column: "column", relationship: "relationship", metric: "measure" };
+    const VIEW_LISTS = { dataset: "datasets", relationship: "relationships", metric: "metrics" };
+    const VIEW_FIELDS = {
+        datasets: ["name", "source", "description"],
+        relationships: ["name", "from", "to", "from_column", "to_column"],
+        metrics: ["name", "description", "dax"],
+    };
+    function vKey() { return Array.from(arguments).join(KEY_SEP); }
+    function viewObjects(p) {
+        const take = (type, prefix) => (o, i) => Object.assign({}, o, { id: prefix + i, key: prefix + i, type, deleted: false, isNew: false });
+        return {
+            description: (p.view && p.view.description) || "",
+            datasets: (p.datasets || []).map(take("dataset", "ds")),
+            relationships: (p.relationships || []).map(take("relationship", "rel")),
+            metrics: (p.metrics || []).map(take("metric", "met")),
+        };
+    }
+    function onViewData() {
+        viewData = model.get("view_data") || null;
+        vBase = viewData && viewData.view ? viewObjects(viewData) : null;
+        vWork = vBase ? JSON.parse(JSON.stringify(vBase)) : null;
+        vUndo = []; vRedo = []; vEditKey = "";
+        rebuildViewIndex();
+        if (vPendingSelect) {
+            const p = vPendingSelect;
+            vPendingSelect = null;
+            const hit = [...vIndex.values()].find((n) => n.type === p.type && n.name === p.name);
+            if (hit) vSelected = hit.key;
+        }
+        if (!vIndex.has(vSelected)) vSelected = "view";
+    }
+    function vAll(kind) { return vWork ? vWork[kind] : []; }
+    function vLive(kind) { return vAll(kind).filter((o) => !o.deleted); }
+    function vBaseOf(o) { return o.isNew || !vBase ? null : (vBase[VIEW_LISTS[o.type]] || []).find((b) => b.id === o.id) || null; }
+    function vEditable(o) { return !!o && (o.type === "view" || ((o.isNew || !!o.file) && o.type !== "column")); }
+    function columnsFor(d) {
+        const base = vBaseOf(d);
+        if (base && base.source === d.source) return base.columns || [];
+        const cached = vColCache[String(d.source || "").toLowerCase()];
+        return cached && cached.columns ? cached.columns : [];
+    }
+    function rebuildViewIndex() {
+        vIndex = new Map();
+        vColumns = new Map();
+        if (!vWork) return;
+        vIndex.set("view", Object.assign({}, viewData.view, { key: "view", type: "view", description: vWork.description }));
+        for (const d of vWork.datasets) {
+            const cols = columnsFor(d).map((c) => Object.assign({}, c, { key: vKey("col", d.id, c.name), type: "column", dataset: d.name, datasetKey: d.key }));
+            vColumns.set(d.key, cols);
+            vIndex.set(d.key, d);
+            for (const c of cols) vIndex.set(c.key, c);
+        }
+        for (const r of vWork.relationships) vIndex.set(r.key, r);
+        for (const m of vWork.metrics) vIndex.set(m.key, m);
+    }
+    function vCols(d) { return vColumns.get(d.key) || []; }
+    const byName = (a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: "base" });
+    function vNodes(type, withDeleted) {
+        return vAll(VIEW_LISTS[type]).filter((o) => withDeleted || !o.deleted).slice().sort(byName);
+    }
+    function vDataset(name) { return vLive("datasets").find((d) => ciEq(d.name, name)) || null; }
+    function vFind(key) {
+        for (const kind of Object.values(VIEW_LISTS)) {
+            const o = vAll(kind).find((x) => x.key === key);
+            if (o) return o;
+        }
+        return null;
+    }
+    function fmtBytes(n) {
+        const units = ["B", "KB", "MB", "GB"];
+        let v = Number(n) || 0, i = 0;
+        while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
+        return `${v.toFixed(i ? 1 : 0)} ${units[i]}`;
+    }
+    function viewIssues() { return (viewData && viewData.issues) || []; }
+
+    // Pending changes
+    function vIsDirty(o) {
+        if (!o || !vWork) return false;
+        if (o.type === "view") return (vWork.description || "") !== (vBase.description || "");
+        if (o.type === "column") return false;
+        if (o.isNew || o.deleted) return true;
+        const b = vBaseOf(o);
+        return !!b && VIEW_FIELDS[VIEW_LISTS[o.type]].some((f) => (o[f] || "") !== (b[f] || ""));
+    }
+    function viewChanges() {
+        const out = { description: null, updates: [], deletes: [], creates: [] };
+        if (!vWork) return out;
+        if ((vWork.description || "") !== (vBase.description || "")) out.description = vWork.description || "";
+        for (const kind of Object.values(VIEW_LISTS)) {
+            for (const o of vWork[kind]) {
+                if (o.isNew) {
+                    const values = {};
+                    for (const f of VIEW_FIELDS[kind]) values[f] = o[f] || "";
+                    out.creates.push({ kind, file: o.file, values });
+                    continue;
+                }
+                const b = vBaseOf(o);
+                if (!o.file || !b) continue;
+                if (o.deleted) { out.deletes.push({ kind, file: o.file, index: o.index, name: b.name }); continue; }
+                const values = {};
+                for (const f of VIEW_FIELDS[kind]) if ((o[f] || "") !== (b[f] || "")) values[f] = o[f] || "";
+                if (Object.keys(values).length) out.updates.push({ kind, file: o.file, index: o.index, name: b.name, values });
+            }
+        }
+        return out;
+    }
+    function viewPendingCount() {
+        const c = viewChanges();
+        return (c.description !== null ? 1 : 0) + c.updates.length + c.deletes.length + c.creates.length;
+    }
+    function viewValidation() {
+        const errors = new Map();
+        if (!vWork) return errors;
+        const add = (o, msg) => { if (!errors.has(o.key)) errors.set(o.key, []); errors.get(o.key).push(msg); };
+        const text = (v) => String(v || "").trim();
+        const datasets = vLive("datasets"), rels = vLive("relationships"), metrics = vLive("metrics");
+        const dup = (items, label, fold) => {
+            const seen = new Set();
+            for (const o of items) {
+                const k = fold ? text(o.name).toLowerCase() : text(o.name);
+                if (!k) continue;
+                if (seen.has(k)) add(o, `Another ${label} is named \u201c${text(o.name)}\u201d.`);
+                seen.add(k);
+            }
+        };
+        for (const d of datasets) {
+            if (!vEditable(d)) continue;
+            if (!text(d.name)) add(d, "A name is required.");
+            if (!text(d.source)) add(d, "A source table is required (e.g. dbo.sales).");
+        }
+        dup(datasets, "dataset", true);
+        for (const r of rels) {
+            if (!vEditable(r)) continue;
+            if (!text(r.name)) add(r, "A name is required.");
+            if (!text(r.from) || !text(r.to)) add(r, "Choose the datasets on both sides.");
+            if (!text(r.from_column) || !text(r.to_column)) add(r, "Choose the columns on both sides.");
+        }
+        dup(rels, "relationship", false);
+        for (const m of metrics) {
+            if (!vEditable(m)) continue;
+            if (!text(m.name)) add(m, "A name is required.");
+            if (!text(m.dax) && vIsDirty(m)) add(m, "A DAX expression is required.");
+            if (datasets.some((d) => ciEq(text(d.name), text(m.name)))) add(m, "A metric can\u2019t have the same name as a dataset.");
+        }
+        dup(metrics, "metric", true);
+        return errors;
+    }
+    function viewBlockingErrors() {
+        const out = [];
+        for (const [key, msgs] of viewValidation()) {
+            const n = vIndex.get(key);
+            if (n && vIsDirty(n)) out.push(`${n.name || "(unnamed)"}: ${msgs[0]}`);
+        }
+        return out;
+    }
+
+    // Editing
+    function vBeginStep(editKey) {
+        // Typing in one field is a single undo step: every keystroke re-applies
+        // the edit to the state from before the field was first changed, so
+        // renames cascade from the original name.
+        if (editKey && editKey === vEditKey && vUndo.length) vWork = JSON.parse(vUndo[vUndo.length - 1]);
+        else {
+            vUndo.push(JSON.stringify(vWork));
+            if (vUndo.length > 200) vUndo.shift();
+        }
+        vEditKey = editKey || "";
+        vRedo = [];
+    }
+    function applyViewField(obj, field, value) {
+        const old = obj[field];
+        obj[field] = value;
+        if (field !== "name" || !old || !value || old === value) return;
+        // A rename updates the references to the object, unless the old name
+        // is ambiguous.
+        if (obj.type === "dataset" && !vLive("datasets").some((d) => d !== obj && ciEq(d.name, old))) {
+            for (const r of vLive("relationships")) {
+                if (ciEq(r.from, old)) r.from = value;
+                if (ciEq(r.to, old)) r.to = value;
+            }
+            for (const m of vLive("metrics")) if (m.dax) m.dax = rewriteDax(m.dax, [{ type: "table", oldName: old, newName: value }]);
+        } else if (obj.type === "metric" && !vLive("metrics").some((m) => m !== obj && ciEq(m.name, old))) {
+            for (const m of vLive("metrics")) {
+                if (m !== obj && m.dax) m.dax = rewriteDax(m.dax, [{ type: "measure", oldName: old, newName: value, table: "Metrics" }]);
+            }
+        }
+    }
+    function vEdit(key, field, value, opts) {
+        const o = opts || {};
+        vBeginStep(o.typing ? key + "\u0000" + field : "");
+        if (key === "view") vWork.description = value;
+        else {
+            const obj = vFind(key);
+            if (obj) applyViewField(obj, field, value);
+        }
+        vAfterChange(!!o.typing);
+    }
+    function vAfterChange(typing) {
+        rebuildViewIndex();
+        if (!vIndex.has(vSelected)) vSelected = "view";
+        renderHeader();
+        renderViewTree();
+        if (typing) refreshViewDetailHead();
+        else renderViewDetail();
+    }
+    function vUndoStep() {
+        if (!vUndo.length || vSaving) return;
+        vRedo.push(JSON.stringify(vWork));
+        vWork = JSON.parse(vUndo.pop());
+        vEditKey = "";
+        vAfterChange(false);
+    }
+    function vRedoStep() {
+        if (!vRedo.length || vSaving) return;
+        vUndo.push(JSON.stringify(vWork));
+        vWork = JSON.parse(vRedo.pop());
+        vEditKey = "";
+        vAfterChange(false);
+    }
+    function uniqueViewName(kind, base) {
+        const names = new Set(vAll(kind).map((o) => String(o.name || "").toLowerCase()));
+        let n = base, i = 2;
+        while (names.has(n.toLowerCase())) n = `${base} ${i++}`;
+        return n;
+    }
+    // New objects go to the file that already holds that kind of object (or
+    // the datasets, or the first YAML file); Save makes the same choice.
+    function defaultViewFile(kind) {
+        const first = (k) => ((vBase && vBase[k]) || []).find((o) => o.file);
+        const f = first(kind) || first("datasets");
+        if (f) return f.file;
+        const y = ((viewData && viewData.files) || []).find((x) => x.area === "definition" && !x.ignored && !x.error);
+        return y ? y.path : "";
+    }
+    function vAdd(type) {
+        const kind = VIEW_LISTS[type];
+        vBeginStep("");
+        const id = `new-${type}-${++vNewSeq}`;
+        const names = { dataset: "new_dataset", relationship: "new_relationship", metric: "New metric" };
+        const o = { id, key: id, type, isNew: true, deleted: false, file: defaultViewFile(kind), name: uniqueViewName(kind, names[type]) };
+        if (type === "dataset") Object.assign(o, { source: "", description: "" });
+        if (type === "relationship") {
+            const ds = vLive("datasets");
+            Object.assign(o, { from: ds[0] ? ds[0].name : "", to: ds[1] ? ds[1].name : "", from_column: "", to_column: "" });
+        }
+        if (type === "metric") Object.assign(o, { description: "", dax: "" });
+        vWork[kind].push(o);
+        vExpanded.add("view");
+        vExpanded.add("v:" + kind);
+        vSelected = id;
+        vAfterChange(false);
+    }
+    function vToggleDelete(node) {
+        vBeginStep("");
+        const kind = VIEW_LISTS[node.type];
+        if (node.isNew) vWork[kind] = vWork[kind].filter((x) => x.key !== node.key);
+        else { const w = vFind(node.key); if (w) w.deleted = !w.deleted; }
+        vAfterChange(false);
+    }
+    function discardViewChanges() {
+        if (vBase) vWork = JSON.parse(JSON.stringify(vBase));
+        vUndo = []; vRedo = []; vEditKey = "";
+        rebuildViewIndex();
+        if (!vIndex.has(vSelected)) vSelected = "view";
+    }
+    function setViewMode(next) {
+        if (vSaving) return;
+        if (next === "read" && viewPendingCount()) {
+            confirmDialog(`Discard ${plural(viewPendingCount(), "pending change")} and switch to read-only mode?`, "Discard", () => {
+                discardViewChanges();
+                vMode = "read";
+                renderAll();
+            });
+            return;
+        }
+        vMode = next;
+        if (next === "write") ensureViewTables();
+        renderAll();
+    }
+    function viewEtags() {
+        const out = {};
+        for (const f of (viewData && viewData.files) || []) if (f.area === "definition" && f.etag) out[f.path] = f.etag;
+        return out;
+    }
+    function vSave(publish) {
+        if (vSaving || (!viewPendingCount() && !publish)) return;
+        if (publish) {
+            const name = viewData.view.name;
+            const what = viewPendingCount() ? `Save ${plural(viewPendingCount(), "change")} and publish` : "Publish";
+            confirmDialog(`${what} the \u201c${name}\u201d semantic view? Publishing creates or updates the \u201c${name}\u201d semantic model `
+                + "and then refreshes it (reports and agents using it see the changes).", viewPendingCount() ? "Save and publish" : "Publish", () => runViewSave(true));
+            return;
+        }
+        runViewSave(false);
+    }
+    function runViewSave(publish) {
+        if (vSaving) return;
+        const blocking = viewBlockingErrors();
+        if (blocking.length) {
+            model.set("status", { message: `Fix these before saving: ${blocking.join("; ")}`, kind: "error" });
+            model.save_changes();
+            return;
+        }
+        const sel = vIndex.get(vSelected);
+        vPendingSelect = sel && sel.type !== "view" ? { type: sel.type, name: sel.name } : null;
+        vSaving = true;
+        renderAll();
+        request("save_view", { changes: viewChanges(), etags: viewEtags(), publish: !!publish }, (res) => {
+            vSaving = false;
+            if (!res.ok) vPendingSelect = null;
+            renderAll();
+        });
+    }
+    // Lakehouse tables offered for dataset sources, and the columns of tables
+    // a dataset is pointed at.
+    function ensureViewTables() {
+        if (vTables !== null) return;
+        vTables = [];
+        request("view_tables", {}, (res) => {
+            vTables = res.ok ? (res.data.items || []) : [];
+            const list = root.querySelector("#slls-sx-vtables");
+            if (list) fillTableList(list);
+        });
+    }
+    function fillTableList(list) {
+        clear(list);
+        for (const t of vTables || []) { const o = h("option"); o.value = t; list.appendChild(o); }
+    }
+    function ensureViewColumns(source) {
+        const key = String(source || "").trim().toLowerCase();
+        if (!key || vColCache[key]) return;
+        if (vAll("datasets").some((d) => { const b = vBaseOf(d); return b && String(b.source).toLowerCase() === key; })) return;
+        vColCache[key] = { loading: true, columns: [] };
+        request("view_columns", { source: source.trim() }, (res) => {
+            vColCache[key] = { loading: false, columns: res.ok ? (res.data.columns || []) : [] };
+            if (!viewOpen() || pickerOpen) return;
+            rebuildViewIndex();
+            renderViewTree();
+            renderViewDetail();
+        });
+    }
+
+    // Header
+    function renderViewHeaderControls() {
+        header.appendChild(button("sl-change-btn", "", "swap", () => openPicker(), "Change the semantic view, or open a semantic model"));
+        const group = h("div", "slls-sx-head-group");
+        const write = vMode === "write";
+        const modeBtn = h("button", "slls-sx-mode" + (write ? " write" : ""));
+        modeBtn.type = "button";
+        modeBtn.setAttribute("role", "switch");
+        modeBtn.setAttribute("aria-checked", String(write));
+        modeBtn.title = write ? "Edit mode (changes are saved to the YAML files)" : "Read-only mode \u2014 click to enable editing";
+        modeBtn.innerHTML = (write ? ICON.pencil : ICON.eye) + '<span class="slls-sx-track"></span>';
+        modeBtn.appendChild(document.createTextNode(write ? "Edit" : "Read-only"));
+        modeBtn.disabled = vSaving;
+        modeBtn.addEventListener("click", () => setViewMode(write ? "read" : "write"));
+        group.appendChild(modeBtn);
+        if (write) {
+            const u = button("slls-sx-btn icon", "", "undo", vUndoStep, "Undo");
+            u.disabled = !vUndo.length || vSaving;
+            const r = button("slls-sx-btn icon", "", "redo", vRedoStep, "Redo");
+            r.disabled = !vRedo.length || vSaving;
+            const count = viewPendingCount();
+            const blocking = count ? viewBlockingErrors() : [];
+            const title = vSaving ? "Saving changes to the YAML files\u2026"
+                : !count ? "No changes to save"
+                : blocking.length ? `Fix before saving: ${blocking.join("; ")}`
+                : `Save ${plural(count, "change")} to the YAML files`;
+            const s = button("slls-sx-btn icon slls-sx-split-main", "", vSaving ? "refresh" : "save", () => vSave(false), title);
+            if (vSaving) s.querySelector("svg").classList.add("slls-sx-spin");
+            s.disabled = !count || vSaving || !!model.get("busy");
+            const more = button("slls-sx-btn icon slls-sx-split-more", "", "chevron_down", () => {
+                const rect = more.getBoundingClientRect();
+                const items = [];
+                if (count) items.push(["Save", "save", () => vSave(false)]);
+                items.push([count ? "Save and publish" : "Publish", "upload", () => vSave(true)]);
+                showMenu(rect.left, rect.bottom + 4, items);
+            }, "Save options");
+            more.setAttribute("aria-haspopup", "menu");
+            more.disabled = vSaving || !!model.get("busy");
+            const split = h("div", "slls-sx-split");
+            split.append(s, more);
+            group.append(u, r, split);
+        }
+        header.appendChild(group);
+        header.appendChild(button("slls-sx-btn", "YAML", "file", () => openViewFiles(), "View the YAML files behind the semantic view"));
+        const issues = viewIssues();
+        const errors = issues.filter((i) => i.level === "error").length;
+        header.appendChild(button("slls-sx-btn errors" + (errors ? " has" : ""), String(issues.length), "alert", openViewIssues,
+            `Problems (${plural(errors, "error")}, ${plural(issues.length - errors, "warning")})`));
+    }
+    function renderViewBody() {
+        if (model.get("busy") === "reload_view" && !treePane.isConnected) { loadingInto(body, "Reading the semantic view\u2026"); return; }
+        body.append(treePane, dragHandle, detailPane);
+        dragHandle.style.display = paneCollapsed ? "none" : "";
+        renderViewTreePane();
+        renderViewDetail();
+    }
+
+    // Tree
+    function buildViewRows() {
+        const rows = [];
+        const q = vSearch.trim().toLowerCase();
+        const open = (id) => !!q || vExpanded.has(id);
+        const hit = (s) => !q || String(s || "").toLowerCase().includes(q);
+        rows.push({ id: "view", depth: 0, node: vIndex.get("view"), hasChildren: true, open: open("view") });
+        if (!open("view")) return rows;
+        const datasets = [];
+        for (const d of vNodes("dataset", true)) {
+            const columns = vCols(d).slice().sort(byName).filter((c) => hit(d.name) || hit(c.name));
+            if (hit(d.name) || columns.length) datasets.push({ d, columns });
+        }
+        const folder = (id, label, icon, count, noun) => {
+            if (q && !count) return false;
+            const trailTitle = `${plural(count, noun)} ${q ? "matching the search" : "in the semantic view"}`;
+            rows.push({ id, depth: 1, folder: true, label, icon, hasChildren: count > 0, open: open(id), trailing: String(count), trailTitle });
+            return open(id);
+        };
+        if (folder("v:datasets", "Datasets", "table", datasets.length, "dataset")) {
+            for (const { d, columns } of datasets) {
+                const n = vCols(d).length;
+                rows.push({ id: d.key, depth: 2, node: d, hasChildren: columns.length > 0, open: open(d.key), trailing: n ? `${n}c` : "",
+                    trailTitle: `${plural(n, "column")} in this dataset` });
+                if (open(d.key)) for (const c of columns) rows.push({ id: c.key, depth: 3, node: c, trailing: c.data_type || "", trailTitle: "Data type" });
+            }
+        }
+        const rels = vNodes("relationship", true).filter((r) => hit(r.name) || hit(r.from) || hit(r.to));
+        if (folder("v:relationships", "Relationships", "relationship", rels.length, "relationship")) {
+            for (const r of rels) rows.push({ id: r.key, depth: 2, node: r });
+        }
+        const metrics = vNodes("metric", true).filter((m) => hit(m.name));
+        if (folder("v:metrics", "Metrics", "measure", metrics.length, "metric")) {
+            for (const m of metrics) rows.push({ id: m.key, depth: 2, node: m });
+        }
+        return rows;
+    }
+    function viewRowElement(r, errors) {
+        const node = r.node;
+        const row = h("div", "slls-sx-row");
+        row.setAttribute("role", "treeitem");
+        row.style.paddingLeft = (6 + r.depth * 16) + "px";
+        row.dataset.id = r.id;
+        if (node) row.dataset.key = node.key;
+        if (node && node.key === vSelected) row.classList.add("selected");
+        if (r.folder) row.classList.add("folder");
+        const caret = h("span", "slls-sx-caret" + (r.open ? " open" : ""));
+        if (r.hasChildren) {
+            caret.innerHTML = ICON.caret_right;
+            caret.addEventListener("click", (ev) => { ev.stopPropagation(); vToggle(r.id); });
+        }
+        row.appendChild(caret);
+        row.appendChild(iconEl(node ? VIEW_ICON[node.type] : r.icon));
+        const text = node ? (node.name || "(unnamed)") : r.label;
+        const label = h("span", "slls-sx-rlabel", text);
+        label.title = node && node.description ? `${text}\n${node.description}` : text;
+        if (node && node.type === "relationship") label.title = `${text}\n${node.from}[${node.from_column}] \u2192 ${node.to}[${node.to_column}]`;
+        row.appendChild(label);
+        if (node && ((node.type === "column" && node.is_hidden) || (node.type === "metric" && !String(node.dax || "").trim() && !node.isNew))) row.classList.add("muted");
+        if (node && node.isNew) row.classList.add("new");
+        if (node && node.deleted) row.classList.add("deleted");
+        if (node && errors.has(node.key)) {
+            const err = iconEl("alert", "slls-sx-err");
+            err.title = errors.get(node.key).join("\n");
+            row.appendChild(err);
+        }
+        if (node && node.type !== "column" && vIsDirty(node)) { const d = h("span", "slls-sx-dot"); d.title = "Unsaved change"; row.appendChild(d); }
+        if (node && !node.isNew && viewData.view.published && ["dataset", "relationship", "metric"].includes(node.type)
+            && (node.publish_state === "changed" || node.publish_state === "missing")) {
+            const u = iconEl("upload", "slls-sx-unpub");
+            u.title = node.publish_state === "missing" ? "Not in the published model" : unpublishedText(node);
+            row.appendChild(u);
+        }
+        if (r.trailing) {
+            const trail = h("span", "slls-sx-trail", r.trailing);
+            if (r.trailTitle) trail.title = r.trailTitle;
+            row.appendChild(trail);
+        }
+        row.addEventListener("click", () => { if (node) vSelect(node.key); else vToggle(r.id); });
+        row.addEventListener("dblclick", () => { if (r.hasChildren && node) vToggle(r.id); });
+        return row;
+    }
+    function renderViewTree() {
+        if (!vTreeEl) return;
+        const top = vTreeEl.scrollTop;
+        clear(vTreeEl);
+        const rows = buildViewRows();
+        const errors = vMode === "write" ? viewValidation() : new Map();
+        root.dataset.rows = String(rows.length);
+        for (const r of rows) vTreeEl.appendChild(viewRowElement(r, errors));
+        if (rows.length <= 1 && vSearch.trim()) vTreeEl.appendChild(h("div", "slls-sx-empty", "No matches."));
+        vTreeEl.scrollTop = top;
+    }
+    function vToggle(id) {
+        if (vExpanded.has(id)) vExpanded.delete(id); else vExpanded.add(id);
+        renderViewTree();
+    }
+    function vSelect(key) {
+        vSelected = key;
+        vEditKey = "";
+        for (const row of vTreeEl ? vTreeEl.querySelectorAll(".slls-sx-row") : []) row.classList.toggle("selected", row.dataset.key === key);
+        renderViewDetail();
+    }
+    function vReveal(key) {
+        const node = vIndex.get(key);
+        if (!node) return;
+        vExpanded.add("view");
+        if (node.type === "dataset" || node.type === "column") vExpanded.add("v:datasets");
+        if (node.type === "column") vExpanded.add(node.datasetKey);
+        if (node.type === "relationship") vExpanded.add("v:relationships");
+        if (node.type === "metric") vExpanded.add("v:metrics");
+        vSearch = "";
+        vSelected = key;
+        vEditKey = "";
+        renderViewTreePane();
+        renderViewDetail();
+        const row = vTreeEl && [...vTreeEl.children].find((r) => r.dataset && r.dataset.key === key);
+        if (row) row.scrollIntoView({ block: "nearest" });
+    }
+    function renderViewTreePane() {
+        clear(treePane);
+        treePane.classList.toggle("collapsed", paneCollapsed);
+        treePane.style.width = paneWidth + "px";
+        if (paneCollapsed) {
+            treePane.appendChild(iconEl("list_tree"));
+            treePane.appendChild(button("slls-sx-iconbtn", "", "panel_expand", () => { paneCollapsed = false; renderBody(); }, "Expand view tree"));
+            return;
+        }
+        const head = h("div", "slls-sx-pane-head");
+        head.appendChild(h("span", "slls-sx-pane-label", "Semantic view"));
+        const tools = h("div", "slls-sx-pane-tools");
+        const forced = !!vSearch.trim();
+        const ex = button("slls-sx-iconbtn", "", "expand_rows", () => {
+            vExpanded = new Set(["view", "v:datasets", "v:relationships", "v:metrics", ...vNodes("dataset", true).map((d) => d.key)]);
+            renderViewTree();
+        }, "Expand all");
+        const co = button("slls-sx-iconbtn", "", "collapse_rows", () => { vExpanded = new Set(["view"]); renderViewTree(); }, "Collapse all");
+        ex.disabled = co.disabled = forced;
+        const reloading = model.get("busy") === "reload_view";
+        const doReload = () => {
+            request("reload_view", {}, () => renderAll());
+            renderViewTreePane();
+        };
+        const reload = button("slls-sx-iconbtn", "", "refresh", () => {
+            if (viewPendingCount()) confirmDialog(`Reloading discards ${plural(viewPendingCount(), "pending change")}.`, "Reload", doReload);
+            else doReload();
+        }, "Reload the semantic view");
+        if (reloading) reload.querySelector("svg").classList.add("slls-sx-spin");
+        reload.disabled = !!model.get("busy") || vSaving;
+        const collapse = button("slls-sx-iconbtn", "", "panel_collapse", () => { paneCollapsed = true; renderBody(); }, "Collapse view tree");
+        tools.append(ex, co, reload, collapse);
+        head.appendChild(tools);
+        treePane.appendChild(head);
+        const filters = h("div", "slls-sx-filters");
+        const sw = h("div", "slls-sx-search");
+        sw.appendChild(iconEl("search", ""));
+        const input = h("input", "slls-sx-input");
+        input.type = "search";
+        input.placeholder = "Search datasets, columns and metrics\u2026";
+        input.value = vSearch;
+        let timer = null;
+        input.addEventListener("input", () => {
+            vSearch = input.value;
+            ex.disabled = co.disabled = !!vSearch.trim();
+            clearTimeout(timer);
+            timer = setTimeout(renderViewTree, 150);
+        });
+        sw.appendChild(input);
+        filters.appendChild(sw);
+        treePane.appendChild(filters);
+        vTreeEl = h("div", "slls-sx-tree slls-sx-vtree");
+        vTreeEl.setAttribute("role", "tree");
+        treePane.appendChild(vTreeEl);
+        renderViewTree();
+    }
+
+    // Detail pane
+    function vProps(rows) {
+        const grid = h("div", "slls-sx-props");
+        for (const [label, value, long] of rows) {
+            const l = h("div", "slls-sx-plabel");
+            l.appendChild(h("span", "", label));
+            const v = h("div", "slls-sx-pvalue" + (long ? " long" : ""));
+            if (value instanceof Node) v.appendChild(value);
+            else if (value === "" || value === null || value === undefined) v.appendChild(h("span", "none", "(blank)"));
+            else if (typeof value === "boolean") v.appendChild(h("span", value ? "yes" : "no", value ? "Yes" : "No"));
+            else v.textContent = String(value);
+            grid.append(l, v);
+        }
+        return grid;
+    }
+    function vCard(parent, title, fill, opts) {
+        const c = card(title, Object.assign({ noFilter: true }, opts || {}));
+        if (c.open) fill(c.body, c);
+        parent.appendChild(c.el);
+        return c;
+    }
+    function vLink(text, onClick) {
+        const a = h("a", "slls-sx-link", text);
+        a.addEventListener("click", onClick);
+        return a;
+    }
+    function fileLink(path, node) {
+        if (node && node.isNew) return h("span", "", path ? `${path} (when saved)` : "(the first YAML file, when saved)");
+        return path ? vLink(path, () => openViewFiles(path)) : h("span", "none", "(inferred when published)");
+    }
+    function datasetLink(name) {
+        const d = vDataset(name);
+        return d ? vLink(name, () => vReveal(d.key)) : document.createTextNode(name || "");
+    }
+    // Editors for a staged field: typing is one undo step per field.
+    function vInput(node, field, opts) {
+        const o = opts || {};
+        const input = h(o.multiline ? "textarea" : "input", o.multiline ? "slls-sx-textarea" : "slls-sx-input");
+        if (o.multiline) input.rows = 3;
+        input.value = (node.type === "view" ? vWork.description : node[field]) || "";
+        if (o.placeholder) input.placeholder = o.placeholder;
+        if (o.list) input.setAttribute("list", o.list);
+        input.setAttribute("aria-label", o.label || field);
+        input.dataset.field = field;
+        input.addEventListener("input", () => vEdit(node.key, field, input.value, { typing: true }));
+        input.addEventListener("change", () => { vEditKey = ""; if (o.onCommit) o.onCommit(input.value); });
+        return input;
+    }
+    function vChoice(node, field, options, placeholder, onChange) {
+        const sel = h("select", "slls-sx-select");
+        sel.setAttribute("aria-label", field);
+        const current = node[field] || "";
+        const values = options.slice();
+        if (current && !values.includes(current)) values.unshift(current);
+        if (!current) {
+            const ph = h("option", "", placeholder || "Select\u2026");
+            ph.value = ""; ph.disabled = true; ph.selected = true;
+            sel.appendChild(ph);
+        }
+        for (const v of values) { const op = h("option", "", v); op.value = v; op.selected = v === current; sel.appendChild(op); }
+        sel.addEventListener("change", () => { vEdit(node.key, field, sel.value); if (onChange) onChange(sel.value); });
+        return sel;
+    }
+    function issueList(container, issues) {
+        if (!issues.length) { container.appendChild(h("div", "slls-sx-kv-empty", "No problems found.")); return; }
+        for (const i of issues) {
+            const row = h("div", "slls-sx-issue " + i.level);
+            row.append(iconEl(i.level === "error" ? "alert" : "info", ""), h("span", "", i.message));
+            if (i.file) { const f = fileLink(i.file); f.classList.add("file"); row.appendChild(f); }
+            container.appendChild(row);
+        }
+    }
+    function openViewIssues() {
+        const m = modal(`Problems \u2014 ${viewData.view.name}`, "alert");
+        const note = h("div", "slls-sx-picker-note");
+        note.style.margin = "0 0 8px";
+        note.textContent = "Checked when the view was read (saved files only). Fabric validates the definition again when the view is published.";
+        m.body.appendChild(note);
+        issueList(m.body, viewIssues());
+    }
+    function viewPills(node, typeEl) {
+        const view = viewData.view;
+        if (node.type === "view") {
+            typeEl.appendChild(h("span", "slls-sx-pill" + (view.published ? " new" : " warn"), view.published ? "Published" : "Not published"));
+            if (view.published && view.unpublished_count) {
+                const p = h("span", "slls-sx-pill warn", `${plural(view.unpublished_count, "unpublished change")}`);
+                p.title = "Saved changes in the YAML files which haven\u2019t been published yet";
+                typeEl.appendChild(p);
+            }
+        }
+        if (node.isNew) typeEl.appendChild(h("span", "slls-sx-pill new", "New"));
+        else if (node.deleted) typeEl.appendChild(h("span", "slls-sx-pill danger", "Pending delete"));
+        else if (vIsDirty(node)) typeEl.appendChild(h("span", "slls-sx-pill warn", "Modified"));
+        if (node.type === "dataset" && node.inferred) typeEl.appendChild(h("span", "slls-sx-pill", "Inferred"));
+        if (node.type === "metric" && !node.isNew && !String(node.dax || "").trim()) typeEl.appendChild(h("span", "slls-sx-pill warn", "No DAX"));
+        // Published = in the generated model's TMDL (the last publish); saved
+        // definitions which differ from it are unpublished changes.
+        if (["dataset", "relationship", "metric"].includes(node.type) && view.published && !node.isNew) {
+            if (!node.published) typeEl.appendChild(h("span", "slls-sx-pill warn", "Not in the published model"));
+            else {
+                typeEl.appendChild(h("span", "slls-sx-pill new", "Published"));
+                if (node.publish_state === "changed") {
+                    const p = h("span", "slls-sx-pill warn", "Unpublished changes");
+                    p.title = unpublishedText(node);
+                    typeEl.appendChild(p);
+                }
+            }
+        }
+        if (node.type === "column" && node.is_hidden) typeEl.appendChild(h("span", "slls-sx-pill", "Hidden"));
+    }
+    function unpublishedText(node) {
+        return `Saved changes which haven\u2019t been published yet: ${(node.publish_diff || []).join(", ") || "definition"}`;
+    }
+    // "In the published model" + what has changed since it was published.
+    function publishRows(node) {
+        if (!viewData.view.published || node.isNew) return [];
+        const rows = [["In the published model", !!node.published]];
+        if (node.publish_state === "changed") {
+            rows.push(["Unpublished changes", h("span", "slls-sx-unpub-text", (node.publish_diff || []).join(", ") || "definition")]);
+        }
+        return rows;
+    }
+    function paintViewErrors(node) {
+        const box = detailPane.querySelector(".slls-sx-verrors");
+        if (!box) return;
+        clear(box);
+        const msgs = vMode === "write" ? (viewValidation().get(node.key) || []) : [];
+        box.style.display = msgs.length ? "" : "none";
+        for (const msg of msgs) {
+            const row = h("div", "slls-sx-issue error");
+            row.append(iconEl("alert", ""), h("span", "", msg));
+            box.appendChild(row);
+        }
+    }
+    // While typing only the title, badges and validation refresh, so the
+    // field being edited keeps focus.
+    function refreshViewDetailHead() {
+        const node = vIndex.get(vSelected);
+        if (!node) return;
+        const nameEl = detailPane.querySelector(".slls-sx-objname");
+        if (nameEl) { nameEl.textContent = node.type === "view" ? node.name : (node.name || "(unnamed)"); nameEl.title = nameEl.textContent; }
+        const typeEl = detailPane.querySelector(".slls-sx-objtype");
+        if (typeEl) {
+            typeEl.textContent = VIEW_TYPE_LABEL[node.type] + (node.type === "column" ? ` \u00b7 ${node.dataset}` : "");
+            viewPills(node, typeEl);
+        }
+        paintViewErrors(node);
+    }
+    function renderViewDetail() {
+        clear(detailPane);
+        const node = vIndex.get(vSelected) || vIndex.get("view");
+        if (!node) return;
+        const write = vMode === "write" && !vSaving && vEditable(node) && !node.deleted;
+        const head = h("div", "slls-sx-detail-head");
+        head.appendChild(iconEl(VIEW_ICON[node.type], "slls-sx-objicon"));
+        const titles = h("div", "slls-sx-objtitle");
+        const nameEl = h("div", "slls-sx-objname", node.name || "(unnamed)");
+        nameEl.title = nameEl.textContent;
+        const typeEl = h("div", "slls-sx-objtype", VIEW_TYPE_LABEL[node.type] + (node.type === "column" ? ` \u00b7 ${node.dataset}` : ""));
+        viewPills(node, typeEl);
+        titles.append(nameEl, typeEl);
+        head.appendChild(titles);
+        const stats = h("div", "slls-sx-stats");
+        const stat = (n, label) => { const s = h("div", "slls-sx-stat"); s.append(h("b", "", n.toLocaleString()), h("span", "", label)); stats.appendChild(s); };
+        if (node.type === "view") {
+            const datasets = vNodes("dataset");
+            stat(datasets.length, "datasets");
+            stat(datasets.reduce((a, d) => a + vCols(d).length, 0), "columns");
+            stat(vNodes("relationship").length, "relationships");
+            stat(vNodes("metric").length, "metrics");
+        } else if (node.type === "dataset") stat(vCols(node).length, "columns");
+        head.appendChild(stats);
+        detailPane.appendChild(head);
+
+        const actions = h("div", "slls-sx-detail-actions");
+        if (node.type === "view") actions.appendChild(button("slls-sx-btn small", "YAML", "file", () => openViewFiles(), "View the YAML files behind the semantic view"));
+        else if (node.file && !node.isNew) actions.appendChild(button("slls-sx-btn small", "YAML", "file", () => openViewFiles(node.file), `View ${node.file}`));
+        if (node.type === "column") actions.appendChild(button("slls-sx-btn small", "Dataset", "table", () => vReveal(node.datasetKey), "Go to the dataset"));
+        if (vMode === "write" && !vSaving) {
+            if (node.type === "view") {
+                actions.appendChild(button("slls-sx-btn small", "Dataset", "plus", () => vAdd("dataset"), "Add a dataset"));
+                actions.appendChild(button("slls-sx-btn small", "Relationship", "plus", () => vAdd("relationship"), "Add a relationship"));
+                actions.appendChild(button("slls-sx-btn small", "Metric", "plus", () => vAdd("metric"), "Add a metric"));
+            } else if (vEditable(node)) {
+                actions.appendChild(node.deleted
+                    ? button("slls-sx-btn small", "Restore", "undo", () => vToggleDelete(node))
+                    : button("slls-sx-btn small danger", "Delete", "trash", () => vToggleDelete(node)));
+            }
+        }
+        if (actions.children.length) detailPane.appendChild(actions);
+
+        const b = h("div", "slls-sx-detail-body");
+        detailPane.appendChild(b);
+        const errBox = h("div", "slls-sx-verrors");
+        b.appendChild(errBox);
+        paintViewErrors(node);
+        if (node.type === "view") viewDetail(node, b, write);
+        else if (node.type === "dataset") datasetDetail(node, b, write);
+        else if (node.type === "column") columnDetail(node, b);
+        else if (node.type === "relationship") relationshipDetail(node, b, write);
+        else if (node.type === "metric") metricDetail(node, b, write);
+        if (vMode === "write" && !vEditable(node) && node.type === "dataset") {
+            const note = "Fabric added this table when the view was published; it isn\u2019t defined in the YAML files, so it can\u2019t be edited here.";
+            b.insertBefore(h("div", "slls-sx-picker-note slls-sx-vnote", note), errBox.nextSibling);
+        }
+    }
+    function notApplied(parent, node) {
+        if (!(node.ignored || []).length) return;
+        vCard(parent, "Not applied", (body) => {
+            const keys = node.ignored.join(", ");
+            const verb = node.ignored.length === 1 ? "is" : "are";
+            body.appendChild(h("div", "slls-sx-picker-note", `${keys} ${verb} accepted in the definition but omitted from the generated semantic model.`));
+        });
+    }
+    function viewDetail(node, b, write) {
+        const issues = viewIssues();
+        if (issues.length) vCard(b, "Problems", (body) => issueList(body, issues), { count: issues.length });
+        const files = (viewData.files || []).filter((f) => f.area === "definition");
+        const yamlFiles = files.filter((f) => !f.ignored);
+        vCard(b, "General", (body) => body.appendChild(vProps([
+            ["Name", node.name],
+            ["Description", write ? vInput(node, "description", { multiline: true, label: "Description", placeholder: "What this view is about" }) : node.description, true],
+            ["Lakehouse", node.lakehouse_name],
+            ["Workspace", node.workspace_name],
+            ["Definition folder", node.folder],
+            ["YAML files", `${yamlFiles.length} of 20 \u00b7 ${fmtBytes(yamlFiles.reduce((a, f) => a + f.size, 0))}`],
+            ["Published", !!node.published],
+            ["Semantic model", node.published ? node.name : h("span", "none", "Created when the view is published")],
+            ["Published output", node.published ? node.output_folder : ""],
+            ...(node.published ? [["Unpublished changes", node.unpublished_count
+                ? h("span", "slls-sx-unpub-text", `${node.unpublished_count}${(node.publish_diff || []).length ? " (including the description)" : ""}`)
+                : h("span", "yes", "None \u2014 the published model is up to date")]] : []),
+        ])), { dirty: vIsDirty(node) });
+        vCard(b, "Files", (body) => {
+            const list = h("div", "slls-sx-sublist");
+            for (const f of files) {
+                const it = h("div", "slls-sx-subitem" + (f.ignored ? " muted" : ""));
+                it.append(iconEl(f.error ? "alert" : "file", ""), h("span", "slls-sx-files-name", f.path), h("span", "meta", f.ignored ? "ignored" : fmtBytes(f.size)));
+                it.title = f.ignored ? `${f.path}\nIgnored \u2014 only .yaml files are part of the view` : f.path;
+                it.addEventListener("click", () => openViewFiles(f.path));
+                list.appendChild(it);
+            }
+            if (!files.length) list.appendChild(h("div", "slls-sx-kv-empty", "The view folder is empty."));
+            body.appendChild(list);
+        }, { count: files.length });
+    }
+    function datasetDetail(node, b, write) {
+        const cached = vColCache[String(node.source || "").trim().toLowerCase()];
+        const from = cached && cached.loading ? "Reading the lakehouse table\u2026"
+            : !vBaseOf(node) || vBaseOf(node).source !== node.source ? (vCols(node).length ? "Lakehouse table" : "")
+            : { published: "Published semantic model", lakehouse: "Lakehouse table (the view isn\u2019t published yet)" }[node.columns_from];
+        let source = node.source;
+        if (write) {
+            const wrap = h("div", "slls-sx-vsource");
+            const input = vInput(node, "source", {
+                label: "Source", placeholder: "schema.table, e.g. dbo.sales", list: "slls-sx-vtables",
+                onCommit: (value) => {
+                    ensureViewColumns(value);
+                    // A new dataset is named after its table until it is renamed.
+                    const w = vFind(node.key);
+                    const table = String(value || "").trim().split(".").pop();
+                    if (w && w.isNew && /^new_dataset( \d+)?$/.test(w.name) && table) {
+                        vEdit(node.key, "name", uniqueViewName("datasets", table));
+                    } else renderViewDetail();
+                },
+            });
+            const list = h("datalist");
+            list.id = "slls-sx-vtables";
+            fillTableList(list);
+            wrap.append(input, list);
+            source = wrap;
+        }
+        vCard(b, "General", (body) => body.appendChild(vProps([
+            ["Name", write ? vInput(node, "name", { label: "Name" }) : node.name],
+            ["Source", source],
+            ["Description", write ? vInput(node, "description", { multiline: true, label: "Description" }) : node.description, true],
+            ["Defined in", fileLink(node.file, node)],
+            ["Columns from", from || h("span", "none", node.source ? "Unavailable \u2014 the source table could not be read" : "Choose a source table")],
+            ...publishRows(node),
+        ])), { dirty: vIsDirty(node) });
+        notApplied(b, node);
+        const rels = vNodes("relationship").filter((r) => ciEq(r.from, node.name) || ciEq(r.to, node.name));
+        vCard(b, "Relationships", (body) => {
+            const list = h("div", "slls-sx-sublist");
+            for (const r of rels) {
+                const it = h("div", "slls-sx-subitem");
+                it.append(iconEl("relationship", ""), h("span", "", r.name), h("span", "meta", `${r.from}[${r.from_column}] \u2192 ${r.to}[${r.to_column}]`));
+                it.addEventListener("click", () => vReveal(r.key));
+                list.appendChild(it);
+            }
+            if (!rels.length) list.appendChild(h("div", "slls-sx-kv-empty", "No relationships use this dataset."));
+            body.appendChild(list);
+        }, { count: rels.length });
+    }
+    function columnDetail(node, b) {
+        vCard(b, "General", (body) => body.appendChild(vProps([
+            ["Name", node.name],
+            ["Dataset", datasetLink(node.dataset)],
+            ["Data type", node.data_type],
+            ["Description", node.description, true],
+            ["Source column", node.source_column],
+            ["Format string", node.format_string],
+            ["Hidden", !!node.is_hidden],
+        ])));
+    }
+    function relationshipDetail(node, b, write) {
+        const rel = h("div", "slls-sx-rel");
+        const end = (t, c, many) => {
+            const e = h("div", "slls-sx-rel-end");
+            const tl = h("b", "", t || "(choose a dataset)");
+            const d = vDataset(t);
+            if (d) { tl.className = "slls-sx-link"; tl.addEventListener("click", () => vReveal(d.key)); }
+            e.append(tl, h("span", "", `${c || "\u2014"} \u00b7 ${many ? "Many (*)" : "One (1)"}`));
+            return e;
+        };
+        const mid = h("div", "slls-sx-rel-mid");
+        mid.append(iconEl("relationship", ""), h("span", "", node.cross_filter === "bothDirections" ? "\u21c4 Both" : "\u2190 Single"));
+        rel.append(end(node.from, node.from_column, true), mid, end(node.to, node.to_column, false));
+        b.appendChild(rel);
+        const names = vNodes("dataset").map((d) => d.name);
+        const columnEditor = (side) => {
+            const d = vDataset(node[side]);
+            const cols = d ? vCols(d).map((c) => c.name) : [];
+            if (cols.length) return vChoice(node, side + "_column", cols, "Select a column\u2026");
+            return vInput(node, side + "_column", { label: side === "from" ? "From column" : "To column", placeholder: "column name" });
+        };
+        const rows = write ? [
+            ["Name", vInput(node, "name", { label: "Name" })],
+            ["From (many side)", vChoice(node, "from", names, "Select a dataset\u2026")],
+            ["From column", columnEditor("from")],
+            ["To (one side)", vChoice(node, "to", names, "Select a dataset\u2026")],
+            ["To column", columnEditor("to")],
+        ] : [
+            ["Name", node.name],
+            ["From (many side)", datasetLink(node.from)],
+            ["From column", node.from_column],
+            ["To (one side)", datasetLink(node.to)],
+            ["To column", node.to_column],
+        ];
+        rows.push(["Cardinality", "Many to one"], ["Active", true], ["Defined in", fileLink(node.file, node)]);
+        rows.push(...publishRows(node));
+        vCard(b, "General", (body) => body.appendChild(vProps(rows)), { dirty: vIsDirty(node) });
+        notApplied(b, node);
+    }
+    function metricDetail(node, b, write) {
+        const c = vCard(b, "DAX expression", (body) => {
+            if (write) {
+                const ed = codeEditor(node.dax || "", "dax", false, (v) => vEdit(node.key, "dax", v, { typing: true }));
+                ed.el.querySelector("textarea").addEventListener("blur", () => { vEditKey = ""; });
+                body.appendChild(ed.el);
+            } else if (String(node.dax || "").trim()) body.appendChild(codeEditor(node.dax, "dax", true).el);
+            else body.appendChild(h("div", "slls-sx-code-error", "This metric has no DAX dialect, so it is omitted from the generated semantic model."));
+        }, { dirty: vIsDirty(node) && (vBaseOf(node) || {}).dax !== node.dax });
+        if (write) {
+            const fmt = button("slls-sx-btn small", "Format DAX", "wand", () => {
+                const text = (vFind(node.key) || {}).dax || "";
+                if (!text.trim()) return;
+                fmt.disabled = true;
+                request("format_dax", { expression: text }, (res) => {
+                    if (res.ok && res.data.formatted && res.data.formatted !== text) vEdit(node.key, "dax", res.data.formatted);
+                    else if (!res.ok) { model.set("status", { message: `Error: ${res.error}`, kind: "error" }); model.save_changes(); renderViewDetail(); }
+                    else renderViewDetail();
+                });
+            }, "Format the expression with DAX Formatter");
+            c.actions.appendChild(fmt);
+        }
+        const rows = write ? [
+            ["Name", vInput(node, "name", { label: "Name" })],
+            ["Description", vInput(node, "description", { multiline: true, label: "Description" }), true],
+        ] : [
+            ["Name", node.name],
+            ["Description", node.description, true],
+        ];
+        if (node.format_string) rows.push(["Format string", node.format_string]);
+        if (node.datatype) rows.push(["Data type (ignored)", node.datatype]);
+        rows.push(["Defined in", fileLink(node.file, node)]);
+        rows.push(...publishRows(node));
+        vCard(b, "General", (body) => body.appendChild(vProps(rows)));
+        const others = (node.dialects || []).filter((d) => d.dialect !== "DAX");
+        if (others.length) {
+            vCard(b, "Other dialects", (body) => {
+                const note = h("div", "slls-sx-picker-note", "Recognized but not published \u2014 only DAX is used in the generated semantic model.");
+                note.style.margin = "0 0 8px";
+                body.appendChild(note);
+                for (const d of others) {
+                    const lbl = h("div", "slls-sx-rls-head", d.dialect);
+                    const pre = h("pre", "slls-sx-tmdl slls-sx-dialect", d.expression);
+                    body.append(lbl, pre);
+                }
+            }, { count: others.length });
+        }
+        notApplied(b, node);
+    }
+
+    // YAML (definition) and TMDL (published output) files behind the view.
+    function yamlScalar(v) {
+        const t = v.trim();
+        if (!t) return esc(v);
+        const lead = v.slice(0, v.indexOf(t));
+        const trail = v.slice(lead.length + t.length);
+        let k = "";
+        if (/^(["']).*\1$/.test(t)) k = "string";
+        else if (/^-?(\d+(\.\d+)?|\.\d+)([eE][+-]?\d+)?$/.test(t)) k = "number";
+        else if (/^(true|false|null|~)$/i.test(t)) k = "keyword";
+        else if (/^[|>][+-]?$/.test(t)) k = "operator";
+        return esc(lead) + (k ? `<span class="slls-sx-tk-${k}">${esc(t)}</span>` : esc(t)) + esc(trail);
+    }
+    function splitYamlComment(s) {
+        let quote = null;
+        for (let i = 0; i < s.length; i++) {
+            const ch = s[i];
+            if (quote) { if (ch === quote) quote = null; continue; }
+            if ((ch === '"' || ch === "'") && (i === 0 || /[\s:\[,{-]/.test(s[i - 1]))) { quote = ch; continue; }
+            if (ch === "#" && (i === 0 || /\s/.test(s[i - 1]))) return [s.slice(0, i), s.slice(i)];
+        }
+        return [s, ""];
+    }
+    function highlightYaml(text) {
+        return String(text || "").split(/\r\n?|\n/).map((line) => {
+            const [code, comment] = splitYamlComment(line);
+            const m = /^(\s*)((?:-\s+)*)(.*)$/.exec(code);
+            let out = esc(m[1]) + m[2].replace(/-/g, '<span class="slls-sx-tk-operator">-</span>');
+            let rest = m[3];
+            const km = /^("[^"]*"|'[^']*'|[^\s"'#][^:#]*?)(\s*:)(?=\s|$)/.exec(rest);
+            if (km) {
+                out += `<span class="slls-sx-tk-variable">${esc(km[1])}</span><span class="slls-sx-tk-punctuation">${esc(km[2])}</span>`;
+                rest = rest.slice(km[0].length);
+            }
+            out += yamlScalar(rest);
+            if (comment) out += `<span class="slls-sx-tk-comment">${esc(comment)}</span>`;
+            return out;
+        }).join("\n");
+    }
+    function openViewFiles(focusPath) {
+        const files = viewData.files || [];
+        const m = modal(`Files \u2014 ${viewData.view.name}`, "file", { wide: true });
+        m.body.classList.add("slls-sx-files");
+        const list = h("div", "slls-sx-files-list");
+        const pane = h("div", "slls-sx-files-pane");
+        m.body.append(list, pane);
+        let current = files.find((f) => f.area === "definition" && f.path === focusPath)
+            || files.find((f) => f.area === "definition" && !f.ignored) || files[0] || null;
+        const copy = button("slls-sx-btn small", "Copy", "", () => {
+            if (!current) return;
+            try { navigator.clipboard.writeText(current.content || ""); copy.textContent = "Copied"; } catch (e) { copy.textContent = "Copy failed"; }
+        });
+        m.actions.appendChild(copy);
+        const groups = [
+            ["definition", "Definition (YAML)", viewData.view.folder],
+            ["generated", "Published output (TMDL)", viewData.view.output_folder],
+        ];
+        function paint() {
+            clear(list);
+            for (const [area, label, folder] of groups) {
+                const items = files.filter((f) => f.area === area);
+                if (!items.length && area === "generated") continue;
+                const g = h("div", "slls-sx-files-group");
+                g.append(h("div", "slls-sx-files-label", label), h("div", "slls-sx-files-folder", folder));
+                g.title = folder;
+                list.appendChild(g);
+                if (!items.length) list.appendChild(h("div", "slls-sx-kv-empty slls-sx-files-none", "No files"));
+                for (const f of items) {
+                    const it = h("div", "slls-sx-subitem" + (f === current ? " on" : "") + (f.ignored ? " muted" : ""));
+                    it.append(iconEl(f.error ? "alert" : "file", ""), h("span", "slls-sx-files-name", f.path),
+                        h("span", "meta", f.ignored ? "ignored" : fmtBytes(f.size)));
+                    it.title = f.ignored ? `${f.path}\nIgnored \u2014 only .yaml files are part of the view` : f.path;
+                    it.addEventListener("click", () => { current = f; paint(); });
+                    list.appendChild(it);
+                }
+            }
+            clear(pane);
+            copy.textContent = "Copy";
+            copy.disabled = !current || !current.content;
+            if (!current) { pane.appendChild(h("div", "slls-sx-empty", "The view folder is empty.")); return; }
+            const fh = h("div", "slls-sx-files-head");
+            const folder = current.area === "generated" ? viewData.view.output_folder : viewData.view.folder;
+            fh.append(h("b", "", current.path), h("span", "", `${folder}/${current.path}`));
+            pane.appendChild(fh);
+            if (current.error) pane.appendChild(h("div", "slls-sx-code-error", `Invalid YAML: ${current.error}`));
+            if (current.ignored) {
+                pane.appendChild(h("div", "slls-sx-picker-note", "Only .yaml files are part of a semantic view; this file is ignored when the view is published."));
+                return;
+            }
+            if (current.area === "generated") {
+                pane.appendChild(h("div", "slls-sx-picker-note", "Generated when the view was published. Edit the YAML definition, not this output."));
+            }
+            if (current.area === "definition" && viewPendingCount()) {
+                pane.appendChild(h("div", "slls-sx-picker-note", "Showing the saved file \u2014 pending changes are written to it when you save."));
+            }
+            const scroller = h("div", "slls-sx-files-code");
+            const pre = h("pre", "slls-sx-tmdl");
+            const content = current.content || "";
+            try {
+                pre.innerHTML = current.language === "tmdl" ? highlightTmdl(content)
+                    : current.language === "yaml" ? highlightYaml(content) : esc(content);
+            } catch (e) {
+                pre.textContent = content;
+            }
+            if (!content) pre.innerHTML = '<span class="slls-sx-code-empty">(empty file)</span>';
+            scroller.appendChild(pre);
+            pane.appendChild(scroller);
+        }
+        paint();
     }
 
     // ------------------------------------------------------------------
@@ -2568,6 +4067,7 @@ function render({ model, el }) {
     }
 
     function renderTree() {
+        if (kind() === "view") { if (viewOpen()) renderViewTree(); return; }
         labelCache = new Map();
         try {
             renderTreeRows();
@@ -2727,6 +4227,7 @@ function render({ model, el }) {
     }
 
     function renderTreePane() {
+        if (kind() === "view") { if (viewOpen()) renderViewTreePane(); return; }
         clear(treePane);
         treePane.classList.toggle("collapsed", paneCollapsed);
         treePane.style.width = paneWidth + "px";
@@ -2967,11 +4468,14 @@ function render({ model, el }) {
     }
     document.addEventListener("keydown", (ev) => {
         if (ev.key === "Escape") closeContextMenu();
-        if (!root.isConnected || mode !== "write") return;
+        if (!root.isConnected) return;
+        const viewEdit = kind() === "view" && vMode === "write";
+        if (!viewEdit && (mode !== "write" || kind() === "view")) return;
         const inField = ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName);
         if (inField || !root.contains(document.activeElement) && document.activeElement !== document.body) return;
-        if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); if (ev.shiftKey) redo(); else undo(); }
-        else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "y") { ev.preventDefault(); redo(); }
+        const doUndo = viewEdit ? vUndoStep : undo, doRedo = viewEdit ? vRedoStep : redo;
+        if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); if (ev.shiftKey) doRedo(); else doUndo(); }
+        else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "y") { ev.preventDefault(); doRedo(); }
     });
 
     // ------------------------------------------------------------------
@@ -3418,6 +4922,7 @@ function render({ model, el }) {
     }
 
     function renderDetail() {
+        if (kind() === "view") { if (viewOpen()) renderViewDetail(); return; }
         // Re-rendering the same object (a card toggled, a property edited) keeps
         // the scroll position; only selecting another object starts at the top.
         const previous = detailBody ? { key: detailBodyKey, top: detailBody.scrollTop } : null;
@@ -3709,7 +5214,7 @@ function render({ model, el }) {
     // continue on lines indented deeper than the object's properties (or in a
     // ``` block); they are collected and colored with the DAX / M highlighter.
     function highlightTmdl(text) {
-        const lines = String(text || "").split("\n");
+        const lines = String(text || "").split(/\r\n?|\n/);
         const out = [];
         let expr = null;
         let partitionLang = "dax";
@@ -8170,6 +9675,7 @@ function render({ model, el }) {
         clear(body);
         body.style.display = pickerOpen ? "none" : "";
         if (pickerOpen) return;
+        if (kind() === "view") { if (viewOpen()) renderViewBody(); return; }
         const busy = model.get("busy") || "";
         if (busy === "connect" || (!loaded() && model.get("dataset_chosen") === true)) {
             loadingInto(body, "Reading model metadata\u2026");
@@ -8217,6 +9723,7 @@ function render({ model, el }) {
         if (!getNode(selectedKey)) selectedKey = modelKey();
     }
     model.on("change:model_version", () => { onModelData(); renderAll(); });
+    model.on("change:view_version", () => { onViewData(); renderAll(); });
     model.on("change:busy", () => {
         renderHeader();
         if (pickerOpen) { renderPicker(); return; }
@@ -8233,6 +9740,7 @@ function render({ model, el }) {
     model.on("change:dataset_name", renderHeader);
 
     onModelData();
+    onViewData();
     selectedKey = modelKey();
     renderAll();
 }
@@ -8268,7 +9776,8 @@ _EXPLORER_ICON_NAMES = (
     "more", "arrow_up", "arrow_down", "external_link", "info", "package", "calendar",
     "download", "check_circle", "arrow_left", "network", "key_round", "focus", "lightbulb",
     "snowflake", "languages", "unlink", "arrow_left_right", "cable", "layers", "waves", "git_branch",
-    "link", "reset", "user", "sparkles", "flame", "server", "file_box",
+    "link", "reset", "user", "sparkles", "flame", "server", "file_box", "chevron_right",
+    "warehouse", "upload",
 )  # fmt: skip
 
 _WIDGET_CSS = (
@@ -10106,6 +11615,1429 @@ def _create_blank_model(workspace_id: str, name: str) -> str:
     return str(dataset_id)
 
 
+# ---------------------------------------------------------------------------
+# Semantic views
+# ---------------------------------------------------------------------------
+# A semantic view is a folder of YAML definitions in a lakehouse,
+# Context/Semantic Views/<view>/ (subfolders and shortcut content included).
+# Publishing compiles it to TMDL under SystemContext/Semantic Views/<view>/ and
+# creates or updates a semantic model with the view's name. Both folders are
+# read and written through the OneLake DFS API.
+_ONELAKE_DFS_URL = "https://onelake.dfs.fabric.microsoft.com"
+_VIEWS_FOLDER = "Context/Semantic Views"
+_VIEWS_OUTPUT_FOLDER = "SystemContext/Semantic Views"
+_VIEW_YAML_VERSION = "0.2.0.dev0"
+_VIEW_MAX_FILES = 20
+_VIEW_MAX_YAML_BYTES = 16 * 1024 * 1024
+_VIEW_NAME_INVALID = re.compile(r'[\\/:*?"<>|#%\x00-\x1f]')
+_VIEW_DIALECTS = (
+    "DAX",
+    "ANSI_SQL",
+    "SNOWFLAKE",
+    "MDX",
+    "TABLEAU",
+    "DATABRICKS",
+    "MAQL",
+    "BIGQUERY",
+)
+# Definition keys which Fabric accepts but omits from the generated model.
+_VIEW_IGNORED_KEYS = {
+    "document": ("ai_context", "custom_extensions"),
+    "dataset": (
+        "primary_key",
+        "unique_keys",
+        "fields",
+        "ai_context",
+        "custom_extensions",
+    ),
+    "relationship": ("ai_context", "custom_extensions"),
+    "metric": ("datatype", "ai_context", "custom_extensions"),
+}
+
+
+def _onelake_request(
+    method: str,
+    workspace_id: str,
+    path: str = "",
+    params: Optional[dict] = None,
+    data: Optional[bytes] = None,
+    headers: Optional[dict] = None,
+):
+    """Sends a request to the OneLake DFS endpoint of a workspace."""
+
+    import notebookutils
+    import requests
+    from urllib.parse import quote
+
+    token = notebookutils.credentials.getToken("storage")
+    url = f"{_ONELAKE_DFS_URL}/{workspace_id}"
+    if path:
+        url += "/" + quote(path)
+    return requests.request(
+        method,
+        url,
+        params=params,
+        data=data,
+        headers={"Authorization": f"Bearer {token}", **(headers or {})},
+        timeout=120,
+    )
+
+
+def _onelake_raise(response, what: str):
+    message = ""
+    try:
+        message = str((response.json().get("error") or {}).get("message") or "")
+    except Exception:
+        pass
+    detail = f": {message.splitlines()[0]}" if message else ""
+    raise ValueError(f"Could not {what} (HTTP {response.status_code}){detail}")
+
+
+def _onelake_list(
+    workspace_id: str, item_id: str, directory: str, recursive: bool = False
+) -> Optional[List[dict]]:
+    """Lists a folder of an item (None if the folder doesn't exist).
+
+    Paths are returned relative to the item's root, e.g.
+    ``Context/Semantic Views/sales``.
+    """
+
+    params = {
+        "resource": "filesystem",
+        "recursive": "true" if recursive else "false",
+        "directory": f"{item_id}/{directory}",
+    }
+    out = []
+    while True:
+        response = _onelake_request("GET", workspace_id, params=params)
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            _onelake_raise(response, f"list the '{directory}' folder")
+        for p in response.json().get("paths", []):
+            name = str(p.get("name") or "")
+            out.append(
+                {
+                    # Names are relative to the workspace: '<item>/<path>'.
+                    "path": name.split("/", 1)[1] if "/" in name else "",
+                    "is_dir": str(p.get("isDirectory", "")).lower() == "true",
+                    "size": int(p.get("contentLength") or 0),
+                    "modified": str(p.get("lastModified") or ""),
+                    "etag": str(p.get("etag") or ""),
+                }
+            )
+        continuation = response.headers.get("x-ms-continuation")
+        if not continuation:
+            return out
+        params["continuation"] = continuation
+
+
+def _onelake_read(workspace_id: str, item_id: str, path: str) -> str:
+    response = _onelake_request("GET", workspace_id, f"{item_id}/{path}")
+    if response.status_code != 200:
+        _onelake_raise(response, f"read '{path}'")
+    # Files written on Windows use CRLF; the explorer works with LF.
+    text = response.content.decode("utf-8-sig", errors="replace")
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _onelake_create_directory(workspace_id: str, item_id: str, path: str) -> None:
+    # If-None-Match fails the request (409) instead of touching an existing
+    # folder; missing parent folders are created implicitly.
+    response = _onelake_request(
+        "PUT",
+        workspace_id,
+        f"{item_id}/{path}",
+        params={"resource": "directory"},
+        headers={"If-None-Match": "*"},
+    )
+    if response.status_code == 409:
+        raise ValueError(f"The '{path}' folder already exists.")
+    if response.status_code not in (200, 201):
+        _onelake_raise(response, f"create the '{path}' folder")
+
+
+def _onelake_create_file(
+    workspace_id: str, item_id: str, path: str, content: bytes
+) -> None:
+    full_path = f"{item_id}/{path}"
+    response = _onelake_request(
+        "PUT",
+        workspace_id,
+        full_path,
+        params={"resource": "file"},
+        headers={"If-None-Match": "*"},
+    )
+    if response.status_code == 409:
+        raise ValueError(f"The '{path}' file already exists.")
+    if response.status_code not in (200, 201):
+        _onelake_raise(response, f"create '{path}'")
+    if content:
+        response = _onelake_request(
+            "PATCH",
+            workspace_id,
+            full_path,
+            params={"action": "append", "position": "0"},
+            data=content,
+            headers={"Content-Type": "application/octet-stream"},
+        )
+        if response.status_code not in (200, 202):
+            _onelake_raise(response, f"write '{path}'")
+    response = _onelake_request(
+        "PATCH",
+        workspace_id,
+        full_path,
+        params={"action": "flush", "position": str(len(content))},
+    )
+    if response.status_code != 200:
+        _onelake_raise(response, f"write '{path}'")
+
+
+def _relative_path(path: str, folder: str) -> str:
+    """``path`` relative to ``folder`` ('' if it isn't inside it)."""
+
+    prefix = folder + "/"
+    return path.replace(prefix, "", 1) if path.startswith(prefix) else ""
+
+
+def _list_semantic_views(workspace_id: str, lakehouse_id: str) -> List[dict]:
+    """The views of a lakehouse: the folders directly under Context/Semantic Views."""
+
+    paths = _onelake_list(workspace_id, lakehouse_id, _VIEWS_FOLDER)
+    views = []
+    for p in paths or []:
+        name = _relative_path(p["path"], _VIEWS_FOLDER)
+        if p["is_dir"] and name and "/" not in name:
+            views.append({"name": name, "modified": p["modified"]})
+    return sorted(views, key=lambda v: v["name"].lower())
+
+
+def _view_starter_yaml(name: str) -> str:
+    # A JSON string is a valid YAML double-quoted scalar.
+    quoted = json.dumps(name, ensure_ascii=False)
+    return f"""# Semantic view definition.
+# Every .yaml file in this folder (including subfolders) is merged into this
+# view when it is published. The folder name is the view name and the name of
+# the generated semantic model.
+# Reference: https://learn.microsoft.com/fabric/fundamentals/semantic-views-yaml-reference
+version: {_VIEW_YAML_VERSION}
+name: {quoted}
+# description: What this view is about.
+
+# Map lakehouse tables to datasets (tables in the semantic model).
+# datasets:
+#   - name: sales
+#     source: dbo.sales
+#     description: One row per sales transaction line.
+#   - name: customers
+#     source: dbo.customers
+
+# Relationships go from the many side to the one side, on a single column.
+# relationships:
+#   - name: sales_to_customers
+#     from: sales
+#     to: customers
+#     from_columns:
+#       - customer_id
+#     to_columns:
+#       - customer_id
+
+# Metrics become measures in a 'Metrics' table.
+# metrics:
+#   - name: Total Net Sales
+#     description: Sales value after discounts.
+#     expression:
+#       dialects:
+#         - dialect: DAX
+#           expression: "SUM('sales'[net_amount])"
+"""
+
+
+def _create_semantic_view(workspace_id: str, lakehouse_id: str, name: str) -> str:
+    """Creates a view folder with a starter definition file; returns the name."""
+
+    name = str(name or "").strip()
+    if not workspace_id or not lakehouse_id or not name:
+        raise ValueError(
+            "Select a workspace and a lakehouse and enter a name for the new "
+            "semantic view."
+        )
+    if _VIEW_NAME_INVALID.search(name) or name.endswith("."):
+        raise ValueError(
+            'A semantic view name cannot contain \\ / : * ? " < > | # % or end '
+            "with a period."
+        )
+    taken = {
+        v["name"].lower() for v in _list_semantic_views(workspace_id, lakehouse_id)
+    }
+    if name.lower() in taken:
+        raise ValueError(
+            f"A semantic view named '{name}' already exists in this lakehouse. "
+            "Choose another name."
+        )
+    folder = f"{_VIEWS_FOLDER}/{name}"
+    _onelake_create_directory(workspace_id, lakehouse_id, folder)
+    _onelake_create_file(
+        workspace_id,
+        lakehouse_id,
+        f"{folder}/{name}_semantic_view.yaml",
+        _view_starter_yaml(name).encode("utf-8"),
+    )
+    return name
+
+
+def _text(value) -> str:
+    return "" if value is None else str(value)
+
+
+def _merge_view_documents(documents: List[Tuple[str, object]]) -> dict:
+    """Merges parsed view YAML files (``(path, document)``) into one definition.
+
+    Every object remembers the file it is defined in. Problems Fabric reports
+    when publishing (missing properties, unsupported or ignored constructs,
+    conflicting descriptions) are collected in ``issues``.
+    """
+
+    datasets, relationships, metrics, issues = [], [], [], []
+    descriptions: Dict[str, List[str]] = {}
+
+    def issue(level, message, file):
+        issues.append({"level": level, "message": message, "file": file})
+
+    def ignored(obj, kind, label, file):
+        keys = [k for k in _VIEW_IGNORED_KEYS[kind] if k in obj]
+        if keys:
+            issue(
+                "warning",
+                f"{label}: {', '.join(keys)} {'is' if len(keys) == 1 else 'are'} "
+                "not applied to the generated model.",
+                file,
+            )
+        return keys
+
+    def entries(doc, key, file):
+        value = doc.get(key)
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            issue("error", f"'{key}' must be a list.", file)
+            return []
+        if key == "datasets" and not value:
+            issue("error", "'datasets' must not be empty when it is declared.", file)
+        # The position in the file's list addresses the object when saving.
+        return [(i, v) for i, v in enumerate(value) if isinstance(v, dict)]
+
+    for path, doc in documents:
+        if doc is None:
+            continue
+        if not isinstance(doc, dict):
+            issue("error", "The file is not a YAML mapping.", path)
+            continue
+        version = _text(doc.get("version"))
+        if not version:
+            issue("error", "The required 'version' property is missing.", path)
+        elif version != _VIEW_YAML_VERSION:
+            issue(
+                "error",
+                f"Version '{version}' is not supported (use {_VIEW_YAML_VERSION}).",
+                path,
+            )
+        if not _text(doc.get("name")):
+            issue("error", "The required 'name' property is missing.", path)
+        if doc.get("description") is not None:
+            descriptions.setdefault(_text(doc.get("description")), []).append(path)
+        ignored(doc, "document", "Document", path)
+        for idx, ds in entries(doc, "datasets", path):
+            name = _text(ds.get("name"))
+            if not name or not _text(ds.get("source")):
+                issue("error", f"Dataset '{name}' needs a name and a source.", path)
+            datasets.append(
+                {
+                    "name": name,
+                    "source": _text(ds.get("source")),
+                    "description": _text(ds.get("description")),
+                    "file": path,
+                    "index": idx,
+                    "ignored": ignored(ds, "dataset", f"Dataset '{name}'", path),
+                }
+            )
+        for idx, rel in entries(doc, "relationships", path):
+            name = _text(rel.get("name"))
+            from_columns = [_text(c) for c in rel.get("from_columns") or []]
+            to_columns = [_text(c) for c in rel.get("to_columns") or []]
+            if not (name and rel.get("from") and rel.get("to")):
+                issue(
+                    "error",
+                    f"Relationship '{name}' needs a name, 'from' and 'to'.",
+                    path,
+                )
+            if len(from_columns) != 1 or len(to_columns) != 1:
+                issue(
+                    "error",
+                    f"Relationship '{name}' must have exactly one column in "
+                    "'from_columns' and in 'to_columns'.",
+                    path,
+                )
+            relationships.append(
+                {
+                    "name": name,
+                    "from": _text(rel.get("from")),
+                    "to": _text(rel.get("to")),
+                    "from_columns": from_columns,
+                    "to_columns": to_columns,
+                    "file": path,
+                    "index": idx,
+                    "ignored": ignored(
+                        rel, "relationship", f"Relationship '{name}'", path
+                    ),
+                }
+            )
+        for idx, met in entries(doc, "metrics", path):
+            name = _text(met.get("name"))
+            expression = met.get("expression")
+            dialects = []
+            if isinstance(expression, dict):
+                for d in expression.get("dialects") or []:
+                    if isinstance(d, dict):
+                        dialects.append(
+                            {
+                                "dialect": _text(d.get("dialect")).upper(),
+                                "expression": _text(d.get("expression")),
+                            }
+                        )
+            dax = next((d["expression"] for d in dialects if d["dialect"] == "DAX"), "")
+            if not dialects:
+                issue(
+                    "error",
+                    f"Metric '{name}' needs an expression with at least one dialect.",
+                    path,
+                )
+            elif not dax.strip():
+                issue(
+                    "warning",
+                    f"Metric '{name}' has no DAX expression, so it is omitted "
+                    "from the generated model.",
+                    path,
+                )
+            other = [d["dialect"] for d in dialects if d["dialect"] != "DAX"]
+            unknown = [d for d in other if d not in _VIEW_DIALECTS]
+            if unknown:
+                issue(
+                    "warning",
+                    f"Metric '{name}': unknown dialect {', '.join(unknown)}.",
+                    path,
+                )
+            metrics.append(
+                {
+                    "name": name,
+                    "description": _text(met.get("description")),
+                    "dax": dax,
+                    "dialects": dialects,
+                    "datatype": _text(met.get("datatype")),
+                    "file": path,
+                    "index": idx,
+                    "ignored": ignored(met, "metric", f"Metric '{name}'", path),
+                }
+            )
+
+    if len(descriptions) > 1:
+        issue(
+            "error",
+            "The view description differs between files ("
+            + ", ".join(sorted(p for paths in descriptions.values() for p in paths))
+            + "); it must be identical wherever it is defined.",
+            "",
+        )
+    for label, objects, folded in (
+        ("dataset", datasets, False),
+        ("relationship", relationships, False),
+        ("metric", metrics, True),
+    ):
+        seen = set()
+        for obj in objects:
+            key = obj["name"].lower() if folded else obj["name"]
+            if obj["name"] and key in seen:
+                issue(
+                    "error",
+                    f"The {label} name '{obj['name']}' is used more than once.",
+                    obj["file"],
+                )
+            seen.add(key)
+    table_names = {d["name"].lower() for d in datasets}
+    for met in metrics:
+        if met["name"].lower() in table_names:
+            issue(
+                "error",
+                f"Metric '{met['name']}' has the same name as a dataset.",
+                met["file"],
+            )
+    return {
+        "description": next(iter(descriptions), ""),
+        "datasets": datasets,
+        "relationships": relationships,
+        "metrics": metrics,
+        "issues": issues,
+    }
+
+
+# TMDL object keywords; any other word on a line of its own is a flag property
+# (e.g. 'isHidden').
+_TMDL_OBJECTS = {
+    "model", "database", "table", "column", "measure", "hierarchy", "level",
+    "partition", "relationship", "expression", "role", "perspective", "culture",
+    "annotation", "extendedProperty", "calculationGroup", "calculationItem",
+    "tablePermission", "columnPermission", "member", "dataSource", "function",
+    "formatStringDefinition", "detailRowsDefinition", "kpi", "refreshPolicy",
+    "queryGroup", "variation", "ref", "linguisticMetadata", "calendar",
+    "perspectiveTable", "perspectiveColumn", "perspectiveMeasure",
+    "perspectiveHierarchy", "translation", "source",
+}  # fmt: skip
+
+
+def _tmdl_indent(ws: str) -> int:
+    return ws.count("\t") + ws.count(" ") // 4
+
+
+def _tmdl_name(text: str) -> Tuple[str, str]:
+    """Splits a TMDL name ('quoted' or plain) off the start of ``text``."""
+
+    text = text.strip()
+    m = re.match(r"'((?:[^']|'')*)'(.*)$", text, re.S)
+    if m:
+        return m.group(1).replace("''", "'"), m.group(2)
+    m = re.match(r"([^\s.=]*)(.*)$", text, re.S)
+    return m.group(1), m.group(2)
+
+
+def _tmdl_column_ref(text: str) -> Tuple[str, str]:
+    """'Table Name'.'Column Name' / table.column -> (table, column)."""
+
+    table, rest = _tmdl_name(text)
+    if rest.startswith("."):
+        column, _ = _tmdl_name(rest[1:])
+        return table, column
+    return table, ""
+
+
+def _parse_tmdl(text: str) -> List[dict]:
+    """Parses TMDL into a tree of ``{kind, name, props, children, description,
+    expression}`` objects (enough to read tables, columns, measures,
+    partitions and relationships)."""
+
+    roots: List[dict] = []
+    stack: List[Tuple[int, dict]] = []
+    description: List[str] = []
+    lines = str(text or "").replace("\r\n", "\n").split("\n")
+    i = 0
+
+    def owner(indent):
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        return stack[-1][1] if stack else None
+
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        m = re.match(r"^([ \t]*)(.*)$", line)
+        ws, rest = m.group(1), m.group(2).rstrip()
+        if not rest:
+            continue
+        indent = _tmdl_indent(ws)
+        if rest.startswith("///"):
+            description.append(rest[3:].strip())
+            continue
+        word_match = re.match(r"^([A-Za-z][A-Za-z0-9]*)(.*)$", rest)
+        if not word_match:
+            continue
+        word, tail = word_match.group(1), word_match.group(2)
+        parent = owner(indent)
+        if tail.startswith(":"):
+            if parent is not None:
+                parent["props"][word] = tail[1:].strip().strip('"')
+            description = []
+            continue
+        if word not in _TMDL_OBJECTS:
+            if parent is not None and not tail.strip():
+                parent["props"][word] = "true"
+            description = []
+            continue
+        node = {
+            "kind": word,
+            "name": "",
+            "props": {},
+            "children": [],
+            "description": "\n".join(description),
+            "expression": "",
+        }
+        description = []
+        if word == "ref":
+            # 'ref table X' only orders objects; it defines nothing.
+            continue
+        name, after = _tmdl_name(tail)
+        node["name"] = name
+        after = after.strip()
+        if after.startswith("="):
+            expr = after[1:].strip()
+            body = []
+            if expr == "```":
+                while i < len(lines) and lines[i].strip() != "```":
+                    body.append(lines[i])
+                    i += 1
+                i += 1
+            else:
+                if expr:
+                    body.append(expr)
+                # Continuation lines sit deeper than the object's properties.
+                while i < len(lines):
+                    nxt = lines[i]
+                    nm = re.match(r"^([ \t]*)(.*)$", nxt)
+                    if nm.group(2).strip() and _tmdl_indent(nm.group(1)) <= indent + 1:
+                        break
+                    body.append(nxt)
+                    i += 1
+            node["expression"] = _dedent_lines(body)
+        if parent is not None:
+            parent["children"].append(node)
+        else:
+            roots.append(node)
+        stack.append((indent, node))
+    return roots
+
+
+def _dedent_lines(lines: List[str]) -> str:
+    while lines and not lines[-1].strip():
+        lines = lines[:-1]
+    margin = min((len(ln) - len(ln.lstrip()) for ln in lines if ln.strip()), default=0)
+    return "\n".join(ln[margin:] if ln.strip() else "" for ln in lines).strip("\n")
+
+
+def _tmdl_model(texts: List[str]) -> dict:
+    """Tables (with columns, measures and source), relationships and the
+    model description from a set of TMDL files."""
+
+    tables: Dict[str, dict] = {}
+    relationships, description = [], ""
+
+    def walk(nodes):
+        nonlocal description
+        for node in nodes:
+            kind, props = node["kind"], node["props"]
+            if kind == "model":
+                description = node["description"] or props.get("description", "")
+                # A single-file definition nests the tables and relationships
+                # in the model.
+                walk(node["children"])
+            elif kind == "table":
+                table = tables.setdefault(
+                    node["name"],
+                    {"name": node["name"], "columns": [], "measures": [], "source": ""},
+                )
+                table["description"] = node["description"]
+                table["is_hidden"] = props.get("isHidden") == "true"
+                for child in node["children"]:
+                    cp = child["props"]
+                    if child["kind"] == "column":
+                        table["columns"].append(
+                            {
+                                "name": child["name"],
+                                "data_type": cp.get("dataType", ""),
+                                "description": child["description"],
+                                "source_column": cp.get("sourceColumn", ""),
+                                "format_string": cp.get("formatString", ""),
+                                "is_hidden": cp.get("isHidden") == "true",
+                            }
+                        )
+                    elif child["kind"] == "measure":
+                        table["measures"].append(
+                            {
+                                "name": child["name"],
+                                "expression": child["expression"],
+                                "description": child["description"],
+                                "format_string": cp.get("formatString", ""),
+                            }
+                        )
+                    elif child["kind"] == "partition":
+                        src = dict(cp)
+                        for grand in child["children"]:
+                            if grand["kind"] == "source":
+                                src.update(grand["props"])
+                        entity = src.get("entityName", "")
+                        if entity:
+                            schema = src.get("schemaName", "")
+                            table["source"] = f"{schema}.{entity}" if schema else entity
+            elif kind == "relationship":
+                from_table, from_column = _tmdl_column_ref(props.get("fromColumn", ""))
+                to_table, to_column = _tmdl_column_ref(props.get("toColumn", ""))
+                relationships.append(
+                    {
+                        "name": node["name"],
+                        "from": from_table,
+                        "from_column": from_column,
+                        "to": to_table,
+                        "to_column": to_column,
+                        "from_cardinality": props.get("fromCardinality", "many"),
+                        "to_cardinality": props.get("toCardinality", "one"),
+                        "cross_filter": props.get(
+                            "crossFilteringBehavior", "oneDirection"
+                        ),
+                        "active": props.get("isActive", "true") != "false",
+                    }
+                )
+            else:
+                walk(node["children"])
+
+    for text in texts:
+        walk(_parse_tmdl(text))
+    return {
+        "tables": tables,
+        "relationships": relationships,
+        "description": description,
+    }
+
+
+def _lakehouse_table_columns(workspace_id: str, lakehouse_id: str, source: str) -> list:
+    """Columns of a lakehouse table ('schema.table') from the OneLake table API."""
+
+    from sempy_labs._helper_functions import _base_api
+
+    schema, _, table = source.rpartition(".")
+    response = _base_api(
+        request=f"{workspace_id}/{lakehouse_id}/api/2.1/unity-catalog/tables/"
+        f"{lakehouse_id}.{schema or 'dbo'}.{table}",
+        client="onelake",
+    )
+    return [
+        {
+            "name": _text(c.get("name")),
+            "data_type": _text(c.get("type_text") or c.get("type_name")).lower(),
+            "description": _text(c.get("comment")),
+            "source_column": _text(c.get("name")),
+            "format_string": "",
+            "is_hidden": False,
+        }
+        for c in sorted(
+            response.json().get("columns") or [], key=lambda c: c.get("position", 0)
+        )
+    ]
+
+
+def _semantic_view_payload(
+    workspace_id: str, lakehouse_id: str, view_name: str
+) -> dict:
+    """Reads a semantic view: its YAML definition (Context) merged with the
+    published TMDL output (SystemContext), plus the files behind both."""
+
+    import yaml
+
+    folder = f"{_VIEWS_FOLDER}/{view_name}"
+    paths = _onelake_list(workspace_id, lakehouse_id, folder, recursive=True)
+    if paths is None:
+        raise ValueError(
+            f"The '{view_name}' semantic view was not found in this lakehouse."
+        )
+    files, documents = [], []
+    yaml_bytes = 0
+    for p in sorted(paths, key=lambda p: p["path"].lower()):
+        if p["is_dir"] or not p["path"].startswith(folder + "/"):
+            continue
+        rel = _relative_path(p["path"], folder)
+        entry = {
+            "path": rel,
+            "area": "definition",
+            "size": p["size"],
+            "modified": p["modified"],
+            "etag": p.get("etag", ""),
+            "language": "yaml" if rel.endswith(".yaml") else "text",
+            "content": "",
+            "error": "",
+            "ignored": not rel.endswith(".yaml"),
+        }
+        files.append(entry)
+        if entry["ignored"]:
+            continue
+        yaml_bytes += p["size"]
+        entry["content"] = _onelake_read(workspace_id, lakehouse_id, p["path"])
+        try:
+            documents.append((rel, yaml.safe_load(entry["content"])))
+        except yaml.YAMLError as e:
+            entry["error"] = " ".join(str(e).split())
+    merged = _merge_view_documents(documents)
+    issues = merged["issues"]
+    for f in files:
+        if f["error"]:
+            issues.insert(
+                0,
+                {
+                    "level": "error",
+                    "message": f"Invalid YAML: {f['error']}",
+                    "file": f["path"],
+                },
+            )
+    if not merged["datasets"] and not merged["metrics"] and documents:
+        issues.append(
+            {
+                "level": "warning",
+                "message": "The view doesn't define any datasets or metrics yet; add "
+                "them to its YAML files before publishing it.",
+                "file": "",
+            }
+        )
+    yaml_count = sum(1 for f in files if not f["ignored"])
+    if not yaml_count:
+        issues.insert(
+            0, {"level": "error", "message": "The view has no .yaml files.", "file": ""}
+        )
+    if yaml_count > _VIEW_MAX_FILES:
+        issues.append(
+            {
+                "level": "error",
+                "message": f"The view has {yaml_count} .yaml files (the limit is {_VIEW_MAX_FILES}).",
+                "file": "",
+            }
+        )
+    if yaml_bytes > _VIEW_MAX_YAML_BYTES:
+        issues.append(
+            {
+                "level": "error",
+                "message": "The view's .yaml files exceed 16 MB in total.",
+                "file": "",
+            }
+        )
+
+    # Published output: the compiled TMDL of the generated semantic model.
+    output_folder = f"{_VIEWS_OUTPUT_FOLDER}/{view_name}"
+    tmdl_texts = []
+    for p in sorted(
+        _onelake_list(workspace_id, lakehouse_id, output_folder, recursive=True) or [],
+        key=lambda p: p["path"].lower(),
+    ):
+        if p["is_dir"] or not p["path"].lower().endswith(".tmdl"):
+            continue
+        content = _onelake_read(workspace_id, lakehouse_id, p["path"])
+        tmdl_texts.append(content)
+        files.append(
+            {
+                "path": _relative_path(p["path"], output_folder),
+                "area": "generated",
+                "size": p["size"],
+                "modified": p["modified"],
+                "language": "tmdl",
+                "content": content,
+                "error": "",
+                "ignored": False,
+            }
+        )
+    published = bool(tmdl_texts)
+    tmdl = _tmdl_model(tmdl_texts)
+    tables = {name.lower(): t for name, t in tmdl["tables"].items()}
+
+    def state(found: bool, differences: List[str]) -> dict:
+        """Publish status of an object's saved definition: 'published' (as
+        published), 'changed' (published, with saved changes which aren't
+        published yet) or 'missing' (not in the generated model); '' if the
+        view was never published."""
+
+        if not published:
+            return {"published": False, "publish_state": "", "publish_diff": []}
+        if not found:
+            return {"published": False, "publish_state": "missing", "publish_diff": []}
+        return {
+            "published": True,
+            "publish_state": "changed" if differences else "published",
+            "publish_diff": differences,
+        }
+
+    datasets = []
+    for ds in merged["datasets"]:
+        table = tables.get(ds["name"].lower())
+        columns, columns_from = [], ""
+        if table is not None:
+            columns, columns_from = table["columns"], "published"
+        elif ds["source"]:
+            try:
+                columns = _lakehouse_table_columns(
+                    workspace_id, lakehouse_id, ds["source"]
+                )
+                columns_from = "lakehouse"
+            except Exception:
+                columns = []
+        differences = []
+        if table is not None:
+            if table["source"] and _view_source(ds["source"]) != _view_source(
+                table["source"]
+            ):
+                differences.append("source")
+            if _same_text(ds["description"], table.get("description")) is False:
+                differences.append("description")
+        datasets.append(
+            {
+                **ds,
+                "columns": columns,
+                "columns_from": columns_from,
+                "inferred": False,
+                **state(table is not None, differences),
+            }
+        )
+    # Tables Fabric inferred (e.g. referenced only by metrics) are in the
+    # generated model without a dataset definition.
+    declared = {d["name"].lower() for d in datasets}
+    for key, table in tables.items():
+        if key in declared or key == "metrics" and table["measures"]:
+            continue
+        datasets.append(
+            {
+                "name": table["name"],
+                "source": table["source"],
+                "description": table.get("description", ""),
+                "file": "",
+                "index": -1,
+                "ignored": [],
+                "columns": table["columns"],
+                "columns_from": "published",
+                "inferred": True,
+                **state(True, []),
+            }
+        )
+
+    # A relationship is matched to the generated model's relationship between
+    # the same columns; if there is none, to one with its name or joining the
+    # same columns the other way round (published, but changed since).
+    def ends(t1, c1, t2, c2):
+        return (t1.lower(), c1.lower(), t2.lower(), c2.lower())
+
+    by_ends = {
+        ends(r["from"], r["from_column"], r["to"], r["to_column"]): r
+        for r in tmdl["relationships"]
+    }
+    by_name = {r["name"].lower(): r for r in tmdl["relationships"]}
+    relationships, matched_rels = [], set()
+    for rel in merged["relationships"]:
+        from_column = rel["from_columns"][0] if rel["from_columns"] else ""
+        to_column = rel["to_columns"][0] if rel["to_columns"] else ""
+        match = by_ends.get(ends(rel["from"], from_column, rel["to"], to_column))
+        differences = []
+        if match is None:
+            match = by_ends.get(
+                ends(rel["to"], to_column, rel["from"], from_column)
+            ) or by_name.get(rel["name"].lower())
+            if match is not None:
+                if (match["from"].lower(), match["to"].lower()) != (
+                    rel["from"].lower(),
+                    rel["to"].lower(),
+                ):
+                    differences.append("from / to")
+                if (
+                    match["from_column"].lower(),
+                    match["to_column"].lower(),
+                ) != (from_column.lower(), to_column.lower()):
+                    differences.append("columns")
+                differences = differences or ["definition"]
+        if match is not None:
+            matched_rels.add(id(match))
+        relationships.append(
+            {
+                **rel,
+                "from_column": from_column,
+                "to_column": to_column,
+                "cross_filter": match["cross_filter"] if match else "oneDirection",
+                **state(match is not None, differences),
+            }
+        )
+
+    measures = {}
+    for table in tmdl["tables"].values():
+        for measure in table["measures"]:
+            measures[measure["name"].lower()] = measure
+    metrics, matched_measures = [], set()
+    for met in merged["metrics"]:
+        match = measures.get(met["name"].lower())
+        differences = []
+        if match is not None:
+            matched_measures.add(met["name"].lower())
+            # Metrics without DAX are omitted when publishing.
+            if not _same_dax(met["dax"], match["expression"]):
+                differences.append("expression")
+            if _same_text(met["description"], match["description"]) is False:
+                differences.append("description")
+        metrics.append(
+            {
+                **met,
+                "format_string": match["format_string"] if match else "",
+                **state(match is not None, differences),
+            }
+        )
+
+    # Published objects whose definition has since been removed.
+    if published:
+        stale = [
+            f"Metric '{m['name']}'"
+            for key, m in measures.items()
+            if key not in matched_measures
+        ] + [
+            f"Relationship {r['from']}[{r['from_column']}] \u2192 "
+            f"{r['to']}[{r['to_column']}]"
+            for r in tmdl["relationships"]
+            if id(r) not in matched_rels
+        ]
+        for label in stale:
+            issues.append(
+                {
+                    "level": "warning",
+                    "message": f"{label} is in the published model but not in the "
+                    "definition; publish the view to remove it.",
+                    "file": "",
+                }
+            )
+
+    view_differences = []
+    if published and _same_text(merged["description"], tmdl["description"]) is False:
+        view_differences.append("description")
+    unpublished = len(view_differences) + sum(
+        1
+        for o in datasets + relationships + metrics
+        if o.get("publish_state") in ("changed", "missing")
+    )
+    return {
+        "view": {
+            "name": view_name,
+            "description": merged["description"],
+            "folder": folder,
+            "output_folder": output_folder,
+            "published": published,
+            "publish_diff": view_differences,
+            # Saved definitions which differ from the last publish.
+            "unpublished_count": unpublished,
+        },
+        "datasets": datasets,
+        "relationships": relationships,
+        "metrics": metrics,
+        "files": files,
+        "issues": issues,
+    }
+
+
+def _normalized_text(value) -> str:
+    return " ".join(str(value or "").split())
+
+
+def _same_text(a, b) -> Optional[bool]:
+    """Compares descriptions ignoring whitespace; None when both are empty."""
+
+    a, b = _normalized_text(a), _normalized_text(b)
+    if not a and not b:
+        return None
+    return a == b
+
+
+def _same_dax(a, b) -> bool:
+    # Layout (line breaks, TMDL indentation, spaces next to brackets and
+    # operators) doesn't change the DAX.
+    def compact(text):
+        return re.sub(r" ?([^\w\s]) ?", r"\1", _normalized_text(text))
+
+    return compact(a) == compact(b)
+
+
+def _view_source(source) -> str:
+    """'schema.table' (dbo when unqualified), lower case, for comparing."""
+
+    source = str(source or "").strip().lower()
+    return source if "." in source else f"dbo.{source}"
+
+
+# Keys of the YAML lists holding each kind of view object.
+_VIEW_LISTS = ("datasets", "relationships", "metrics")
+
+
+class _ViewYaml:
+    """Loads and dumps view YAML files, keeping comments and formatting when
+    ruamel.yaml is installed (PyYAML otherwise)."""
+
+    def __init__(self):
+        try:
+            from ruamel.yaml import YAML
+            from ruamel.yaml.scalarstring import LiteralScalarString
+
+            self._yaml = YAML()
+            self._yaml.preserve_quotes = True
+            self._yaml.width = 4096
+            self._yaml.indent(mapping=2, sequence=4, offset=2)
+            self._literal = LiteralScalarString
+            self.keeps_comments = True
+        except ImportError:
+            self._yaml = None
+            self.keeps_comments = False
+
+    def load(self, text: str):
+        if self._yaml is not None:
+            return self._yaml.load(text)
+        import yaml
+
+        return yaml.safe_load(text)
+
+    def string(self, value: str):
+        """A string value; multi-line text is written as a literal block."""
+
+        value = str(value).replace("\r\n", "\n")
+        if self._yaml is not None and "\n" in value:
+            return self._literal(value)
+        return value
+
+    def dump(self, doc) -> str:
+        if self._yaml is not None:
+            import io
+
+            out = io.StringIO()
+            self._yaml.dump(doc, out)
+            return out.getvalue()
+        import yaml
+
+        class _Dumper(yaml.SafeDumper):
+            # Indent list items under their key, as Fabric's examples do.
+            def increase_indent(self, flow=False, indentless=False):
+                return super().increase_indent(flow, False)
+
+        def _str(dumper, data):
+            style = "|" if "\n" in data else None
+            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)
+
+        _Dumper.add_representer(str, _str)
+        return yaml.dump(
+            doc,
+            Dumper=_Dumper,
+            sort_keys=False,
+            allow_unicode=True,
+            default_flow_style=False,
+            width=4096,
+        )
+
+
+def _set_text(obj, key: str, value, yml: _ViewYaml) -> None:
+    """Sets a text property; an empty value removes it."""
+
+    value = "" if value is None else str(value)
+    if value.strip():
+        obj[key] = yml.string(value)
+    elif key in obj:
+        del obj[key]
+
+
+def _set_document_description(document, value: str, yml: _ViewYaml) -> None:
+    """Sets the view description; a new one goes right after 'name'."""
+
+    if "description" in document or not value.strip():
+        _set_text(document, "description", value, yml)
+        return
+    keys = list(document.keys())
+    position = keys.index("name") + 1 if "name" in keys else len(keys)
+    if hasattr(document, "insert"):
+        document.insert(position, "description", yml.string(value))
+    else:
+        items = list(document.items())
+        items.insert(position, ("description", yml.string(value)))
+        document.clear()
+        document.update(items)
+
+
+def _apply_view_values(kind: str, obj, values: dict, yml: _ViewYaml) -> None:
+    """Applies edited explorer fields to a dataset / relationship / metric."""
+
+    for field, value in values.items():
+        if field in ("name", "source", "from", "to"):
+            obj[field] = yml.string(value or "")
+        elif field == "description":
+            _set_text(obj, "description", value, yml)
+        elif kind == "relationships" and field in ("from_column", "to_column"):
+            obj[field.replace("_column", "_columns")] = [yml.string(value or "")]
+        elif kind == "metrics" and field == "dax":
+            expression = obj.get("expression")
+            if not isinstance(expression, dict):
+                expression = obj["expression"] = {}
+            dialects = expression.get("dialects")
+            if not isinstance(dialects, list):
+                dialects = expression["dialects"] = []
+            entry = next(
+                (
+                    d
+                    for d in dialects
+                    if isinstance(d, dict)
+                    and str(d.get("dialect", "")).upper() == "DAX"
+                ),
+                None,
+            )
+            if entry is None:
+                entry = {"dialect": "DAX"}
+                dialects.insert(0, entry)
+            entry["expression"] = yml.string(value or "")
+
+
+def _new_view_object(kind: str, values: dict, yml: _ViewYaml) -> dict:
+    obj: dict = {"name": yml.string(values.get("name") or "")}
+    if kind == "datasets":
+        obj["source"] = yml.string(values.get("source") or "")
+        _set_text(obj, "description", values.get("description"), yml)
+    elif kind == "relationships":
+        obj["from"] = yml.string(values.get("from") or "")
+        obj["to"] = yml.string(values.get("to") or "")
+        obj["from_columns"] = [yml.string(values.get("from_column") or "")]
+        obj["to_columns"] = [yml.string(values.get("to_column") or "")]
+    else:
+        _set_text(obj, "description", values.get("description"), yml)
+        obj["expression"] = {
+            "dialects": [
+                {"dialect": "DAX", "expression": yml.string(values.get("dax") or "")}
+            ]
+        }
+    return obj
+
+
+def _save_semantic_view(
+    workspace_id: str,
+    lakehouse_id: str,
+    view_name: str,
+    changes: dict,
+    etags: Optional[dict] = None,
+) -> Tuple[int, bool]:
+    """Writes staged explorer edits back to a view's YAML files.
+
+    ``changes`` holds ``description`` (the view description, or None when
+    unchanged), ``updates`` / ``deletes`` (``{kind, file, index, name}`` plus
+    ``values`` for updates; objects are addressed by their position in their
+    file's list and checked by name) and ``creates`` (``{kind, file,
+    values}``). ``etags`` are the files' ETags when the view was read: a file
+    changed since then is not overwritten. Returns the number of changes and
+    whether YAML comments could be kept.
+    """
+
+    folder = f"{_VIEWS_FOLDER}/{view_name}"
+    listing = _onelake_list(workspace_id, lakehouse_id, folder, recursive=True)
+    if listing is None:
+        raise ValueError(f"The '{view_name}' semantic view no longer exists.")
+    current = {
+        _relative_path(p["path"], folder): p
+        for p in listing
+        if not p["is_dir"] and p["path"].endswith(".yaml")
+    }
+    yaml_files = sorted(current, key=str.lower)
+    if not yaml_files:
+        raise ValueError("The semantic view has no .yaml file to save changes to.")
+    yml = _ViewYaml()
+    docs: Dict[str, object] = {}
+    originals: Dict[str, str] = {}
+    touched: set = set()
+
+    def doc(path):
+        if path not in current:
+            raise ValueError(
+                f"'{path}' is no longer in the semantic view. Reload the view."
+            )
+        if path not in docs:
+            known = (etags or {}).get(path)
+            if known and current[path].get("etag") and known != current[path]["etag"]:
+                raise ValueError(
+                    f"'{path}' was changed after the view was loaded. Reload the "
+                    "view and make your changes again."
+                )
+            text = _onelake_read(workspace_id, lakehouse_id, f"{folder}/{path}")
+            originals[path] = text
+            loaded = yml.load(text) if text.strip() else None
+            if loaded is None:
+                loaded = yml.load(f"version: {_VIEW_YAML_VERSION}\nname: x\n")
+                loaded["name"] = view_name
+            if not isinstance(loaded, dict):
+                raise ValueError(f"'{path}' is not a YAML mapping.")
+            docs[path] = loaded
+        return docs[path]
+
+    def located(change):
+        kind = change.get("kind")
+        if kind not in _VIEW_LISTS:
+            raise ValueError(f"Unknown object kind '{kind}'.")
+        items = doc(change.get("file")).get(kind)
+        index = int(change.get("index", -1))
+        if not isinstance(items, list) or not 0 <= index < len(items):
+            raise ValueError(
+                f"'{change.get('name')}' was not found in {change.get('file')}."
+            )
+        obj = items[index]
+        if not isinstance(obj, dict) or str(obj.get("name") or "") != str(
+            change.get("name") or ""
+        ):
+            raise ValueError(
+                f"'{change.get('name')}' has changed in {change.get('file')}. Reload "
+                "the view and make your changes again."
+            )
+        return items, index, obj
+
+    count = 0
+    for change in changes.get("updates") or []:
+        _, _, obj = located(change)
+        _apply_view_values(change["kind"], obj, dict(change.get("values") or {}), yml)
+        touched.add(change["file"])
+        count += 1
+    deletes = list(changes.get("deletes") or [])
+    for change in sorted(deletes, key=lambda c: -int(c.get("index", -1))):
+        items, index, _ = located(change)
+        del items[index]
+        if not items:
+            # An empty list is invalid (e.g. 'datasets: []').
+            del doc(change["file"])[change["kind"]]
+        touched.add(change["file"])
+        count += 1
+
+    def target(kind):
+        for path in yaml_files:
+            if isinstance(doc(path).get(kind), list):
+                return path
+        for path in yaml_files:
+            if isinstance(doc(path).get("datasets"), list):
+                return path
+        return yaml_files[0]
+
+    for change in changes.get("creates") or []:
+        kind = change.get("kind")
+        if kind not in _VIEW_LISTS:
+            raise ValueError(f"Unknown object kind '{kind}'.")
+        path = change.get("file") if change.get("file") in current else target(kind)
+        document = doc(path)
+        if not isinstance(document.get(kind), list):
+            document[kind] = []
+        document[kind].append(
+            _new_view_object(kind, dict(change.get("values") or {}), yml)
+        )
+        touched.add(path)
+        count += 1
+
+    if changes.get("description") is not None:
+        value = str(changes["description"])
+        defining = [p for p in yaml_files if "description" in doc(p)]
+        for path in defining or ([target("datasets")] if value.strip() else []):
+            _set_document_description(doc(path), value, yml)
+            touched.add(path)
+        count += 1
+
+    comments_kept = True
+    for path in sorted(touched):
+        text = yml.dump(docs[path])
+        if not yml.keeps_comments and re.search(r"(^|\s)#", originals[path]):
+            comments_kept = False
+        _onelake_write_file(
+            workspace_id,
+            lakehouse_id,
+            f"{folder}/{path}",
+            text.encode("utf-8"),
+            current[path].get("etag", ""),
+        )
+    return count, comments_kept
+
+
+def _publish_view(workspace_id: str, lakehouse_id: str, view_name: str) -> List[str]:
+    """Publishes a view; returns the publish warnings as text."""
+
+    from sempy_labs.semantic_model._semantic_view import publish_semantic_view
+
+    with _QuietTool():
+        result = publish_semantic_view(
+            view_name, lakehouse=lakehouse_id, workspace=workspace_id
+        )
+    warnings = []
+    for w in (result or {}).get("warnings") or []:
+        if not isinstance(w, dict):
+            warnings.append(str(w))
+            continue
+        where = ":".join(
+            str(w[k]) for k in ("sourcePath", "line") if w.get(k) not in (None, "")
+        )
+        message = str(w.get("message") or w.get("code") or "")
+        warnings.append(f"{message} ({where})" if where else message)
+    return warnings
+
+
+def _refresh_view_model(workspace_id: str, view_name: str) -> None:
+    """Refreshes the semantic model generated from a view (same name and
+    workspace as the view)."""
+
+    from sempy_labs._refresh_semantic_model import refresh_semantic_model
+
+    with _QuietTool():
+        refresh_semantic_model(dataset=view_name, workspace=workspace_id)
+
+
+def _onelake_write_file(
+    workspace_id: str, item_id: str, path: str, content: bytes, etag: str = ""
+) -> None:
+    """Overwrites a file; with an ETag, only if it hasn't changed since."""
+
+    full_path = f"{item_id}/{path}"
+    response = _onelake_request(
+        "PUT",
+        workspace_id,
+        full_path,
+        params={"resource": "file"},
+        headers={"If-Match": etag} if etag else None,
+    )
+    if response.status_code == 412:
+        raise ValueError(
+            f"'{path}' was changed by someone else. Reload the view and make your "
+            "changes again."
+        )
+    if response.status_code not in (200, 201):
+        _onelake_raise(response, f"write '{path}'")
+    if content:
+        response = _onelake_request(
+            "PATCH",
+            workspace_id,
+            full_path,
+            params={"action": "append", "position": "0"},
+            data=content,
+            headers={"Content-Type": "application/octet-stream"},
+        )
+        if response.status_code not in (200, 202):
+            _onelake_raise(response, f"write '{path}'")
+    response = _onelake_request(
+        "PATCH",
+        workspace_id,
+        full_path,
+        params={"action": "flush", "position": str(len(content))},
+    )
+    if response.status_code != 200:
+        _onelake_raise(response, f"write '{path}'")
+
+
+def _lakehouse_tables(workspace_id: str, lakehouse_id: str) -> List[str]:
+    """The lakehouse's tables as 'schema.table' (for dataset sources)."""
+
+    from sempy_labs._helper_functions import _base_api
+
+    base = f"{workspace_id}/{lakehouse_id}/api/2.1/unity-catalog"
+    try:
+        schemas = _base_api(
+            request=f"{base}/schemas?catalog_name={lakehouse_id}", client="onelake"
+        ).json()
+        names = []
+        for schema in schemas.get("schemas") or []:
+            schema_name = schema.get("name")
+            tables = _base_api(
+                request=f"{base}/tables?catalog_name={lakehouse_id}&schema_name={schema_name}",
+                client="onelake",
+            ).json()
+            names += [
+                f"{schema_name}.{t.get('name')}" for t in tables.get("tables") or []
+            ]
+        return sorted(names, key=str.lower)
+    except Exception:
+        # Lakehouses without schemas list their tables in 'dbo'.
+        responses = _base_api(
+            request=f"/v1/workspaces/{workspace_id}/lakehouses/{lakehouse_id}/tables",
+            uses_pagination=True,
+            client="fabric_sp",
+        )
+        return sorted(
+            (f"dbo.{t.get('name')}" for r in responses for t in r.get("data") or []),
+            key=str.lower,
+        )
+
+
 def _generate_measure_descriptions(workspace_id: str, measures: List[dict]) -> list:
     """Generates measure descriptions with the Fabric Copilot completions API.
 
@@ -10581,6 +13513,10 @@ _BACKGROUND_ACTIONS = (
     "vpax_workspaces",
     "vpax_lakehouses",
     "vpax_create",
+    "list_lakehouses",
+    "list_views",
+    "view_tables",
+    "view_columns",
 )
 _daxlib_cache: Dict[object, Tuple[float, object]] = {}
 
@@ -10891,12 +13827,24 @@ def semantic_explorer(
     The semantic model picker can also create a new, empty semantic model
     (compatibility level 1706) in a workspace and open it in the explorer.
 
+    The explorer also opens semantic views (preview): the YAML definitions in a
+    lakehouse's Context/Semantic Views folder. A view's datasets, columns,
+    relationships and metrics are shown in a read-only tree built from its YAML
+    and, once it is published, the generated TMDL in SystemContext. The YAML
+    and TMDL files can be viewed, and a new view can be created with a starter
+    definition file. In edit mode, the view's description, datasets,
+    relationships and metrics can be edited, added and deleted (renames update
+    the references to them); changes are staged with undo / redo and written to
+    the YAML files only on Save. Comments in the YAML files are kept when the
+    ruamel.yaml package is installed.
+
     Parameters
     ----------
     dataset : str | uuid.UUID, default=None
-        Name or ID of the semantic model. If None, the explorer opens with a
-        workspace and semantic model picker (which can also create a new,
-        empty semantic model).
+        Name or ID of the semantic model. If None, the explorer opens on a start
+        page to choose between a semantic model (open an existing one or create
+        a new, empty one) and a semantic view (open an existing one or create a
+        new one in a lakehouse).
     workspace : str | uuid.UUID, default=None
         The Fabric workspace name or ID.
         Defaults to None which resolves to the workspace of the attached lakehouse
@@ -10916,7 +13864,10 @@ def semantic_explorer(
         ) from e
 
     from IPython.display import display
-    from sempy_labs._helper_functions import resolve_workspace_name_and_id
+    from sempy_labs._helper_functions import (
+        resolve_lakehouse_name_and_id,
+        resolve_workspace_name_and_id,
+    )
     from sempy_labs._ui_components import (
         list_picker_datasets,
         list_picker_lakehouses,
@@ -10942,6 +13893,7 @@ def semantic_explorer(
     ctx = {
         "dataset_id": state["dataset_id"] or None,
         "workspace_id": state["workspace_id"] or None,
+        "view": None,
     }
 
     class SemanticExplorerWidget(anywidget.AnyWidget):
@@ -10964,8 +13916,13 @@ def semantic_explorer(
         available_datasets = traitlets.List().tag(sync=True)
         picker_loading = traitlets.Bool(False).tag(sync=True)
         dark_mode = traitlets.Bool(False).tag(sync=True)
+        # "" (nothing open yet), "model" or "view".
+        explorer_kind = traitlets.Unicode("").tag(sync=True)
+        view_data = traitlets.Dict().tag(sync=True)
+        view_version = traitlets.Int(0).tag(sync=True)
 
     widget = SemanticExplorerWidget(
+        explorer_kind="model" if dataset_chosen else "",
         model_data=state["payload"],
         model_version=1 if dataset_chosen else 0,
         result={},
@@ -11002,7 +13959,25 @@ def semantic_explorer(
         widget.active_workspace_id = new_state["workspace_id"]
         widget.model_data = new_state["payload"]
         widget.dataset_chosen = True
+        widget.explorer_kind = "model"
         widget.model_version += 1
+
+    def _load_view(workspace_id: str, lakehouse_id: str, view_name: str) -> None:
+        payload = _semantic_view_payload(workspace_id, lakehouse_id, view_name)
+        workspace_name, _ = resolve_workspace_name_and_id(workspace_id)
+        lakehouse_name, _ = resolve_lakehouse_name_and_id(lakehouse_id, workspace_id)
+        payload["view"].update(
+            {
+                "workspace_id": workspace_id,
+                "workspace_name": str(workspace_name),
+                "lakehouse_id": lakehouse_id,
+                "lakehouse_name": str(lakehouse_name),
+            }
+        )
+        ctx["view"] = (workspace_id, lakehouse_id, view_name)
+        widget.view_data = payload
+        widget.explorer_kind = "view"
+        widget.view_version += 1
 
     def _reply(data: dict, ok: bool, payload: Optional[dict] = None, error: str = ""):
         widget.result = {
@@ -11051,6 +14026,138 @@ def semantic_explorer(
                 }
                 _reply(data, True, {"dataset_id": dataset_id})
                 return
+            if action == "list_lakehouses":
+                target = str(data.get("workspace_id") or "")
+                _reply(data, True, {"items": list_picker_lakehouses(target)})
+                return
+            if action == "list_views":
+                views = _list_semantic_views(
+                    str(data.get("workspace_id") or ""),
+                    str(data.get("lakehouse_id") or ""),
+                )
+                _reply(data, True, {"items": views})
+                return
+            if action == "open_view":
+                workspace_id = str(data.get("workspace_id") or "")
+                lakehouse_id = str(data.get("lakehouse_id") or "")
+                view_name = str(data.get("view") or "")
+                if not workspace_id or not lakehouse_id or not view_name:
+                    raise ValueError(
+                        "Select a workspace, a lakehouse and a semantic view."
+                    )
+                _load_view(workspace_id, lakehouse_id, view_name)
+                widget.status = {}
+                _reply(data, True)
+                return
+            if action == "create_view":
+                workspace_id = str(data.get("workspace_id") or "")
+                lakehouse_id = str(data.get("lakehouse_id") or "")
+                name = _create_semantic_view(
+                    workspace_id, lakehouse_id, str(data.get("name") or "")
+                )
+                _load_view(workspace_id, lakehouse_id, name)
+                widget.status = {
+                    "message": f"Created the '{name}' semantic view.",
+                    "kind": "success",
+                }
+                _reply(data, True, {"view": name})
+                return
+            if action == "save_view":
+                if not ctx["view"]:
+                    raise ValueError("Select a semantic view first.")
+                changes = dict(data.get("changes") or {})
+                count, comments_kept = 0, True
+                if any(changes.get(k) for k in ("updates", "deletes", "creates")) or (
+                    changes.get("description") is not None
+                ):
+                    count, comments_kept = _save_semantic_view(
+                        *ctx["view"], changes, data.get("etags")
+                    )
+                parts = []
+                if count:
+                    parts.append(
+                        f"Saved {count} change{'s' if count != 1 else ''} to the "
+                        "semantic view's YAML files."
+                    )
+                if not comments_kept:
+                    parts.append(
+                        "Comments in the changed files were not kept (install "
+                        "ruamel.yaml to keep them)."
+                    )
+                kind = "success"
+                published = False
+                if data.get("publish"):
+                    if count:
+                        _load_view(*ctx["view"])
+                    widget.status = {
+                        "message": " ".join(parts + ["Publishing\u2026"]),
+                        "kind": "info",
+                    }
+                    try:
+                        warnings = _publish_view(*ctx["view"])
+                        published = True
+                        parts.append("Published the semantic view.")
+                        if warnings:
+                            kind = "info"
+                            parts.append(
+                                f"{len(warnings)} warning"
+                                f"{'s' if len(warnings) != 1 else ''}: "
+                                + "; ".join(warnings[:5])
+                            )
+                    except Exception as e:
+                        kind = "error"
+                        parts.append(f"Publishing failed: {e}")
+                    if published:
+                        workspace_id, _, view_name = ctx["view"]
+                        widget.status = {
+                            "message": " ".join(
+                                parts
+                                + [f"Refreshing the '{view_name}' semantic model\u2026"]
+                            ),
+                            "kind": "info",
+                        }
+                        try:
+                            _refresh_view_model(workspace_id, view_name)
+                            parts.append(f"Refreshed the '{view_name}' semantic model.")
+                        except Exception as e:
+                            kind = "error"
+                            parts.append(
+                                f"Refreshing the '{view_name}' semantic model failed: {e}"
+                            )
+                _load_view(*ctx["view"])
+                widget.status = {"message": " ".join(parts) or "Saved.", "kind": kind}
+                _reply(data, True, {"count": count, "published": published})
+                return
+            if action == "view_tables":
+                if not ctx["view"]:
+                    raise ValueError("Select a semantic view first.")
+                workspace_id, lakehouse_id, _ = ctx["view"]
+                tables = _lakehouse_tables(workspace_id, lakehouse_id)
+                _reply(data, True, {"items": tables})
+                return
+            if action == "view_columns":
+                if not ctx["view"]:
+                    raise ValueError("Select a semantic view first.")
+                workspace_id, lakehouse_id, _ = ctx["view"]
+                columns = _lakehouse_table_columns(
+                    workspace_id, lakehouse_id, str(data.get("source") or "")
+                )
+                _reply(data, True, {"columns": columns})
+                return
+            if action == "format_dax":
+                formatted = _format_dax_expression(str(data.get("expression") or ""))
+                _reply(data, True, {"formatted": formatted})
+                return
+            if action == "reload_view":
+                if not ctx["view"]:
+                    raise ValueError("Select a semantic view first.")
+                _load_view(*ctx["view"])
+                widget.status = {
+                    "message": "Semantic view reloaded.",
+                    "kind": "success",
+                }
+                _reply(data, True)
+                return
             if action == "daxlib_catalog":
                 _reply(data, True, {"packages": _daxlib_catalog()})
                 return
@@ -11095,9 +14202,6 @@ def semantic_explorer(
                     True,
                     _model_dependencies(ctx["dataset_id"], ctx["workspace_id"]),
                 )
-            elif action == "format_dax":
-                formatted = _format_dax_expression(str(data.get("expression") or ""))
-                _reply(data, True, {"formatted": formatted})
             elif action == "generate_descriptions":
                 generated = _generate_measure_descriptions(
                     ctx["workspace_id"], list(data.get("measures") or [])
@@ -11156,7 +14260,7 @@ def semantic_explorer(
                 widget.status = {"message": f"Error: {e}", "kind": "error"}
             else:
                 _reply(data, False, error=str(e))
-                if action in ("connect", "reload", "save"):
+                if action in ("connect", "reload", "save", "reload_view", "save_view"):
                     widget.status = {"message": f"Error: {e}", "kind": "error"}
         finally:
             if action not in _BACKGROUND_ACTIONS:
