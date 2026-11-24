@@ -1578,20 +1578,20 @@ def test_adding_a_yaml_file_makes_a_single_file_view_a_combined_view(monkeypatch
 
     assert result["ok"] and result["data"] == {
         "view": "all",
-        "file": "finance_semantic_view.yaml",
+        "file": "finance/finance_semantic_view.yaml",
     }
     folder = "Context/Semantic Views/all"
     assert sorted(p for p in lake.files if p.startswith("Context/Semantic Views/")) == [
-        f"{folder}/finance_semantic_view.yaml",
+        f"{folder}/finance/finance_semantic_view.yaml",
         f"{folder}/sales_semantic_view.yaml",
         "Context/Semantic Views/other/other.yaml",
     ]
-    new = yaml.safe_load(lake.files[f"{folder}/finance_semantic_view.yaml"])
+    new = yaml.safe_load(lake.files[f"{folder}/finance/finance_semantic_view.yaml"])
     assert (new["name"], new["version"]) == ("finance", sx._VIEW_YAML_VERSION)
     # The renamed view is the one edited from now on.
     result = send(action="add_view_file", name="hr", request_id=4)
     assert result["ok"] and result["data"]["view"] == "all"
-    assert f"{folder}/hr_semantic_view.yaml" in lake.files
+    assert f"{folder}/hr/hr_semantic_view.yaml" in lake.files
 
 
 def test_adding_a_yaml_file_to_a_combined_view_keeps_its_name(monkeypatch):
@@ -1607,9 +1607,57 @@ def test_adding_a_yaml_file_to_a_combined_view_keeps_its_name(monkeypatch):
         action="add_view_file", name="finance", combined_name="ignored", request_id=2
     )
 
+    path = "Context/Semantic Views/sales/finance/finance_semantic_view.yaml"
     assert result["ok"] and result["data"]["view"] == "sales"
-    assert "Context/Semantic Views/sales/finance_semantic_view.yaml" in lake.files
+    assert path in lake.files
     assert not any("ignored" in p for p in lake.files)
+    result = send(action="add_view_file", name="finance", request_id=3)
+    assert not result["ok"] and "already has" in result["error"]
+    # Once the file is deleted (its folder is left behind), it can be added again.
+    del lake.files[path]
+    result = send(action="add_view_file", name="finance", request_id=4)
+    assert result["ok"] and path in lake.files
+
+
+def test_view_object_names_must_be_unique_across_files():
+    second = """
+version: 0.2.0.dev0
+name: finance
+datasets:
+  - name: Sales
+    source: dbo.sales2
+metrics:
+  - name: total net sales
+    expression:
+      dialects:
+        - dialect: DAX
+          expression: "1"
+"""
+    import yaml
+
+    merged = sx._merge_view_documents(
+        [
+            ("schema.yaml", yaml.safe_load(_VIEW_SCHEMA)),
+            ("metrics.yaml", yaml.safe_load(_VIEW_METRICS)),
+            ("finance/finance.yaml", yaml.safe_load(second)),
+        ]
+    )
+
+    dupes = [i for i in merged["issues"] if "must be unique" in i["message"]]
+    assert [(i["level"], i["message"], i["file"]) for i in dupes] == [
+        (
+            "error",
+            "The dataset name 'sales' is used 2 times (finance/finance.yaml, "
+            "schema.yaml); dataset names must be unique.",
+            "finance/finance.yaml",
+        ),
+        (
+            "error",
+            "The metric name 'Total Net Sales' is used 2 times "
+            "(finance/finance.yaml, metrics.yaml); metric names must be unique.",
+            "finance/finance.yaml",
+        ),
+    ]
 
 
 def test_save_semantic_view_refuses_to_overwrite_changed_files(monkeypatch):

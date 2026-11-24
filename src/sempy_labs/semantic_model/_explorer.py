@@ -231,6 +231,14 @@ _WIDGET_CSS = """
 .slls-sx-defined-in.edit { display: flex; flex: 1 1 auto; flex-wrap: wrap; row-gap: 4px; }
 .slls-sx-defined-in.edit .slls-sx-select { flex: 1 1 0; width: auto; min-width: 0; }
 .slls-sx-vmoved { flex-basis: 100%; padding-left: 16px; color: var(--sx-warn); font-size: 11.5px; font-weight: 500; }
+.slls-sx-err.slls-sx-warnicon { color: var(--sx-warn); }
+.slls-sx-vdupes {
+    display: flex; align-items: flex-start; gap: 6px; margin: 0 8px 6px; padding: 6px 8px; border-radius: 6px; font-size: 12px;
+    border: 1px solid color-mix(in srgb, var(--sx-warn) 40%, transparent); background: color-mix(in srgb, var(--sx-warn) 10%, transparent);
+}
+.slls-sx-vdupes > .slls-sx-ricon { color: var(--sx-warn); flex-shrink: 0; margin-top: 1px; }
+.slls-sx-vdupes svg { width: 13px; height: 13px; }
+.slls-sx-vdupes > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .slls-sx-issue { display: flex; align-items: flex-start; gap: 8px; padding: 6px 2px; font-size: 12.5px; border-bottom: 1px solid var(--ui-border); }
 .slls-sx-issue:last-child { border-bottom: none; }
 .slls-sx-issue > span:nth-child(2) { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
@@ -3038,41 +3046,69 @@ function render({ model, el }) {
         const c = viewChanges();
         return (c.description !== null ? 1 : 0) + c.updates.length + c.deletes.length + c.moves.length + c.creates.length;
     }
+    // Names are unique per kind across all the view's YAML files (compared
+    // case-insensitively, like the semantic model's object names). A duplicate
+    // made by adding or renaming an object is an error; duplicates which were
+    // already saved are warnings, so other edits can still be saved.
+    function viewDuplicates() {
+        const out = [];
+        if (!vWork) return out;
+        const text = (v) => String(v || "").trim();
+        const changed = (o) => { const b = vBaseOf(o); return !b || !ciEq(text(o.name), text(b.name)); };
+        for (const kind of Object.values(VIEW_LISTS)) {
+            const label = VIEW_TYPE_LABEL[Object.keys(VIEW_LISTS).find((t) => VIEW_LISTS[t] === kind)];
+            const groups = new Map();
+            for (const o of vLive(kind)) {
+                const k = text(o.name).toLowerCase();
+                if (!k) continue;
+                if (!groups.has(k)) groups.set(k, []);
+                groups.get(k).push(o);
+            }
+            for (const group of groups.values()) {
+                if (group.length < 2) continue;
+                for (const o of group) {
+                    const files = [...new Set(group.filter((x) => x !== o).map((x) => x.file || "inferred when published"))];
+                    const where = vMultiFile() ? ` (in ${files.join(", ")})` : "";
+                    out.push({ o, group, label, changed: changed(o),
+                        msg: `Another ${label.toLowerCase()} is named \u201c${text(o.name)}\u201d${where}. ${label} names must be unique.` });
+                }
+            }
+        }
+        return out;
+    }
+    function viewWarnings() {
+        const warnings = new Map();
+        for (const d of viewDuplicates()) {
+            if (d.changed) continue;
+            if (!warnings.has(d.o.key)) warnings.set(d.o.key, []);
+            warnings.get(d.o.key).push(d.msg);
+        }
+        return warnings;
+    }
     function viewValidation() {
         const errors = new Map();
         if (!vWork) return errors;
         const add = (o, msg) => { if (!errors.has(o.key)) errors.set(o.key, []); errors.get(o.key).push(msg); };
         const text = (v) => String(v || "").trim();
         const datasets = vLive("datasets"), rels = vLive("relationships"), metrics = vLive("metrics");
-        const dup = (items, label, fold) => {
-            const seen = new Set();
-            for (const o of items) {
-                const k = fold ? text(o.name).toLowerCase() : text(o.name);
-                if (!k) continue;
-                if (seen.has(k)) add(o, `Another ${label} is named \u201c${text(o.name)}\u201d.`);
-                seen.add(k);
-            }
-        };
         for (const d of datasets) {
             if (!vEditable(d)) continue;
             if (!text(d.name)) add(d, "A name is required.");
             if (!text(d.source)) add(d, "A source table is required (e.g. dbo.sales).");
         }
-        dup(datasets, "dataset", true);
         for (const r of rels) {
             if (!vEditable(r)) continue;
             if (!text(r.name)) add(r, "A name is required.");
             if (!text(r.from) || !text(r.to)) add(r, "Choose the datasets on both sides.");
             if (!text(r.from_column) || !text(r.to_column)) add(r, "Choose the columns on both sides.");
         }
-        dup(rels, "relationship", false);
         for (const m of metrics) {
             if (!vEditable(m)) continue;
             if (!text(m.name)) add(m, "A name is required.");
             if (!text(m.dax) && vIsDirty(m)) add(m, "A DAX expression is required.");
             if (datasets.some((d) => ciEq(text(d.name), text(m.name)))) add(m, "A metric can\u2019t have the same name as a dataset.");
         }
-        dup(metrics, "metric", true);
+        for (const d of viewDuplicates()) if (d.changed) add(d.o, d.msg);
         return errors;
     }
     function viewBlockingErrors() {
@@ -3258,14 +3294,16 @@ function render({ model, el }) {
         const refresh = () => {
             const name = nameInput.value.trim();
             const combo = comboInput ? comboInput.value.trim() : view.name;
-            const file = `${name}_semantic_view.yaml`;
-            const clash = !!name && ((viewData.files || []).some((f) => f.area === "definition" && f.path.toLowerCase() === file.toLowerCase()));
+            // Each added file goes in a subfolder named after its semantic view.
+            // Whether the file already exists is checked when adding: the
+            // file list read with the view may be out of date (e.g. a file
+            // deleted in the lakehouse since).
+            const file = `${name}/${name}_semantic_view.yaml`;
             const bad = (!!name && invalid(name)) || (!!combo && invalid(combo));
-            nameInput.classList.toggle("invalid", clash || (!!name && invalid(name)));
+            nameInput.classList.toggle("invalid", !!name && invalid(name));
             if (comboInput) comboInput.classList.toggle("invalid", !!combo && invalid(combo));
-            note.classList.toggle("error", clash || bad);
-            if (clash) note.textContent = `The view already has a \u201c${file}\u201d file.`;
-            else if (bad) note.textContent = "A name can\u2019t contain \\ / : * ? \" < > | # % or end with a period.";
+            note.classList.toggle("error", bad);
+            if (bad) note.textContent = "A name can\u2019t contain \\ / : * ? \" < > | # % or end with a period.";
             else if (name && combo) {
                 const renamed = combo !== view.name;
                 note.textContent = `Creates Context/Semantic Views/${combo}/${file}`
@@ -3274,7 +3312,7 @@ function render({ model, el }) {
                         + `publishing the combined view creates a \u201c${combo}\u201d semantic model.` : "");
             } else note.textContent = combined ? "The new file defines a semantic view with this name." : "Enter the new semantic view\u2019s name and the combined view\u2019s name.";
             add.textContent = adding ? "Adding\u2026" : "Add";
-            add.disabled = adding || !name || !combo || clash || bad;
+            add.disabled = adding || !name || !combo || bad;
             nameInput.disabled = adding;
             if (comboInput) comboInput.disabled = adding;
         };
@@ -3505,7 +3543,7 @@ function render({ model, el }) {
         }
         return rows;
     }
-    function viewRowElement(r, errors) {
+    function viewRowElement(r, errors, warnings) {
         const node = r.node;
         const row = h("div", "slls-sx-row");
         row.setAttribute("role", "treeitem");
@@ -3541,6 +3579,10 @@ function render({ model, el }) {
             const err = iconEl("alert", "slls-sx-err");
             err.title = errors.get(node.key).join("\n");
             row.appendChild(err);
+        } else if (node && warnings.has(node.key)) {
+            const warn = iconEl("alert", "slls-sx-err slls-sx-warnicon");
+            warn.title = warnings.get(node.key).join("\n");
+            row.appendChild(warn);
         }
         if (node && node.type !== "column" && vIsDirty(node)) { const d = h("span", "slls-sx-dot"); d.title = "Unsaved change"; row.appendChild(d); }
         if (node && !node.isNew && viewData.view.published && ["dataset", "relationship", "metric"].includes(node.type)
@@ -3591,10 +3633,37 @@ function render({ model, el }) {
         clear(vTreeEl);
         const rows = buildViewRows();
         const errors = vMode === "write" ? viewValidation() : new Map();
+        const warnings = viewWarnings();
         root.dataset.rows = String(rows.length);
-        for (const r of rows) vTreeEl.appendChild(viewRowElement(r, errors));
+        for (const r of rows) vTreeEl.appendChild(viewRowElement(r, errors, warnings));
         if (rows.length <= 1 && vSearch.trim()) vTreeEl.appendChild(h("div", "slls-sx-empty", "No matches."));
         vTreeEl.scrollTop = top;
+        paintViewDuplicates();
+    }
+    // Banner above the tree naming the duplicated names; each name reveals
+    // its next object.
+    function paintViewDuplicates() {
+        const box = treePane.querySelector(".slls-sx-vdupes");
+        if (!box) return;
+        clear(box);
+        const groups = [];
+        for (const d of viewDuplicates()) if (!groups.some((g) => g.group === d.group)) groups.push(d);
+        box.style.display = groups.length ? "" : "none";
+        if (!groups.length) return;
+        box.appendChild(iconEl("alert", ""));
+        const text = h("span", "");
+        text.appendChild(document.createTextNode(`Duplicate name${groups.length === 1 ? "" : "s"} (names must be unique): `));
+        groups.forEach((d, i) => {
+            if (i) text.appendChild(document.createTextNode(", "));
+            const link = vLink(`${d.label.toLowerCase()} \u201c${String(d.o.name).trim()}\u201d (${d.group.length})`, () => {
+                const at = d.group.findIndex((o) => o.key === vSelected);
+                vReveal(d.group[(at + 1) % d.group.length].key);
+            });
+            const files = [...new Set(d.group.map((o) => o.file || "inferred when published"))];
+            link.title = `Defined ${d.group.length} times${vMultiFile() ? ` (in ${files.join(", ")})` : ""}. Click to go to the next one.`;
+            text.appendChild(link);
+        });
+        box.appendChild(text);
     }
     function vToggle(id) {
         if (vExpanded.has(id)) vExpanded.delete(id); else vExpanded.add(id);
@@ -3675,6 +3744,7 @@ function render({ model, el }) {
         filters.appendChild(sw);
         if (vMultiFile()) filters.appendChild(viewFileFilter());
         treePane.appendChild(filters);
+        treePane.appendChild(h("div", "slls-sx-vdupes"));
         vTreeEl = h("div", "slls-sx-tree slls-sx-vtree");
         vTreeEl.setAttribute("role", "tree");
         treePane.appendChild(vTreeEl);
@@ -3881,10 +3951,16 @@ function render({ model, el }) {
         if (!box) return;
         clear(box);
         const msgs = vMode === "write" ? (viewValidation().get(node.key) || []) : [];
-        box.style.display = msgs.length ? "" : "none";
+        const warns = viewWarnings().get(node.key) || [];
+        box.style.display = msgs.length || warns.length ? "" : "none";
         for (const msg of msgs) {
             const row = h("div", "slls-sx-issue error");
             row.append(iconEl("alert", ""), h("span", "", msg));
+            box.appendChild(row);
+        }
+        for (const msg of warns) {
+            const row = h("div", "slls-sx-issue warning");
+            row.append(iconEl("alert"), h("span", "", msg));
             box.appendChild(row);
         }
     }
@@ -12312,7 +12388,8 @@ def _plan_view_yaml_file(
         raise ValueError(
             f"A semantic view can have at most {_VIEW_MAX_FILES} .yaml files."
         )
-    path = f"{name}_semantic_view.yaml"
+    # Each added semantic view gets its own subfolder.
+    path = f"{name}/{name}_semantic_view.yaml"
     if path.lower() in {f.lower() for f in files}:
         raise ValueError(f"The view already has a '{path}' file.")
     for f in yaml_files:
@@ -12530,21 +12607,28 @@ def _merge_view_documents(documents: List[Tuple[str, object]]) -> dict:
             + "); it must be identical wherever it is defined.",
             "",
         )
-    for label, objects, folded in (
-        ("dataset", datasets, False),
-        ("relationship", relationships, False),
-        ("metric", metrics, True),
+    # Names are unique per kind across all the files, compared
+    # case-insensitively like the generated model's object names.
+    for label, objects in (
+        ("dataset", datasets),
+        ("relationship", relationships),
+        ("metric", metrics),
     ):
-        seen = set()
+        groups: Dict[str, List[dict]] = {}
         for obj in objects:
-            key = obj["name"].lower() if folded else obj["name"]
-            if obj["name"] and key in seen:
-                issue(
-                    "error",
-                    f"The {label} name '{obj['name']}' is used more than once.",
-                    obj["file"],
-                )
-            seen.add(key)
+            if obj["name"]:
+                groups.setdefault(obj["name"].lower(), []).append(obj)
+        for group in groups.values():
+            if len(group) < 2:
+                continue
+            files = sorted({o["file"] for o in group})
+            where = f" ({', '.join(files)})" if len(files) > 1 else ""
+            issue(
+                "error",
+                f"The {label} name '{group[0]['name']}' is used {len(group)} times"
+                f"{where}; {label} names must be unique.",
+                group[1]["file"],
+            )
     table_names = {d["name"].lower() for d in datasets}
     for met in metrics:
         if met["name"].lower() in table_names:
@@ -14346,9 +14430,11 @@ def semantic_explorer(
     DAX of every metric can be formatted at once with DAX Formatter; changes are
     staged with undo / redo and written to the YAML files only on Save. Comments
     in the YAML files are kept when the ruamel.yaml package is installed. A YAML
-    file (a semantic view of its own) can be added to a view; a view with a
-    single YAML file then becomes a combined view, and its folder is renamed to
-    the combined view's name.
+    file (a semantic view of its own, in a subfolder named after it) can be
+    added to a view; a view with a single YAML file then becomes a combined
+    view, and its folder is renamed to the combined view's name. Dataset,
+    relationship and metric names must be unique across all of a view's YAML
+    files: duplicates are flagged, and edits which create one can't be saved.
 
     Parameters
     ----------
