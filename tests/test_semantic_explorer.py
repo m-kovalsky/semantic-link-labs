@@ -1143,8 +1143,10 @@ class _FakeOneLake:
         # do the lakehouse tables (None: they can't be listed).
         self.shortcuts = shortcuts if isinstance(shortcuts, dict) else list(shortcuts)
         self.tables = tables
-        # Paths whose HEAD has no x-ms-resource-type (as for some shortcuts).
+        # Paths whose HEAD has no x-ms-resource-type (as for some shortcuts),
+        # or a given one.
         self.untyped = set()
+        self.head_types = {}
         self.calls = []
 
     def hidden(self, path, directory):
@@ -1194,6 +1196,10 @@ class _FakeOneLake:
         rel = path.split("/", 1)[1]
         if method == "HEAD":
             typed = rel not in self.untyped
+            if rel in self.head_types:
+                return _FakeResponse(
+                    headers={"x-ms-resource-type": self.head_types[rel]}
+                )
             if rel in self.folders:
                 return _FakeResponse(
                     headers={"x-ms-resource-type": "directory"} if typed else {}
@@ -1345,6 +1351,8 @@ def test_shortcuts_without_a_resource_type_are_listed_by_their_content(
         ],
     )
     lake.untyped = {f"{root}/mview/semview3", f"{root}/mview/linked.yaml"}
+    # A folder shortcut reported as a file is still listed by its content.
+    lake.head_types = {f"{root}/mview/semview1": "file"}
     monkeypatch.setattr(sx, "_onelake_request", lake)
 
     payload = sx._semantic_view_payload("ws", "lh", "mview")
@@ -1366,6 +1374,32 @@ def test_shortcuts_without_a_resource_type_are_listed_by_their_content(
     assert not [
         i for i in result["issues"] if "after the view was loaded" in i["message"]
     ]
+
+
+def test_keep_alive_runs_a_trivial_statement(monkeypatch):
+    import types as _types
+
+    statements = []
+    fake_spark = _types.SimpleNamespace(
+        sql=lambda q: statements.append(q) or _types.SimpleNamespace(collect=list)
+    )
+    fake_module = _types.ModuleType("pyspark.sql")
+    fake_module.SparkSession = _types.SimpleNamespace(
+        getActiveSession=lambda: fake_spark
+    )
+    widget, send = _view_explorer_widget(monkeypatch)
+    busy = []
+    widget.observe(lambda c: busy.append(c["new"]), names=["busy"])
+
+    monkeypatch.setitem(sys.modules, "pyspark.sql", fake_module)
+    result = send(action="keep_alive", request_id=1)
+
+    assert result["ok"] and len(result["data"]["at"]) == 8  # HH:MM:SS
+    assert statements == ["SELECT 1"]
+    assert busy == []  # The explorer isn't blocked meanwhile.
+    # Without Spark it still answers.
+    monkeypatch.setitem(sys.modules, "pyspark.sql", None)
+    assert send(action="keep_alive", request_id=2)["ok"]
 
 
 def test_shortcut_details_list_paths_and_targets(monkeypatch):

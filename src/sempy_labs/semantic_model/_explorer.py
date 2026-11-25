@@ -97,6 +97,7 @@ _WIDGET_CSS = """
     display: flex; align-items: center; gap: 6px; padding-left: 10px;
     border-left: 1px solid var(--ui-border);
 }
+.slls-sx-switch.slls-sx-keepalive { margin-right: 6px; white-space: nowrap; font-size: 12.5px; }
 .slls-sx-head-spacer { flex: 1 1 auto; }
 
 /* Generic buttons */
@@ -2410,7 +2411,7 @@ function render({ model, el }) {
         if (viewOpen()) {
             if (!pickerOpen) renderViewHeaderControls();
             header.appendChild(h("div", "slls-sx-head-spacer"));
-            header.append(fsBtn, themeBtn);
+            header.append(keepAliveSwitch(), fsBtn, themeBtn);
             return;
         }
         const busy = model.get("busy") || "";
@@ -2459,7 +2460,7 @@ function render({ model, el }) {
             header.appendChild(errBtn);
         }
         header.appendChild(h("div", "slls-sx-head-spacer"));
-        header.append(fsBtn, themeBtn);
+        header.append(keepAliveSwitch(), fsBtn, themeBtn);
     }
 
     // ------------------------------------------------------------------
@@ -8036,6 +8037,38 @@ function render({ model, el }) {
         sel.value = current == null ? "" : String(current);
         sel.addEventListener("change", () => onChange(sel.value));
         return sel;
+    }
+    // Keep-alive: while on, the kernel runs a trivial statement every 10
+    // minutes (see _keep_alive_ping) so the notebook session doesn't time out
+    // from inactivity while the explorer is open.
+    const KEEP_ALIVE_MS = 10 * 60 * 1000;
+    let keepAlive = false;
+    let keepAliveTimer = null;
+    let keepAliveAt = "";
+    function keepAlivePing() {
+        if (!root.isConnected) { setKeepAlive(false); return; }
+        request("keep_alive", {}, (res) => {
+            if (res.ok) keepAliveAt = res.data.at || "";
+            renderHeader();
+        });
+    }
+    function setKeepAlive(on) {
+        keepAlive = on;
+        clearInterval(keepAliveTimer);
+        keepAliveTimer = null;
+        if (on) {
+            keepAlivePing();
+            keepAliveTimer = setInterval(keepAlivePing, KEEP_ALIVE_MS);
+        }
+        if (root.isConnected) renderHeader();
+    }
+    function keepAliveSwitch() {
+        const sw = switchEl(keepAlive, "Keep the notebook session alive", () => setKeepAlive(!keepAlive), "Keep alive");
+        sw.classList.add("slls-sx-keepalive");
+        sw.title = keepAlive
+            ? `Keeping the notebook session alive: a trivial statement runs every 10 minutes${keepAliveAt ? ` (last run at ${keepAliveAt})` : ""}. Click to stop.`
+            : "Keep the notebook session alive while the explorer is open: runs a trivial statement every 10 minutes.";
+        return sw;
     }
     function switchEl(on, label, onClick, text) {
         const sw = h("button", "slls-sx-switch" + (on ? " on" : ""));
@@ -13803,9 +13836,11 @@ def _onelake_list_deep(
         # without it the shortcut is listed as a folder: content (or, for a
         # name without a file extension, an empty listing) means a folder.
         kind = str(headers.get("x-ms-resource-type", "")).lower()
+        looks_like_file = bool(re.search(r"\.[A-Za-z0-9]{1,8}$", shortcut))
         content = None
         if kind == "directory" or (
-            kind != "file" and not (listed and listed["is_dir"])
+            not (listed and listed["is_dir"])
+            and (kind != "file" or not looks_like_file)
         ):
             try:
                 content = _onelake_list(
@@ -13813,13 +13848,13 @@ def _onelake_list_deep(
                 )
             except Exception:
                 content = None
-        if kind in ("directory", "file"):
-            is_dir = kind == "directory"
-        else:
-            looks_like_file = bool(re.search(r"\.[A-Za-z0-9]{1,8}$", shortcut))
-            is_dir = bool(listed and listed["is_dir"]) or (
-                content is not None and (bool(content) or not looks_like_file)
-            )
+        # Content means a folder, whatever the header says.
+        is_dir = (
+            kind == "directory"
+            or bool(listed and listed["is_dir"])
+            or bool(content)
+            or (kind != "file" and content is not None and not looks_like_file)
+        )
         if not is_dir and head.status_code != 200 and listed is None:
             continue  # A broken shortcut (its target is gone).
         entry = listed or {
@@ -15615,6 +15650,24 @@ def _staged_view_files(
     return texts, count, comments_kept, current
 
 
+def _keep_alive_ping() -> str:
+    """The explorer's keep-alive (every 10 minutes while it is on): a trivial
+    statement run in the notebook session (Spark, when it is running) so the
+    session doesn't time out from inactivity. Returns the time it ran."""
+
+    import datetime
+
+    try:
+        from pyspark.sql import SparkSession
+
+        spark = SparkSession.getActiveSession()
+        if spark is not None:
+            spark.sql("SELECT 1").collect()
+    except Exception:
+        pass
+    return datetime.datetime.now().strftime("%H:%M:%S")
+
+
 def _workspaces_error_text(error: str) -> str:
     return (
         "The workspaces couldn't be listed, so only the current workspace is "
@@ -16388,6 +16441,7 @@ _BACKGROUND_ACTIONS = (
     "list_views",
     "view_tables",
     "view_columns",
+    "keep_alive",
 )
 _daxlib_cache: Dict[object, Tuple[float, object]] = {}
 
@@ -17218,6 +17272,9 @@ def semantic_explorer(
                         "kind": kind,
                     }
                 _reply(data, True, {"count": count, "published": published})
+                return
+            if action == "keep_alive":
+                _reply(data, True, {"at": _keep_alive_ping()})
                 return
             if action == "check_view":
                 if not ctx["view"]:
