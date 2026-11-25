@@ -2987,7 +2987,24 @@ function render({ model, el }) {
     function vAll(kind) { return vWork ? vWork[kind] : []; }
     function vLive(kind) { return vAll(kind).filter((o) => !o.deleted); }
     function vBaseOf(o) { return o.isNew || !vBase ? null : (vBase[VIEW_LISTS[o.type]] || []).find((b) => b.id === o.id) || null; }
-    function vEditable(o) { return !!o && (o.type === "view" || ((o.isNew || !!o.file) && o.type !== "column")); }
+    function vEditable(o) { return !!o && (o.type === "view" || ((o.isNew || (!!o.file && !vFileReadOnly(o.file))) && o.type !== "column")); }
+    // YAML files read through a OneLake shortcut are read-only: their objects
+    // can't be edited, deleted or moved, and nothing is added to them.
+    function vFileReadOnly(path) {
+        return !!path && ((viewData && viewData.files) || []).some((f) => f.area === "definition" && f.path === path && f.shortcut);
+    }
+    function vWritableFiles() {
+        return ((viewData && viewData.files) || []).filter((f) => f.area === "definition" && !f.ignored && !f.error && !f.shortcut).map((f) => f.path);
+    }
+    function vCanAdd() { return vWritableFiles().length > 0; }
+    // YAML files which can be removed from a combined view (not shortcuts).
+    function vRemovableFiles() {
+        if (!vMultiFile()) return [];
+        return ((viewData && viewData.files) || []).filter((f) => f.area === "definition" && !f.ignored && !f.shortcut).map((f) => f.path);
+    }
+    // Where new objects go: the file the tree is filtered to, unless it is
+    // read-only.
+    function vNewObjectFile(kind) { return vFileFilter && !vFileReadOnly(vFileFilter) ? vFileFilter : defaultViewFile(kind); }
     function columnsFor(d) {
         const base = vBaseOf(d);
         if (base && base.source === d.source) return base.columns || [];
@@ -3162,6 +3179,22 @@ function render({ model, el }) {
             if (datasets.some((d) => ciEq(text(d.name), text(m.name)))) add(m, "A metric can\u2019t have the same name as a dataset.");
         }
         for (const d of viewDuplicates()) if (d.changed) add(d.o, d.msg);
+        // A rename can't update the references in read-only (shortcut) files.
+        for (const o of [...datasets, ...metrics]) {
+            const b = vBaseOf(o);
+            if (!vEditable(o) || !b || ciEq(text(b.name), text(o.name))) continue;
+            const old = text(b.name).toLowerCase();
+            const kind = VIEW_LISTS[o.type];
+            if (vLive(kind).some((x) => x !== o && text(x.name).toLowerCase() === old)) continue;
+            const users = o.type === "dataset"
+                ? [...rels.filter((r) => !vEditable(r) && (text(r.from).toLowerCase() === old || text(r.to).toLowerCase() === old)),
+                    ...metrics.filter((m) => !vEditable(m) && viewDaxRefs(m.dax).tables.has(old))]
+                : metrics.filter((m) => m !== o && !vEditable(m) && viewDaxRefs(m.dax).metrics.has(old));
+            if (users.length) {
+                add(o, `Renaming breaks ${plural(users.length, "object")} in read-only YAML files (OneLake shortcuts), which can\u2019t be updated: `
+                    + users.map((u) => u.name || "(unnamed)").join(", ") + ".");
+            }
+        }
         return errors;
     }
     function viewBlockingErrors() {
@@ -3193,13 +3226,13 @@ function render({ model, el }) {
         // A rename updates the references to the object, unless the old name
         // is ambiguous.
         if (obj.type === "dataset" && !vLive("datasets").some((d) => d !== obj && ciEq(d.name, old))) {
-            for (const r of vLive("relationships")) {
+            for (const r of vLive("relationships").filter(vEditable)) {
                 if (ciEq(r.from, old)) r.from = value;
                 if (ciEq(r.to, old)) r.to = value;
             }
-            for (const m of vLive("metrics")) if (m.dax) m.dax = rewriteDax(m.dax, [{ type: "table", oldName: old, newName: value }]);
+            for (const m of vLive("metrics").filter(vEditable)) if (m.dax) m.dax = rewriteDax(m.dax, [{ type: "table", oldName: old, newName: value }]);
         } else if (obj.type === "metric" && !vLive("metrics").some((m) => m !== obj && ciEq(m.name, old))) {
-            for (const m of vLive("metrics")) {
+            for (const m of vLive("metrics").filter(vEditable)) {
                 if (m !== obj && m.dax) m.dax = rewriteDax(m.dax, [{ type: "measure", oldName: old, newName: value, table: "Metrics" }]);
             }
         }
@@ -3246,18 +3279,18 @@ function render({ model, el }) {
     // New objects go to the file that already holds that kind of object (or
     // the datasets, or the first YAML file); Save makes the same choice.
     function defaultViewFile(kind) {
-        const first = (k) => ((vBase && vBase[k]) || []).find((o) => o.file);
+        const first = (k) => ((vBase && vBase[k]) || []).find((o) => o.file && !vFileReadOnly(o.file));
         const f = first(kind) || first("datasets");
         if (f) return f.file;
-        const y = ((viewData && viewData.files) || []).find((x) => x.area === "definition" && !x.ignored && !x.error);
-        return y ? y.path : "";
+        return vWritableFiles()[0] || "";
     }
     function vAdd(type) {
+        if (!vCanAdd()) return;
         const kind = VIEW_LISTS[type];
         vBeginStep("");
         const id = `new-${type}-${++vNewSeq}`;
         const names = { dataset: "new_dataset", relationship: "new_relationship", metric: "New metric" };
-        const o = { id, key: id, type, isNew: true, deleted: false, file: vFileFilter || defaultViewFile(kind), name: uniqueViewName(kind, names[type]) };
+        const o = { id, key: id, type, isNew: true, deleted: false, file: vNewObjectFile(kind), name: uniqueViewName(kind, names[type]) };
         if (type === "dataset") Object.assign(o, { source: "", description: "" });
         if (type === "relationship") {
             const ds = vLive("datasets");
@@ -3323,8 +3356,10 @@ function render({ model, el }) {
     function vToggleDelete(node) {
         if (!node.deleted && (node.type === "dataset" || node.type === "metric")) {
             const deps = viewDependents([vFind(node.key) || node]);
-            const extra = [...deps.relationships, ...deps.metrics].filter(vEditable);
-            if (extra.length) { confirmViewDelete(node, extra); return; }
+            const all = [...deps.relationships, ...deps.metrics];
+            const locked = all.filter((o) => !vEditable(o));
+            if (locked.length) { blockedViewDelete(node, locked); return; }
+            if (all.length) { confirmViewDelete(node, all); return; }
         }
         vBeginStep("");
         const kind = VIEW_LISTS[node.type];
@@ -3340,6 +3375,27 @@ function render({ model, el }) {
             else { const w = vFind(n.key); if (w) w.deleted = true; }
         }
         vAfterChange(false);
+    }
+    // Deleting would break objects in read-only (shortcut) files, which can't
+    // be deleted along with it.
+    function blockedViewDelete(node, locked) {
+        const label = VIEW_TYPE_LABEL[node.type].toLowerCase();
+        const m = modal("Can\u2019t delete", "alert");
+        m.body.appendChild(h("div", "", `The ${label} \u201c${node.name}\u201d can\u2019t be deleted: ${plural(locked.length, "object")} in read-only `
+            + "YAML files (OneLake shortcuts) depend on it and can\u2019t be deleted with it:"));
+        const list = h("div", "slls-sx-sublist");
+        list.style.margin = "10px 0";
+        for (const o of locked) {
+            const it = h("div", "slls-sx-subitem");
+            it.append(iconEl(VIEW_ICON[o.type], ""), h("span", "", o.name || "(unnamed)"), h("span", "meta", o.file));
+            list.appendChild(it);
+        }
+        m.body.appendChild(list);
+        const foot = h("div", "slls-sx-modal-foot");
+        const ok = button("slls-sx-btn primary", "OK", "", () => m.close());
+        foot.appendChild(ok);
+        m.box.appendChild(foot);
+        setTimeout(() => ok.focus(), 0);
     }
     function confirmViewDelete(node, extra) {
         const label = VIEW_TYPE_LABEL[node.type].toLowerCase();
@@ -3468,7 +3524,7 @@ function render({ model, el }) {
     // Context/Semantic Views, where it is a semantic view by itself. Nothing
     // is overwritten (checked again by the kernel).
     function openRemoveViewFile(initial) {
-        if (vSaving || model.get("busy") || !vMultiFile()) return;
+        if (vSaving || model.get("busy") || !vRemovableFiles().length) return;
         if (viewPendingCount()) {
             confirmDialog(`Removing a YAML file reloads the view and discards ${plural(viewPendingCount(), "pending change")}.`, "Discard", () => {
                 discardViewChanges();
@@ -3478,7 +3534,7 @@ function render({ model, el }) {
             return;
         }
         const view = viewData.view;
-        const files = ((viewData && viewData.files) || []).filter((f) => f.area === "definition" && !f.ignored);
+        const files = ((viewData && viewData.files) || []).filter((f) => f.area === "definition" && !f.ignored && !f.shortcut);
         const m = modal("Remove a YAML file", "unlink");
         const intro = h("div", "slls-sx-picker-note");
         intro.style.margin = "0 0 12px";
@@ -4007,7 +4063,7 @@ function render({ model, el }) {
                 row.classList.add("vfile");
                 row.style.setProperty("--sx-vfile", vFileColor(file));
             }
-            label.title += `\nDefined in ${file || "(inferred when published)"}`;
+            label.title += `\nDefined in ${file || "(inferred when published)"}${vFileReadOnly(file) ? " (shortcut, read-only)" : ""}`;
         }
         row.appendChild(label);
         if (node && ((node.type === "column" && node.is_hidden) || (node.type === "metric" && !String(node.dax || "").trim() && !node.isNew))) row.classList.add("muted");
@@ -4047,10 +4103,11 @@ function render({ model, el }) {
     function vMenuItems(r) {
         const node = r.node;
         const off = vMode !== "write" || vSaving;
+        const noAdd = off || !vCanAdd();
         const add = {
-            dataset: ["Add dataset", "table", () => vAdd("dataset"), off],
-            relationship: ["Add relationship", "relationship", () => vAdd("relationship"), off],
-            metric: ["Add metric", "measure", () => vAdd("metric"), off],
+            dataset: ["Add dataset", "table", () => vAdd("dataset"), noAdd],
+            relationship: ["Add relationship", "relationship", () => vAdd("relationship"), noAdd],
+            metric: ["Add metric", "measure", () => vAdd("metric"), noAdd],
         };
         if (r.folder) {
             const type = { "v:datasets": "dataset", "v:relationships": "relationship", "v:metrics": "metric" }[r.id];
@@ -4058,8 +4115,9 @@ function render({ model, el }) {
         }
         if (!node) return [];
         if (node.type === "view") {
-            const items = [add.dataset, add.relationship, add.metric, null, ["Add YAML file", "file", openAddViewFile, off || !!model.get("busy")]];
-            if (vMultiFile()) items.push(["Remove YAML file\u2026", "unlink", () => openRemoveViewFile(vFileFilter), off || !!model.get("busy")]);
+            const items = [add.dataset, add.relationship, add.metric, null,
+                ["Add YAML file", "file", openAddViewFile, off || !!model.get("busy") || !!viewData.view.shortcut]];
+            if (vRemovableFiles().length) items.push(["Remove YAML file\u2026", "unlink", () => openRemoveViewFile(vFileFilter), off || !!model.get("busy")]);
             return items;
         }
         if (!add[node.type]) return [];
@@ -4278,8 +4336,7 @@ function render({ model, el }) {
     // Picks the YAML file which defines a dataset / relationship / metric;
     // Save moves a saved object (with all its properties) to that file.
     function definedInChoice(node) {
-        const files = ((viewData && viewData.files) || [])
-            .filter((f) => f.area === "definition" && !f.ignored && !f.error).map((f) => f.path);
+        const files = vWritableFiles();
         const wrap = h("span", "slls-sx-defined-in edit");
         const picker = yamlFilePicker(node.file, files, (path) => {
             vEdit(node.key, "file", path);
@@ -4359,6 +4416,11 @@ function render({ model, el }) {
         else if (node.deleted) typeEl.appendChild(h("span", "slls-sx-pill danger", "Pending delete"));
         else if (vIsDirty(node)) typeEl.appendChild(h("span", "slls-sx-pill warn", "Modified"));
         if (node.type === "dataset" && node.inferred) typeEl.appendChild(h("span", "slls-sx-pill", "Inferred"));
+        if (["dataset", "relationship", "metric"].includes(node.type) && vFileReadOnly(node.file)) {
+            const ro = h("span", "slls-sx-pill", "Read-only");
+            ro.title = `Defined in ${node.file}, a OneLake shortcut (shortcuts are read-only)`;
+            typeEl.appendChild(ro);
+        }
         if (node.type === "metric" && !node.isNew && !String(node.dax || "").trim()) typeEl.appendChild(h("span", "slls-sx-pill warn", "No DAX"));
         // Published = in the generated model's TMDL (the last publish); saved
         // definitions which differ from it are unpublished changes.
@@ -4449,14 +4511,18 @@ function render({ model, el }) {
         if (node.type === "column") actions.appendChild(button("slls-sx-btn small", "Dataset", "table", () => vReveal(node.datasetKey), "Go to the dataset"));
         if (vMode === "write" && !vSaving) {
             if (node.type === "view") {
-                actions.appendChild(button("slls-sx-btn small", "Dataset", "plus", () => vAdd("dataset"), "Add a dataset"));
-                actions.appendChild(button("slls-sx-btn small", "Relationship", "plus", () => vAdd("relationship"), "Add a relationship"));
-                actions.appendChild(button("slls-sx-btn small", "Metric", "plus", () => vAdd("metric"), "Add a metric"));
+                const readOnlyAll = "All of the view\u2019s YAML files are shortcuts, which are read-only";
+                for (const [type, label] of [["dataset", "Dataset"], ["relationship", "Relationship"], ["metric", "Metric"]]) {
+                    const ab = button("slls-sx-btn small", label, "plus", () => vAdd(type), vCanAdd() ? `Add a ${type}` : readOnlyAll);
+                    ab.disabled = !vCanAdd();
+                    actions.appendChild(ab);
+                }
                 const yf = button("slls-sx-btn small", "YAML file", "plus", openAddViewFile,
-                    vMultiFile() ? "Add a YAML file (a semantic view) to this combined view" : "Add a YAML file, making this a combined view");
-                yf.disabled = !!model.get("busy");
+                    viewData.view.shortcut ? "This view is a shortcut, which is read-only"
+                        : vMultiFile() ? "Add a YAML file (a semantic view) to this combined view" : "Add a YAML file, making this a combined view");
+                yf.disabled = !!model.get("busy") || !!viewData.view.shortcut;
                 actions.appendChild(yf);
-                if (vMultiFile()) {
+                if (vRemovableFiles().length) {
                     const rf = button("slls-sx-btn small", "Remove YAML file", "unlink", () => openRemoveViewFile(vFileFilter),
                         "Remove a YAML file from this combined view (it becomes a semantic view of its own)");
                     rf.disabled = !!model.get("busy");
@@ -4480,9 +4546,15 @@ function render({ model, el }) {
         else if (node.type === "column") columnDetail(node, b);
         else if (node.type === "relationship") relationshipDetail(node, b, write);
         else if (node.type === "metric") metricDetail(node, b, write);
-        if (vMode === "write" && !vEditable(node) && node.type === "dataset") {
-            const note = "Fabric added this table when the view was published; it isn\u2019t defined in the YAML files, so it can\u2019t be edited here.";
+        if (vMode === "write" && ["dataset", "relationship", "metric"].includes(node.type) && !vEditable(node)) {
+            const note = vFileReadOnly(node.file)
+                ? `Defined in ${node.file}, which is a OneLake shortcut: shortcuts are read-only, so it can\u2019t be edited here.`
+                : "Fabric added this table when the view was published; it isn\u2019t defined in the YAML files, so it can\u2019t be edited here.";
             b.insertBefore(h("div", "slls-sx-picker-note slls-sx-vnote", note), errBox.nextSibling);
+        }
+        if (vMode === "write" && node.type === "view" && node.description_read_only) {
+            b.insertBefore(h("div", "slls-sx-picker-note slls-sx-vnote", "The view description is defined in a OneLake shortcut, which is read-only, "
+                + "so it can\u2019t be edited here."), errBox.nextSibling);
         }
     }
     function notApplied(parent, node) {
@@ -4500,7 +4572,8 @@ function render({ model, el }) {
         const yamlFiles = files.filter((f) => !f.ignored);
         vCard(b, "General", (body) => body.appendChild(vProps([
             ["Name", node.name],
-            ["Description", write ? vInput(node, "description", { multiline: true, label: "Description", placeholder: "What this view is about" }) : node.description, true],
+            ["Description", write && !node.description_read_only
+                ? vInput(node, "description", { multiline: true, label: "Description", placeholder: "What this view is about" }) : node.description, true],
             ["Lakehouse", node.lakehouse_name],
             ["Workspace", node.workspace_name],
             ["Definition folder", node.folder],
@@ -4522,7 +4595,7 @@ function render({ model, el }) {
                 it.title = (f.ignored ? `${f.path}\nIgnored \u2014 only .yaml files are part of the view` : f.path)
                     + (f.shortcut ? "\nRead through a OneLake shortcut" : "");
                 it.addEventListener("click", () => openViewFiles(f.path));
-                if (write && vMultiFile() && !f.ignored) {
+                if (write && vMultiFile() && !f.ignored && !f.shortcut) {
                     const rm = button("slls-sx-iconbtn", "", "unlink", (ev) => { ev.stopPropagation(); openRemoveViewFile(f.path); },
                         "Remove from the combined view (it becomes a semantic view of its own)");
                     rm.disabled = !!model.get("busy");
@@ -9949,7 +10022,7 @@ function render({ model, el }) {
             row.appendChild(h("span", "name", c.name));
             if (c.data_type) row.appendChild(h("span", "dt", c.data_type));
             row.title = c.name;
-            if (write()) {
+            if (write() && vCanAdd()) {
                 row.draggable = true;
                 row.title = `${c.name} \u2014 drag onto another dataset to create a relationship`;
                 row.addEventListener("dragstart", (ev) => {
@@ -9965,7 +10038,7 @@ function render({ model, el }) {
         // column of the target dataset (one side).
         function linkDialog(spec) {
             const from = g.byKey.get(spec.fromKey), to = g.byKey.get(spec.toKey);
-            if (!from || !to) return;
+            if (!from || !to || !vCanAdd()) return;
             const d = modal("Create relationship", "relationship");
             const cols = vCols(to).map((c) => c.name).sort(cmpText);
             const lcol = lc(spec.fromColumn);
@@ -9978,7 +10051,7 @@ function render({ model, el }) {
             d.body.appendChild(head);
             let toColumn = guess;
             let name = uniqueViewName("relationships", `${from.name}_to_${to.name}`);
-            let file = vFileFilter || defaultViewFile("relationships");
+            let file = vNewObjectFile("relationships");
             const nameIn = h("input", "slls-sx-input");
             nameIn.value = name;
             nameIn.setAttribute("aria-label", "Relationship name");
@@ -9994,7 +10067,7 @@ function render({ model, el }) {
                 d.body.appendChild(field(`To column in '${to.name}' (one side)`, colIn));
             }
             if (vMultiFile()) {
-                const files = ((viewData && viewData.files) || []).filter((f) => f.area === "definition" && !f.ignored && !f.error).map((f) => f.path);
+                const files = vWritableFiles();
                 d.body.appendChild(field("Defined in", yamlFilePicker(file, files, (v) => { file = v; }, "Defined in")));
             }
             d.body.appendChild(h("p", "slls-sx-dlm-note", "Staged as a pending change \u2014 commit with Save. View relationships are many to one "
@@ -13241,25 +13314,32 @@ def _onelake_shortcuts(workspace_id: str, item_id: str) -> List[str]:
 
 
 def _onelake_list_deep(
-    workspace_id: str, item_id: str, directory: str, recursive: bool = False
+    workspace_id: str,
+    item_id: str,
+    directory: str,
+    recursive: bool = False,
+    shortcuts: Optional[List[str]] = None,
 ) -> Optional[List[dict]]:
     """:func:`_onelake_list` including the shortcuts under ``directory``.
 
     A listing doesn't reliably include shortcuts (folders or files): they may
     be missing, not marked as folders, or (recursively) not descended into.
-    The item's shortcuts are therefore listed with the Fabric API and each one
-    under ``directory`` is added, and listed itself when its content is
-    missing.
+    The item's shortcuts (``shortcuts``, listed with the Fabric API when not
+    given) under ``directory`` are therefore added, and listed themselves when
+    their content is missing. Entries which are or are in a shortcut get
+    ``shortcut``: True (all of them when ``directory`` is in a shortcut).
     """
 
     paths = _onelake_list(workspace_id, item_id, directory, recursive=recursive)
     if paths is None:
         return None
+    if shortcuts is None:
+        shortcuts = _onelake_shortcuts(workspace_id, item_id)
     by_path = {p["path"]: p for p in paths}
     prefix = directory + "/"
     # Outer shortcuts first, so that their content is listed before checking
     # for shortcuts inside them.
-    for shortcut in sorted(_onelake_shortcuts(workspace_id, item_id), key=len):
+    for shortcut in sorted(shortcuts, key=len):
         rest = _relative_path(shortcut, directory)
         if not shortcut.startswith(prefix) or not rest:
             continue
@@ -13293,7 +13373,16 @@ def _onelake_list_deep(
         for p in by_path.values():
             if p["path"] == shortcut or p["path"].startswith(shortcut + "/"):
                 p["shortcut"] = True
+    if _in_shortcut(directory, shortcuts):
+        for p in by_path.values():
+            p["shortcut"] = True
     return list(by_path.values())
+
+
+def _in_shortcut(path: str, shortcuts: List[str]) -> bool:
+    """Whether ``path`` is a shortcut or inside one (it is then read-only)."""
+
+    return any(path == sc or path.startswith(sc + "/") for sc in shortcuts)
 
 
 def _onelake_read(workspace_id: str, item_id: str, path: str) -> str:
@@ -13487,7 +13576,15 @@ def _plan_view_yaml_file(
         raise ValueError("Enter a name for the new semantic view.")
     _check_view_name(name, "A semantic view name")
     folder = f"{_VIEWS_FOLDER}/{view_name}"
-    listing = _onelake_list_deep(workspace_id, lakehouse_id, folder, recursive=True)
+    shortcuts = _onelake_shortcuts(workspace_id, lakehouse_id)
+    if _in_shortcut(folder, shortcuts):
+        raise ValueError(
+            f"The '{view_name}' semantic view is a shortcut, which is read-only: "
+            "YAML files can't be added to it."
+        )
+    listing = _onelake_list_deep(
+        workspace_id, lakehouse_id, folder, recursive=True, shortcuts=shortcuts
+    )
     if listing is None:
         raise ValueError(f"The '{view_name}' semantic view no longer exists.")
     files = {
@@ -13517,6 +13614,11 @@ def _plan_view_yaml_file(
             "of its YAML files."
         )
     _check_view_name(combined_name, "A combined view name")
+    if combined_name != view_name and any(p.get("shortcut") for p in listing):
+        raise ValueError(
+            f"The '{view_name}' folder contains shortcuts, so it can't be renamed to "
+            f"'{combined_name}'. Use '{view_name}' as the combined view name."
+        )
     if combined_name != view_name:
         taken = {
             v["name"].lower()
@@ -13587,6 +13689,10 @@ def _remove_view_yaml_file(
     if path not in yaml_files:
         raise ValueError(
             f"'{path}' is no longer in the semantic view. Reload the view."
+        )
+    if any(p.get("shortcut") for p in listing if p["path"] == f"{folder}/{path}"):
+        raise ValueError(
+            f"'{path}' is a shortcut, which is read-only: it can't be moved."
         )
     if len(yaml_files) < 2:
         raise ValueError(
@@ -14080,7 +14186,10 @@ def _semantic_view_payload(
     import yaml
 
     folder = f"{_VIEWS_FOLDER}/{view_name}"
-    paths = _onelake_list_deep(workspace_id, lakehouse_id, folder, recursive=True)
+    shortcuts = _onelake_shortcuts(workspace_id, lakehouse_id)
+    paths = _onelake_list_deep(
+        workspace_id, lakehouse_id, folder, recursive=True, shortcuts=shortcuts
+    )
     if paths is None:
         raise ValueError(
             f"The '{view_name}' semantic view was not found in this lakehouse."
@@ -14118,6 +14227,22 @@ def _semantic_view_payload(
         except yaml.YAMLError as e:
             entry["error"] = " ".join(str(e).split())
     merged = _merge_view_documents(documents)
+    # Files read through a shortcut are read-only. Saving the description
+    # writes to every file defining it (or to a writable file).
+    read_only = {f["path"] for f in files if f["shortcut"]}
+    writable = [
+        f["path"]
+        for f in files
+        if not f["ignored"] and not f["error"] and not f["shortcut"]
+    ]
+    describing = [
+        path
+        for path, document in documents
+        if isinstance(document, dict) and "description" in document
+    ]
+    description_read_only = (
+        any(path in read_only for path in describing) if describing else not writable
+    )
     issues = merged["issues"]
     for f in files:
         if f["error"]:
@@ -14363,6 +14488,9 @@ def _semantic_view_payload(
             "publish_diff": view_differences,
             # Saved definitions which differ from the last publish.
             "unpublished_count": unpublished,
+            # The view folder itself is (in) a shortcut: nothing is writable.
+            "shortcut": _in_shortcut(folder, shortcuts),
+            "description_read_only": description_read_only,
         },
         "datasets": datasets,
         "relationships": relationships,
@@ -14578,6 +14706,9 @@ def _save_semantic_view(
     yaml_files = sorted(current, key=str.lower)
     if not yaml_files:
         raise ValueError("The semantic view has no .yaml file to save changes to.")
+    # Files read through a shortcut are read-only: nothing is written to them
+    # and new objects go to the other files.
+    writable_files = [p for p in yaml_files if not current[p].get("shortcut")]
     yml = _ViewYaml()
     docs: Dict[str, object] = {}
     originals: Dict[str, str] = {}
@@ -14661,13 +14792,18 @@ def _save_semantic_view(
         touched.add(change["to"])
 
     def target(kind):
-        for path in yaml_files:
+        if not writable_files:
+            raise ValueError(
+                "All of the semantic view's YAML files are shortcuts, which are "
+                "read-only."
+            )
+        for path in writable_files:
             if isinstance(doc(path).get(kind), list):
                 return path
-        for path in yaml_files:
+        for path in writable_files:
             if isinstance(doc(path).get("datasets"), list):
                 return path
-        return yaml_files[0]
+        return writable_files[0]
 
     for change in changes.get("creates") or []:
         kind = change.get("kind")
@@ -14691,6 +14827,13 @@ def _save_semantic_view(
             touched.add(path)
         count += 1
 
+    read_only = sorted(p for p in touched if current[p].get("shortcut"))
+    if read_only:
+        raise ValueError(
+            f"{', '.join(read_only)} {'is a' if len(read_only) == 1 else 'are'} "
+            f"shortcut{'' if len(read_only) == 1 else 's'} and can't be changed "
+            "(shortcuts are read-only)."
+        )
     comments_kept = True
     for path in sorted(touched):
         text = yml.dump(docs[path])

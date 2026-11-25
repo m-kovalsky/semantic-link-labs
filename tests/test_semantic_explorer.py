@@ -1288,25 +1288,17 @@ datasets:
     # A view which is itself a shortcut is read like any other.
     shared = sx._semantic_view_payload("ws", "lh", "shared")
     assert [f["path"] for f in shared["files"]] == ["shared.yaml"]
-    # Saving finds (and writes) files in shortcuts too.
-    count, _ = sx._save_semantic_view(
-        "ws",
-        "lh",
-        "sales",
-        {
-            "updates": [
-                {
-                    "kind": "datasets",
-                    "file": "ext/ext.yaml",
-                    "index": 0,
-                    "name": "products",
-                    "values": {"description": "From the shortcut"},
-                }
-            ]
-        },
-    )
-    assert count == 1
-    assert b"From the shortcut" in lake.files[f"{root}/sales/ext/ext.yaml"]
+    # Saving finds files in shortcuts, which are read-only.
+    update = {
+        "kind": "datasets",
+        "file": "ext/ext.yaml",
+        "index": 0,
+        "name": "products",
+        "values": {"description": "From the shortcut"},
+    }
+    with pytest.raises(ValueError, match="ext/ext.yaml is a shortcut"):
+        sx._save_semantic_view("ws", "lh", "sales", {"updates": [update]})
+    assert b"From the shortcut" not in lake.files[f"{root}/sales/ext/ext.yaml"]
 
 
 def test_onelake_shortcuts_lists_shortcut_paths(monkeypatch):
@@ -1334,6 +1326,83 @@ def test_onelake_shortcuts_lists_shortcut_paths(monkeypatch):
 
     monkeypatch.setattr(hf, "_base_api", _fails)
     assert _real_onelake_shortcuts("ws", "lh") == []
+
+
+def test_yaml_files_in_shortcuts_are_read_only(monkeypatch):
+    root = "Context/Semantic Views"
+    lake = _FakeOneLake(
+        files={
+            # The shortcut file defines the view description.
+            f"{root}/sales/sales.yaml": _VIEW_SCHEMA,
+            f"{root}/sales/metrics.yaml": _VIEW_METRICS,
+            f"{root}/shared/shared.yaml": _VIEW_METRICS,
+        },
+        shortcuts=[f"{root}/sales/sales.yaml", f"{root}/shared"],
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    payload = sx._semantic_view_payload("ws", "lh", "sales")
+    assert {f["path"]: f["shortcut"] for f in payload["files"]} == {
+        "metrics.yaml": False,
+        "sales.yaml": True,
+    }
+    assert payload["view"]["shortcut"] is False
+    assert payload["view"]["description_read_only"] is True
+    shared = sx._semantic_view_payload("ws", "lh", "shared")
+    assert shared["view"]["shortcut"] is True
+    assert [f["shortcut"] for f in shared["files"]] == [True]
+
+    before = dict(lake.files)
+    update = {
+        "kind": "datasets",
+        "file": "sales.yaml",
+        "index": 0,
+        "name": "sales",
+        "values": {"description": "x"},
+    }
+    with pytest.raises(ValueError, match="sales.yaml is a shortcut"):
+        sx._save_semantic_view("ws", "lh", "sales", {"updates": [update]})
+    with pytest.raises(ValueError, match="shortcut"):
+        sx._save_semantic_view("ws", "lh", "sales", {"description": "New"})
+    assert lake.files == before  # Nothing was written.
+    # New objects go to a writable file, even where that kind lives in a shortcut.
+    create = {
+        "kind": "datasets",
+        "file": "",
+        "values": {"name": "d", "source": "dbo.d"},
+    }
+    sx._save_semantic_view("ws", "lh", "sales", {"creates": [create]})
+    assert lake.files[f"{root}/sales/sales.yaml"] == before[f"{root}/sales/sales.yaml"]
+    assert b"name: d" in lake.files[f"{root}/sales/metrics.yaml"]
+    with pytest.raises(ValueError, match="only one|read-only"):
+        sx._save_semantic_view("ws", "lh", "shared", {"creates": [create]})
+
+    widget, send = _view_explorer_widget(monkeypatch)
+    send(action="open_view", workspace_id="ws-id", lakehouse_id="lh-id", view="shared")
+    result = send(action="add_view_file", name="more", request_id=1)
+    assert not result["ok"] and "is a shortcut" in result["error"]
+    send(action="open_view", workspace_id="ws-id", lakehouse_id="lh-id", view="sales")
+    result = send(action="remove_view_file", file="sales.yaml", name="s2", request_id=2)
+    assert not result["ok"] and "is a shortcut" in result["error"]
+
+
+def test_a_view_folder_holding_shortcuts_is_combined_under_its_own_name(
+    monkeypatch,
+):
+    root = "Context/Semantic Views"
+    lake = _FakeOneLake(
+        files={f"{root}/sales/sales.yaml": _VIEW_SCHEMA},
+        shortcuts=[f"{root}/sales/sales.yaml"],
+    )
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    result = send(action="add_view_file", name="fin", combined_name="all", request_id=1)
+    assert not result["ok"] and "contains shortcuts" in result["error"]
+    result = send(
+        action="add_view_file", name="fin", combined_name="sales", request_id=2
+    )
+    assert result["ok"] and f"{root}/sales/fin/fin_semantic_view.yaml" in lake.files
 
 
 def test_create_semantic_view_writes_a_valid_starter_definition(monkeypatch):
