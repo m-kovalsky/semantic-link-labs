@@ -1597,6 +1597,83 @@ def test_table_shortcuts_without_schemas_link_dbo_tables_only(monkeypatch):
     ]
 
 
+def test_check_view_reports_the_problems_of_the_staged_changes(monkeypatch):
+    lake = _saved_view_lake()
+    lake.tables = ["dbo.sales", "dbo.customers"]
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    before = dict(lake.files)
+
+    clean = send(action="check_view", changes={}, request_id=1)
+    assert clean["ok"]
+    assert not [i for i in clean["data"]["issues"] if i["level"] == "error"]
+    assert [t["name"] for t in clean["data"]["lakehouse_tables"]] == [
+        "dbo.customers",
+        "dbo.sales",
+    ]
+
+    changes = {
+        "updates": [
+            # Renamed to an existing name, and its relationship broken.
+            {
+                "kind": "datasets",
+                "file": "schema.yaml",
+                "index": 0,
+                "name": "sales",
+                "values": {"name": "Customers"},
+            },
+            {
+                "kind": "relationships",
+                "file": "schema.yaml",
+                "index": 0,
+                "name": "sales_to_customers",
+                "values": {"from": ""},
+            },
+        ],
+        "creates": [
+            {
+                "kind": "datasets",
+                "file": "metrics/metrics.yaml",
+                "values": {"name": "orders", "source": "dbo.orders"},
+            }
+        ],
+    }
+    result = send(action="check_view", changes=changes, request_id=2)
+
+    assert result["ok"] and lake.files == before  # Nothing is written.
+    issues = result["data"]["issues"]
+    found = {
+        (i["level"], (i.get("object") or {}).get("name")): i["message"] for i in issues
+    }
+    assert "must be unique" in found[("error", "Customers")]
+    assert "needs a name, 'from' and 'to'" in found[("error", "sales_to_customers")]
+    assert "'dbo.orders' isn't in this lakehouse" in found[("warning", "orders")]
+    assert all(
+        i["object"]["type"] in ("dataset", "relationship", "metric")
+        for i in issues
+        if i.get("object")
+    )
+
+    # The lakehouse's tables are listed again.
+    lake.tables.append("dbo.orders")
+    result = send(action="check_view", changes=changes, request_id=3)
+    assert not [
+        i for i in result["data"]["issues"] if "isn't in this lakehouse" in i["message"]
+    ]
+    # Files changed since the view was read are reported.
+    result = send(
+        action="check_view", changes={}, etags={"schema.yaml": '"stale"'}, request_id=4
+    )
+    stale = [
+        i
+        for i in result["data"]["issues"]
+        if "after the view was loaded" in i["message"]
+    ]
+    assert result["ok"] and [(i["level"], i["file"]) for i in stale] == [
+        ("warning", "schema.yaml")
+    ]
+
+
 def test_create_semantic_view_writes_a_valid_starter_definition(monkeypatch):
     import yaml
 

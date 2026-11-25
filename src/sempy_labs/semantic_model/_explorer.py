@@ -254,6 +254,9 @@ _WIDGET_CSS = """
 .slls-sx-vdupes svg { width: 13px; height: 13px; }
 .slls-sx-vdupes > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .slls-sx-vdupes .slls-sx-btn.small { margin-top: 4px; }
+.slls-sx-linkall { font-weight: 600; border-bottom: 1px solid var(--ui-border); border-radius: 0; cursor: pointer; }
+.slls-sx-linklist { max-height: 300px; overflow: auto; }
+.slls-sx-linklist .slls-sx-subitem, .slls-sx-linkall { cursor: pointer; }
 .slls-sx-files-src {
     flex-shrink: 1; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font-size: 11.5px; color: var(--ui-text-tertiary);
@@ -1698,6 +1701,11 @@ function render({ model, el }) {
     let vTables = null;
     let vTablesLoading = false;
     let vTablePicker = null;
+    // The last "Check" (issues of the view with the pending changes applied);
+    // cleared when the view is read again.
+    let vCheck = null;
+    let vChecking = false;
+    let vIssuesView = null;
     let vPendingSelect = null;
     let requestSeq = 0;
     const callbacks = new Map();
@@ -2981,6 +2989,7 @@ function render({ model, el }) {
         vWork = vBase ? JSON.parse(JSON.stringify(vBase)) : null;
         vUndo = []; vRedo = []; vEditKey = "";
         if (!vMultiFile() || !viewYamlFiles().includes(vFileFilter)) vFileFilter = "";
+        vCheck = null;
         seedViewTables();
         rebuildViewIndex();
         if (vPendingSelect) {
@@ -3115,7 +3124,7 @@ function render({ model, el }) {
         while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
         return `${v.toFixed(i ? 1 : 0)} ${units[i]}`;
     }
-    function viewIssues() { return (viewData && viewData.issues) || []; }
+    function viewIssues() { return vCheck ? vCheck.issues : (viewData && viewData.issues) || []; }
 
     // Pending changes
     function vIsDirty(o) {
@@ -4035,6 +4044,12 @@ function render({ model, el }) {
             header.appendChild(fmt);
         }
         header.appendChild(button("slls-sx-btn", "YAML", "file", () => openViewFiles(), "View the YAML files behind the semantic view"));
+        const check = button("slls-sx-btn", vChecking ? "Checking\u2026" : "Check", vChecking ? "refresh" : "check_circle", () => runViewCheck(),
+            "Check the semantic view for problems, including the pending changes: source tables missing from the lakehouse, "
+            + "duplicate names, missing properties, invalid YAML\u2026");
+        if (vChecking) check.querySelector("svg").classList.add("slls-sx-spin");
+        check.disabled = vChecking || vSaving || !!model.get("busy");
+        header.appendChild(check);
         const issues = viewIssues();
         const errors = issues.filter((i) => i.level === "error").length;
         header.appendChild(button("slls-sx-btn errors" + (errors ? " has" : ""), String(issues.length), "alert", openViewIssues,
@@ -4227,50 +4242,79 @@ function render({ model, el }) {
     // Creates OneLake shortcuts in the view's lakehouse to the missing source
     // tables of datasets defined in shortcut YAML files, from the lakehouse
     // each file comes from (one request per file).
+    // Creates OneLake shortcuts in the view's lakehouse to the missing source
+    // tables of datasets defined in shortcut YAML files, from the lakehouse
+    // each file comes from (one request per file). Every table which can be
+    // linked is listed; those of `datasets` start selected.
     function openCreateTableShortcuts(datasets) {
-        const byFile = new Map();
-        for (const d of datasets.filter(vCanLinkSource)) {
-            if (!byFile.has(d.file)) byFile.set(d.file, []);
-            const list = byFile.get(d.file);
-            if (!list.some((t) => vSourceKey(t) === vSourceKey(d.source))) list.push(String(d.source).trim());
+        const rows = [];
+        for (const d of vLive("datasets").filter(vCanLinkSource)) {
+            const table = String(d.source).trim();
+            let row = rows.find((r) => r.file === d.file && vSourceKey(r.table) === vSourceKey(table));
+            if (!row) { row = { file: d.file, table, users: [], on: false }; rows.push(row); }
+            row.users.push(d.name || "(unnamed)");
+            if (datasets.some((x) => x.key === d.key)) row.on = true;
         }
-        if (!byFile.size) return;
+        if (!rows.length) return;
+        rows.sort((a, b) => cmpText(a.table, b.table));
         const lakehouse = viewData.view.lakehouse_name;
         const m = modal("Create OneLake shortcuts", "link");
-        m.body.appendChild(h("div", "", `Creates OneLake shortcuts in the \u201c${lakehouse}\u201d lakehouse to these tables, from the lakehouse `
-            + "which each dataset\u2019s YAML file comes from:"));
-        const list = h("div", "slls-sx-sublist");
-        list.style.margin = "10px 0";
-        for (const [file, tables] of byFile) {
-            for (const t of tables) {
-                const it = h("div", "slls-sx-subitem");
-                it.append(iconEl("link", ""), h("span", "slls-sx-mono", t), h("span", "meta", `from ${vSourceLabel(vFileSource(file))}`));
-                it.title = `${t} \u2014 used by datasets in ${file}`;
-                list.appendChild(it);
-            }
-        }
-        m.body.appendChild(list);
+        m.body.appendChild(h("div", "", `Creates OneLake shortcuts in the \u201c${lakehouse}\u201d lakehouse to the selected tables, from the `
+            + "lakehouse which each dataset\u2019s YAML file comes from."));
+        const head = h("label", "slls-sx-subitem slls-sx-linkall");
+        const all = h("input", "slls-sx-tool-check");
+        all.type = "checkbox";
+        all.setAttribute("aria-label", "Select all tables");
+        head.append(all, h("span", "", "All tables"), h("span", "meta", ""));
+        const list = h("div", "slls-sx-sublist slls-sx-linklist");
+        const boxes = rows.map((r) => {
+            const it = h("label", "slls-sx-subitem");
+            const cb = h("input", "slls-sx-tool-check");
+            cb.type = "checkbox";
+            cb.checked = r.on;
+            cb.setAttribute("aria-label", `Create a shortcut to ${r.table}`);
+            cb.addEventListener("change", () => { r.on = cb.checked; refresh(); });
+            it.append(cb, iconEl("link", ""), h("span", "slls-sx-mono", r.table), h("span", "meta", `from ${vSourceLabel(vFileSource(r.file))}`));
+            it.title = `${r.table} \u2014 used by ${r.users.join(", ")} (${r.file})`;
+            list.appendChild(it);
+            return cb;
+        });
+        all.addEventListener("change", () => {
+            rows.forEach((r, i) => { r.on = all.checked; boxes[i].checked = all.checked; });
+            refresh();
+        });
+        const wrap = h("div", "");
+        wrap.style.margin = "10px 0";
+        wrap.append(head, list);
+        m.body.appendChild(wrap);
         m.body.appendChild(h("div", "slls-sx-picker-note", "The shortcuts are created in the lakehouse right away (not on Save). "
             + "Existing shortcuts with the same name are left as they are."));
         const err = h("div", "slls-sx-picker-error");
         err.style.display = "none";
         m.body.appendChild(err);
         const foot = h("div", "slls-sx-modal-foot");
-        const total = [...byFile.values()].reduce((a, t) => a + t.length, 0);
-        const ok = button("slls-sx-btn primary", `Create ${plural(total, "shortcut")}`, "link", () => {
-            ok.disabled = true;
-            ok.textContent = "Creating\u2026";
+        let creating = false;
+        const ok = button("slls-sx-btn primary", "", "link", () => {
+            const chosen = rows.filter((r) => r.on);
+            if (!chosen.length || creating) return;
+            creating = true;
+            refresh();
             err.style.display = "none";
+            const byFile = new Map();
+            for (const r of chosen) {
+                if (!byFile.has(r.file)) byFile.set(r.file, []);
+                byFile.get(r.file).push(r.table);
+            }
             const jobs = [...byFile];
             const failures = [];
             let created = 0;
             const next = () => {
                 if (!jobs.length) {
+                    creating = false;
                     if (!created) {
                         err.textContent = failures.join(" ");
                         err.style.display = "";
-                        ok.disabled = false;
-                        ok.textContent = `Create ${plural(total, "shortcut")}`;
+                        refresh();
                         return;
                     }
                     m.close();
@@ -4296,8 +4340,20 @@ function render({ model, el }) {
             };
             next();
         });
+        const refresh = () => {
+            const n = rows.filter((r) => r.on).length;
+            all.checked = n === rows.length;
+            all.indeterminate = n > 0 && n < rows.length;
+            head.querySelector(".meta").textContent = `${n} of ${rows.length} selected`;
+            ok.innerHTML = ICON.link || "";
+            ok.appendChild(document.createTextNode(creating ? "Creating\u2026" : n ? `Create ${plural(n, "shortcut")}` : "Select tables"));
+            ok.disabled = !n || creating;
+            all.disabled = creating;
+            boxes.forEach((b) => { b.disabled = creating; });
+        };
         foot.append(button("slls-sx-btn", "Cancel", "", () => m.close()), ok);
         m.box.appendChild(foot);
+        refresh();
         setTimeout(() => ok.focus(), 0);
     }
     function paintViewDuplicates() {
@@ -4544,22 +4600,83 @@ function render({ model, el }) {
         sel.addEventListener("change", () => { vEdit(node.key, field, sel.value); if (onChange) onChange(sel.value); });
         return sel;
     }
-    function issueList(container, issues) {
+    // The object an issue is about, in the working copy.
+    function issueObject(i) {
+        const o = i.object;
+        if (!o || !VIEW_LISTS[o.type]) return null;
+        return vLive(VIEW_LISTS[o.type]).find((x) => ciEq(String(x.name || ""), String(o.name || ""))) || null;
+    }
+    function issueList(container, issues, onReveal) {
         if (!issues.length) { container.appendChild(h("div", "slls-sx-kv-empty", "No problems found.")); return; }
-        for (const i of issues) {
+        // Errors first.
+        const sorted = issues.filter((i) => i.level === "error").concat(issues.filter((i) => i.level !== "error"));
+        for (const i of sorted) {
             const row = h("div", "slls-sx-issue " + i.level);
-            row.append(iconEl(i.level === "error" ? "alert" : "info", ""), h("span", "", i.message));
+            const text = h("span", "");
+            const target = issueObject(i);
+            if (target) {
+                const link = vLink(i.message, () => { if (onReveal) onReveal(); vReveal(target.key); });
+                link.title = `Go to the ${VIEW_TYPE_LABEL[target.type].toLowerCase()} \u201c${target.name}\u201d`;
+                text.appendChild(link);
+            } else text.textContent = i.message;
+            row.append(iconEl(i.level === "error" ? "alert" : "info", ""), text);
             if (i.file) { const f = fileLink(i.file); f.classList.add("file"); row.appendChild(f); }
             container.appendChild(row);
         }
     }
+    // Checks the view with the pending changes applied (nothing is saved) and
+    // shows the problems; the lakehouse's tables are listed again.
+    function runViewCheck() {
+        if (vChecking || vSaving || !viewOpen()) return;
+        vChecking = true;
+        renderHeader();
+        if (vIssuesView) vIssuesView.paint();
+        request("check_view", { changes: viewChanges(), etags: viewEtags() }, (res) => {
+            vChecking = false;
+            if (res.ok) {
+                vCheck = { issues: res.data.issues || [], at: new Date(), pending: viewPendingCount() };
+                if (Array.isArray(res.data.lakehouse_tables)) {
+                    viewData.lakehouse_tables = res.data.lakehouse_tables;
+                    seedViewTables();
+                }
+            } else {
+                model.set("status", { message: `Error: ${res.error}`, kind: "error" });
+                model.save_changes();
+            }
+            renderHeader();
+            renderViewTree();
+            renderViewDetail();
+            if (vIssuesView) vIssuesView.paint();
+            else if (res.ok) openViewIssues();
+        });
+    }
     function openViewIssues() {
         const m = modal(`Problems \u2014 ${viewData.view.name}`, "alert");
-        const note = h("div", "slls-sx-picker-note");
-        note.style.margin = "0 0 8px";
-        note.textContent = "Checked when the view was read (saved files only). Fabric validates the definition again when the view is published.";
-        m.body.appendChild(note);
-        issueList(m.body, viewIssues());
+        const again = button("slls-sx-btn small", "Check again", "check_circle", () => runViewCheck(),
+            "Check the view again, including the pending changes");
+        m.actions.appendChild(again);
+        const paint = () => {
+            clear(m.body);
+            again.disabled = vChecking || vSaving;
+            again.innerHTML = ICON[vChecking ? "refresh" : "check_circle"] || "";
+            again.appendChild(document.createTextNode(vChecking ? "Checking\u2026" : "Check again"));
+            if (vChecking) again.querySelector("svg").classList.add("slls-sx-spin");
+            const note = h("div", "slls-sx-picker-note");
+            note.style.margin = "0 0 8px";
+            const at = vCheck ? vCheck.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+            note.textContent = vChecking ? "Checking the semantic view\u2026"
+                : vCheck ? `Checked at ${at}${vCheck.pending ? ` with ${plural(vCheck.pending, "pending change")} (not saved yet)` : ""}. `
+                    + "Fabric validates the definition again when the view is published."
+                : "Checked when the view was read (saved files only). Use Check again to include pending changes and the "
+                    + "lakehouse\u2019s current tables. Fabric validates the definition again when the view is published.";
+            m.body.appendChild(note);
+            issueList(m.body, viewIssues(), () => m.close());
+        };
+        const view = { paint };
+        vIssuesView = view;
+        const previous = m.onClose;
+        m.onClose = () => { if (vIssuesView === view) vIssuesView = null; if (previous) previous(); };
+        paint();
     }
     function viewPills(node, typeEl) {
         const view = viewData.view;
@@ -13970,9 +14087,15 @@ def _merge_view_documents(documents: List[Tuple[str, object]]) -> dict:
 
     datasets, relationships, metrics, issues = [], [], [], []
     descriptions: Dict[str, List[str]] = {}
+    # The object being read: its issues name it ({type, name}), so the
+    # explorer can go to it.
+    current: Dict[str, Optional[dict]] = {"object": None}
 
-    def issue(level, message, file):
-        issues.append({"level": level, "message": message, "file": file})
+    def issue(level, message, file, obj=None):
+        entry = {"level": level, "message": message, "file": file}
+        if obj or current["object"]:
+            entry["object"] = obj or current["object"]
+        issues.append(entry)
 
     def ignored(obj, kind, label, file):
         keys = [k for k in _VIEW_IGNORED_KEYS[kind] if k in obj]
@@ -14019,6 +14142,7 @@ def _merge_view_documents(documents: List[Tuple[str, object]]) -> dict:
         ignored(doc, "document", "Document", path)
         for idx, ds in entries(doc, "datasets", path):
             name = _text(ds.get("name"))
+            current["object"] = {"type": "dataset", "name": name}
             if not name or not _text(ds.get("source")):
                 issue("error", f"Dataset '{name}' needs a name and a source.", path)
             datasets.append(
@@ -14031,8 +14155,10 @@ def _merge_view_documents(documents: List[Tuple[str, object]]) -> dict:
                     "ignored": ignored(ds, "dataset", f"Dataset '{name}'", path),
                 }
             )
+        current["object"] = None
         for idx, rel in entries(doc, "relationships", path):
             name = _text(rel.get("name"))
+            current["object"] = {"type": "relationship", "name": name}
             from_columns = [_text(c) for c in rel.get("from_columns") or []]
             to_columns = [_text(c) for c in rel.get("to_columns") or []]
             if not (name and rel.get("from") and rel.get("to")):
@@ -14062,8 +14188,10 @@ def _merge_view_documents(documents: List[Tuple[str, object]]) -> dict:
                     ),
                 }
             )
+        current["object"] = None
         for idx, met in entries(doc, "metrics", path):
             name = _text(met.get("name"))
+            current["object"] = {"type": "metric", "name": name}
             expression = met.get("expression")
             dialects = []
             if isinstance(expression, dict):
@@ -14109,6 +14237,7 @@ def _merge_view_documents(documents: List[Tuple[str, object]]) -> dict:
                     "ignored": ignored(met, "metric", f"Metric '{name}'", path),
                 }
             )
+        current["object"] = None
 
     if len(descriptions) > 1:
         issue(
@@ -14139,6 +14268,7 @@ def _merge_view_documents(documents: List[Tuple[str, object]]) -> dict:
                 f"The {label} name '{group[0]['name']}' is used {len(group)} times"
                 f"{where}; {label} names must be unique.",
                 group[1]["file"],
+                {"type": label, "name": group[0]["name"]},
             )
     table_names = {d["name"].lower() for d in datasets}
     for met in metrics:
@@ -14147,6 +14277,7 @@ def _merge_view_documents(documents: List[Tuple[str, object]]) -> dict:
                 "error",
                 f"Metric '{met['name']}' has the same name as a dataset.",
                 met["file"],
+                {"type": "metric", "name": met["name"]},
             )
     return {
         "description": next(iter(descriptions), ""),
@@ -14487,19 +14618,7 @@ def _semantic_view_payload(
         )
     except Exception:
         lakehouse_tables = None
-    if lakehouse_tables is not None:
-        known = {t["name"].lower() for t in lakehouse_tables}
-        for d in merged["datasets"]:
-            key = _view_source_key(d["source"])
-            if key and key not in known:
-                issues.append(
-                    {
-                        "level": "warning",
-                        "message": f"Dataset '{d['name']}': the source table "
-                        f"'{d['source']}' isn't in this lakehouse.",
-                        "file": d["file"],
-                    }
-                )
+    issues.extend(_missing_source_issues(merged["datasets"], lakehouse_tables))
     for f in files:
         if f["error"]:
             issues.insert(
@@ -14940,7 +15059,128 @@ def _save_semantic_view(
     changes: dict,
     etags: Optional[dict] = None,
 ) -> Tuple[int, bool]:
-    """Writes staged explorer edits back to a view's YAML files.
+    """Writes staged explorer edits back to a view's YAML files (see
+    :func:`_staged_view_files`). Returns the number of changes and whether YAML
+    comments could be kept."""
+
+    texts, count, comments_kept, current = _staged_view_files(
+        workspace_id, lakehouse_id, view_name, changes, etags
+    )
+    read_only = sorted(p for p in texts if current[p].get("shortcut"))
+    if read_only:
+        raise ValueError(
+            f"{', '.join(read_only)} {'is a' if len(read_only) == 1 else 'are'} "
+            f"shortcut{'' if len(read_only) == 1 else 's'} and can't be changed "
+            "(shortcuts are read-only)."
+        )
+    for path, text in sorted(texts.items()):
+        _onelake_write_file(
+            workspace_id,
+            lakehouse_id,
+            current[path]["path"],
+            text.encode("utf-8"),
+            current[path].get("etag", ""),
+        )
+    return count, comments_kept
+
+
+def _check_semantic_view(
+    workspace_id: str,
+    lakehouse_id: str,
+    view_name: str,
+    changes: Optional[dict] = None,
+    etags: Optional[dict] = None,
+) -> dict:
+    """Checks a view as it would be with the staged ``changes`` saved (nothing
+    is written): the problems found when the view is read (invalid YAML,
+    missing properties, duplicate names, ...) and whether the datasets' source
+    tables are in the lakehouse, listed again. Returns ``issues`` and
+    ``lakehouse_tables``."""
+
+    import yaml
+
+    # The check reads the files as they are now; those changed since the view
+    # was read are reported (saving changes to them would be refused).
+    texts, _, _, current = _staged_view_files(
+        workspace_id, lakehouse_id, view_name, changes or {}
+    )
+    documents, issues = [], []
+    for path, known in sorted((etags or {}).items()):
+        entry = current.get(path)
+        if entry is None or (known and entry.get("etag") and known != entry["etag"]):
+            issues.append(
+                {
+                    "level": "warning",
+                    "message": (
+                        "This file was removed"
+                        if entry is None
+                        else "This file was changed by someone else"
+                    )
+                    + " after the view was loaded: reload the view (saving would fail).",
+                    "file": path,
+                }
+            )
+    for path in sorted(current, key=str.lower):
+        text = (
+            texts[path]
+            if path in texts
+            else _onelake_read(workspace_id, lakehouse_id, current[path]["path"])
+        )
+        try:
+            documents.append((path, yaml.safe_load(text)))
+        except yaml.YAMLError as e:
+            issues.append(
+                {
+                    "level": "error",
+                    "message": f"Invalid YAML: {' '.join(str(e).split())}",
+                    "file": path,
+                }
+            )
+    for path in sorted(p for p in texts if current[p].get("shortcut")):
+        issues.append(
+            {
+                "level": "error",
+                "message": "The pending changes modify this file, which is a "
+                "shortcut (shortcuts are read-only).",
+                "file": path,
+            }
+        )
+    merged = _merge_view_documents(documents)
+    issues.extend(merged["issues"])
+    if not merged["datasets"] and not merged["metrics"] and documents:
+        issues.append(
+            {
+                "level": "warning",
+                "message": "The view doesn't define any datasets or metrics yet; add "
+                "them to its YAML files before publishing it.",
+                "file": "",
+            }
+        )
+    if len(current) > _VIEW_MAX_FILES:
+        issues.append(
+            {
+                "level": "error",
+                "message": f"The view has {len(current)} .yaml files (the limit is "
+                f"{_VIEW_MAX_FILES}).",
+                "file": "",
+            }
+        )
+    try:
+        tables = _lakehouse_table_items(workspace_id, lakehouse_id)
+    except Exception:
+        tables = None
+    issues.extend(_missing_source_issues(merged["datasets"], tables))
+    return {"issues": issues, "lakehouse_tables": tables}
+
+
+def _staged_view_files(
+    workspace_id: str,
+    lakehouse_id: str,
+    view_name: str,
+    changes: dict,
+    etags: Optional[dict] = None,
+) -> Tuple[Dict[str, str], int, bool, Dict[str, dict]]:
+    """Applies staged explorer edits to a view's YAML files in memory.
 
     ``changes`` holds ``description`` (the view description, or None when
     unchanged), ``updates`` / ``deletes`` (``{kind, file, index, name}`` plus
@@ -14949,7 +15189,9 @@ def _save_semantic_view(
     to}``: the object, with all its properties, moves to the ``to`` file) and
     ``creates`` (``{kind, file, values}``). ``etags`` are the files' ETags when
     the view was read: a file changed since then is not overwritten. Returns
-    the number of changes and whether YAML comments could be kept.
+    the new text of the changed files (by path in the view), the number of
+    changes, whether YAML comments could be kept and the view's YAML files
+    (their listing entries by path).
     """
 
     folder = f"{_VIEWS_FOLDER}/{view_name}"
@@ -15085,26 +15327,13 @@ def _save_semantic_view(
             touched.add(path)
         count += 1
 
-    read_only = sorted(p for p in touched if current[p].get("shortcut"))
-    if read_only:
-        raise ValueError(
-            f"{', '.join(read_only)} {'is a' if len(read_only) == 1 else 'are'} "
-            f"shortcut{'' if len(read_only) == 1 else 's'} and can't be changed "
-            "(shortcuts are read-only)."
-        )
     comments_kept = True
+    texts = {}
     for path in sorted(touched):
-        text = yml.dump(docs[path])
+        texts[path] = yml.dump(docs[path])
         if not yml.keeps_comments and re.search(r"(^|\s)#", originals[path]):
             comments_kept = False
-        _onelake_write_file(
-            workspace_id,
-            lakehouse_id,
-            f"{folder}/{path}",
-            text.encode("utf-8"),
-            current[path].get("etag", ""),
-        )
-    return count, comments_kept
+    return texts, count, comments_kept, current
 
 
 def _workspaces_error_text(error: str) -> str:
@@ -15285,6 +15514,29 @@ def _lakehouse_table_items(
         }
         for key, name in sorted(names.items())
     ]
+
+
+def _missing_source_issues(datasets: List[dict], tables: Optional[List[dict]]) -> list:
+    """Warnings for datasets whose source table isn't among ``tables`` (none
+    when the tables are unknown)."""
+
+    if tables is None:
+        return []
+    known = {t["name"].lower() for t in tables}
+    out = []
+    for d in datasets:
+        key = _view_source_key(d["source"])
+        if key and key not in known:
+            out.append(
+                {
+                    "level": "warning",
+                    "message": f"Dataset '{d['name']}': the source table "
+                    f"'{d['source']}' isn't in this lakehouse.",
+                    "file": d["file"],
+                    "object": {"type": "dataset", "name": d["name"]},
+                }
+            )
+    return out
 
 
 def _view_source_key(source) -> str:
@@ -16172,8 +16424,10 @@ def semantic_explorer(
     view, or folders and files within one, can be a shortcut; shortcut files are
     read-only and show the lakehouse and workspace they come from). Datasets
     whose source table isn't in the lakehouse are flagged; when their YAML file
-    comes from another lakehouse, OneLake shortcuts to the tables can be created
-    from it. A view's datasets, columns,
+    comes from another lakehouse, OneLake shortcuts to all or selected tables
+    can be created from it. Check re-validates the view with its pending
+    changes (sources in the lakehouse, duplicate names, missing properties,
+    invalid YAML, ...) without saving. A view's datasets, columns,
     relationships and metrics are shown in a read-only tree built from its YAML
     and, once it is published, the generated TMDL in SystemContext. The YAML
     and TMDL files can be viewed, and a new view can be created with a starter
@@ -16625,6 +16879,14 @@ def semantic_explorer(
                         "kind": kind,
                     }
                 _reply(data, True, {"count": count, "published": published})
+                return
+            if action == "check_view":
+                if not ctx["view"]:
+                    raise ValueError("Select a semantic view first.")
+                result = _check_semantic_view(
+                    *ctx["view"], dict(data.get("changes") or {}), data.get("etags")
+                )
+                _reply(data, True, result)
                 return
             if action == "view_tables":
                 if not ctx["view"]:
