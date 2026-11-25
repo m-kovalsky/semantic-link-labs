@@ -8058,36 +8058,67 @@ function render({ model, el }) {
         sel.addEventListener("change", () => onChange(sel.value));
         return sel;
     }
-    // Keep-alive: while on, the kernel runs a trivial statement every 10
-    // minutes (see _keep_alive_ping) so the notebook session doesn't time out
-    // from inactivity while the explorer is open.
-    const KEEP_ALIVE_MS = 10 * 60 * 1000;
+    // Keep-alive: while on, the kernel resets the Fabric session's idle timeout
+    // every 5 minutes (see _keep_alive_ping) so the session doesn't time out
+    // while the explorer is open. It is driven from here so the session still
+    // times out once the notebook is closed.
+    const KEEP_ALIVE_MS = 5 * 60 * 1000;
     let keepAlive = false;
     let keepAliveTimer = null;
     let keepAliveAt = "";
+    let keepAliveLast = 0;
+    // null until the first reply; then whether a session timeout was reset.
+    let keepAliveReset = null;
+    let keepAliveLockRelease = null;
     function keepAlivePing() {
-        if (!root.isConnected) { setKeepAlive(false); return; }
+        if (!keepAlive) return;
+        keepAliveLast = Date.now();
         request("keep_alive", {}, (res) => {
-            if (res.ok) keepAliveAt = res.data.at || "";
-            renderHeader();
+            if (res.ok) {
+                keepAliveAt = res.data.at || "";
+                keepAliveReset = Number(res.data.reset || 0) > 0;
+            }
+            if (root.isConnected) renderHeader();
         });
+    }
+    function onKeepAliveVisible() {
+        // Timers may be paused while the tab is in the background.
+        if (keepAlive && document.visibilityState === "visible" && Date.now() - keepAliveLast >= KEEP_ALIVE_MS) keepAlivePing();
+    }
+    function holdKeepAliveLock(on) {
+        // Browsers don't freeze or put to sleep a background tab holding a Web
+        // Lock, so the timer keeps running.
+        if (keepAliveLockRelease) { keepAliveLockRelease(); keepAliveLockRelease = null; }
+        if (!on) return;
+        try {
+            if (!navigator.locks || typeof navigator.locks.request !== "function") return;
+            const held = new Promise((resolve) => { keepAliveLockRelease = resolve; });
+            navigator.locks.request(`slls-sx-keepalive-${clientId}`, () => held).catch(() => {});
+        } catch (e) {
+            keepAliveLockRelease = null;
+        }
     }
     function setKeepAlive(on) {
         keepAlive = on;
         clearInterval(keepAliveTimer);
         keepAliveTimer = null;
+        document.removeEventListener("visibilitychange", onKeepAliveVisible);
+        holdKeepAliveLock(on);
         if (on) {
             keepAlivePing();
             keepAliveTimer = setInterval(keepAlivePing, KEEP_ALIVE_MS);
+            document.addEventListener("visibilitychange", onKeepAliveVisible);
         }
         if (root.isConnected) renderHeader();
     }
     function keepAliveSwitch() {
         const sw = switchEl(keepAlive, "Keep the notebook session alive", () => setKeepAlive(!keepAlive), "Keep alive");
         sw.classList.add("slls-sx-keepalive");
-        sw.title = keepAlive
-            ? `Keeping the notebook session alive: a trivial statement runs every 10 minutes${keepAliveAt ? ` (last run at ${keepAliveAt})` : ""}. Click to stop.`
-            : "Keep the notebook session alive while the explorer is open: runs a trivial statement every 10 minutes.";
+        sw.title = !keepAlive
+            ? "Keep the notebook session alive while the explorer is open: resets the session's idle timeout every 5 minutes."
+            : keepAliveReset === false
+                ? `Keep alive is on, but the session's idle timeout couldn't be reset${keepAliveAt ? ` (last tried at ${keepAliveAt})` : ""}; this works in Fabric notebooks only. Click to stop.`
+                : `Keeping the notebook session alive: its idle timeout is reset every 5 minutes${keepAliveAt ? ` (last reset at ${keepAliveAt})` : ""}. Click to stop.`;
         return sw;
     }
     function switchEl(on, label, onClick, text) {
@@ -11713,6 +11744,8 @@ function render({ model, el }) {
     onViewData();
     selectedKey = modelKey();
     renderAll();
+    // Stop the keep-alive when the view is removed (e.g. the output is cleared).
+    return () => setKeepAlive(false);
 }
 export default { render };
 """
@@ -15670,22 +15703,59 @@ def _staged_view_files(
     return texts, count, comments_kept, current
 
 
-def _keep_alive_ping() -> str:
-    """The explorer's keep-alive (every 10 minutes while it is on): a trivial
-    statement run in the notebook session (Spark, when it is running) so the
-    session doesn't time out from inactivity. Returns the time it ran."""
+# Fabric times a notebook session out from the Livy endpoint on the session's
+# own host: the Livy server (PySpark) or the Jupyter proxy's Livy-compatible API
+# (Python notebooks). Only statements submitted through it and its reset-timeout
+# call count as activity; kernel/widget traffic doesn't. The native API of the
+# Python notebook proxy is the fallback.
+_FABRIC_SESSION_APIS = (
+    ("http://127.0.0.1:8998", "/sessions"),
+    ("http://127.0.0.1:8000", "/api/sessions"),
+)
+
+
+def _reset_fabric_session_timeout() -> int:
+    """Resets the idle timeout of the notebook's Fabric session(s); returns
+    how many were reset (0 outside a Fabric notebook)."""
+
+    import json
+    import urllib.request
+
+    def _call(method: str, url: str) -> bytes:
+        req = urllib.request.Request(url, method=method)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return resp.read()
+
+    for base, path in _FABRIC_SESSION_APIS:
+        try:
+            sessions = json.loads(_call("GET", base + path) or b"{}")
+        except Exception:
+            continue
+        reset = 0
+        for session in (sessions or {}).get("sessions") or []:
+            if not isinstance(session, dict) or session.get("id") is None:
+                continue
+            try:
+                _call("PUT", f"{base}{path}/{session['id']}/reset-timeout")
+                reset += 1
+            except Exception:
+                pass
+        if reset:
+            return reset
+    return 0
+
+
+def _keep_alive_ping() -> dict:
+    """The kernel side of the explorer's keep-alive (every 5 minutes while it
+    is on): resets the Fabric session's idle timeout. Returns the time it ran
+    and how many sessions were reset."""
 
     import datetime
 
-    try:
-        from pyspark.sql import SparkSession
-
-        spark = SparkSession.getActiveSession()
-        if spark is not None:
-            spark.sql("SELECT 1").collect()
-    except Exception:
-        pass
-    return datetime.datetime.now().strftime("%H:%M:%S")
+    return {
+        "at": datetime.datetime.now().strftime("%H:%M:%S"),
+        "reset": _reset_fabric_session_timeout(),
+    }
 
 
 def _workspaces_error_text(error: str) -> str:
@@ -17294,7 +17364,7 @@ def semantic_explorer(
                 _reply(data, True, {"count": count, "published": published})
                 return
             if action == "keep_alive":
-                _reply(data, True, {"at": _keep_alive_ping()})
+                _reply(data, True, _keep_alive_ping())
                 return
             if action == "check_view":
                 if not ctx["view"]:

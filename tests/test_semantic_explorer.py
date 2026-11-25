@@ -1376,30 +1376,52 @@ def test_shortcuts_without_a_resource_type_are_listed_by_their_content(
     ]
 
 
-def test_keep_alive_runs_a_trivial_statement(monkeypatch):
-    import types as _types
+def test_keep_alive_resets_the_fabric_session_timeout(monkeypatch):
+    import io
+    import json as _json
+    import urllib.request
 
-    statements = []
-    fake_spark = _types.SimpleNamespace(
-        sql=lambda q: statements.append(q) or _types.SimpleNamespace(collect=list)
-    )
-    fake_module = _types.ModuleType("pyspark.sql")
-    fake_module.SparkSession = _types.SimpleNamespace(
-        getActiveSession=lambda: fake_spark
-    )
+    calls = []
+    # Livy endpoint (PySpark), the native proxy API (Python notebooks) or none.
+    up = {}
+
+    def fake_urlopen(req, timeout=None):
+        url, method = req.full_url, req.get_method()
+        calls.append((method, url))
+        base = url.split("/", 3)[2]
+        if base not in up:
+            raise OSError("connection refused")
+        return io.BytesIO(
+            _json.dumps({"sessions": [{"id": up[base]}]}).encode()
+            if method == "GET"
+            else b""
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     widget, send = _view_explorer_widget(monkeypatch)
     busy = []
     widget.observe(lambda c: busy.append(c["new"]), names=["busy"])
 
-    monkeypatch.setitem(sys.modules, "pyspark.sql", fake_module)
+    up["127.0.0.1:8998"] = 0
     result = send(action="keep_alive", request_id=1)
-
     assert result["ok"] and len(result["data"]["at"]) == 8  # HH:MM:SS
-    assert statements == ["SELECT 1"]
+    assert result["data"]["reset"] == 1
+    assert calls == [
+        ("GET", "http://127.0.0.1:8998/sessions"),
+        ("PUT", "http://127.0.0.1:8998/sessions/0/reset-timeout"),
+    ]
     assert busy == []  # The explorer isn't blocked meanwhile.
-    # Without Spark it still answers.
-    monkeypatch.setitem(sys.modules, "pyspark.sql", None)
-    assert send(action="keep_alive", request_id=2)["ok"]
+
+    up.clear()
+    up["127.0.0.1:8000"] = "0"
+    calls.clear()
+    assert send(action="keep_alive", request_id=2)["data"]["reset"] == 1
+    assert calls[-1] == ("PUT", "http://127.0.0.1:8000/api/sessions/0/reset-timeout")
+
+    # Outside Fabric it still answers.
+    up.clear()
+    result = send(action="keep_alive", request_id=3)
+    assert result["ok"] and result["data"]["reset"] == 0
 
 
 def test_shortcut_details_list_paths_and_targets(monkeypatch):
