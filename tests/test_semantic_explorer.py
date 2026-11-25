@@ -311,19 +311,35 @@ def _build_model():
     return model
 
 
-_real_onelake_shortcuts = sx._onelake_shortcuts
+_real_shortcut_details = sx._onelake_shortcut_details
 
 
 @pytest.fixture(autouse=True)
-def _shortcuts_from_the_fake_lake(monkeypatch):
-    """The Fabric shortcuts API answers with the shortcuts of the fake
-    lakehouse in use (none otherwise), so no test calls Fabric."""
+def _apis_from_the_fake_lake(monkeypatch):
+    """The Fabric shortcut and table APIs answer from the fake lakehouse in
+    use (no shortcuts, tables unavailable otherwise): no test calls Fabric."""
 
-    monkeypatch.setattr(
-        sx,
-        "_onelake_shortcuts",
-        lambda ws, item: list(getattr(sx._onelake_request, "shortcuts", [])),
-    )
+    def details(ws, item):
+        shortcuts = getattr(sx._onelake_request, "shortcuts", [])
+        if isinstance(shortcuts, dict):
+            return dict(shortcuts)
+        empty = {
+            "type": "",
+            "workspace_id": "",
+            "item_id": "",
+            "path": "",
+            "location": "",
+        }
+        return {p: dict(empty) for p in shortcuts}
+
+    def tables(ws, lh):
+        listed = getattr(sx._onelake_request, "tables", None)
+        if listed is None:
+            raise RuntimeError("The lakehouse tables can't be listed.")
+        return list(listed)
+
+    monkeypatch.setattr(sx, "_onelake_shortcut_details", details)
+    monkeypatch.setattr(sx, "_lakehouse_tables", tables)
 
 
 @pytest.fixture
@@ -1115,16 +1131,18 @@ class _FakeResponse:
 class _FakeOneLake:
     """An in-memory lakehouse (paths relative to the item root)."""
 
-    def __init__(self, files=None, folders=(), shortcuts=()):
+    def __init__(self, files=None, folders=(), shortcuts=(), tables=None):
         self.files = {k: v.encode("utf-8") for k, v in (files or {}).items()}
         self.folders = set(folders)
         for path in self.files:
             parts = path.split("/")[:-1]
             for i in range(1, len(parts) + 1):
                 self.folders.add("/".join(parts[:i]))
-        # Shortcut paths (folders or files), also returned by the fake Fabric
-        # shortcuts API (see _shortcuts_from_the_fake_lake).
-        self.shortcuts = list(shortcuts)
+        # Shortcut paths (folders or files), or paths to their targets, which
+        # the fake Fabric APIs return (see _apis_from_the_fake_lake), as they
+        # do the lakehouse tables (None: they can't be listed).
+        self.shortcuts = shortcuts if isinstance(shortcuts, dict) else list(shortcuts)
+        self.tables = tables
         self.calls = []
 
     def hidden(self, path, directory):
@@ -1301,7 +1319,7 @@ datasets:
     assert b"From the shortcut" not in lake.files[f"{root}/sales/ext/ext.yaml"]
 
 
-def test_onelake_shortcuts_lists_shortcut_paths(monkeypatch):
+def test_shortcut_details_list_paths_and_targets(monkeypatch):
     import sempy_labs._helper_functions as hf
 
     monkeypatch.setattr(
@@ -1310,22 +1328,52 @@ def test_onelake_shortcuts_lists_shortcut_paths(monkeypatch):
         lambda request, **kw: [
             {
                 "value": [
-                    {"name": "shared", "path": "Context/Semantic Views"},
-                    {"name": "sales", "path": "/Tables/dbo"},
+                    {
+                        "name": "shared",
+                        "path": "Context/Semantic Views",
+                        "target": {
+                            "type": "OneLake",
+                            "oneLake": {
+                                "workspaceId": "ws2",
+                                "itemId": "lh2",
+                                "path": "Context/Semantic Views/shared",
+                            },
+                        },
+                    },
+                    {
+                        "name": "sales",
+                        "path": "/Tables/dbo",
+                        "target": {
+                            "type": "AdlsGen2",
+                            "adlsGen2": {"location": "https://acct", "subpath": "/c/s"},
+                        },
+                    },
                 ]
             }
         ],
     )
-    assert _real_onelake_shortcuts("ws", "lh") == [
-        "Context/Semantic Views/shared",
-        "Tables/dbo/sales",
-    ]
+    assert _real_shortcut_details("ws", "lh") == {
+        "Context/Semantic Views/shared": {
+            "type": "OneLake",
+            "workspace_id": "ws2",
+            "item_id": "lh2",
+            "path": "Context/Semantic Views/shared",
+            "location": "",
+        },
+        "Tables/dbo/sales": {
+            "type": "AdlsGen2",
+            "workspace_id": "",
+            "item_id": "",
+            "path": "/c/s",
+            "location": "https://acct",
+        },
+    }
 
     def _fails(request, **kw):
         raise RuntimeError("forbidden")
 
     monkeypatch.setattr(hf, "_base_api", _fails)
-    assert _real_onelake_shortcuts("ws", "lh") == []
+    assert _real_shortcut_details("ws", "lh") == {}
 
 
 def test_yaml_files_in_shortcuts_are_read_only(monkeypatch):
@@ -1403,6 +1451,150 @@ def test_a_view_folder_holding_shortcuts_is_combined_under_its_own_name(
         action="add_view_file", name="fin", combined_name="sales", request_id=2
     )
     assert result["ok"] and f"{root}/sales/fin/fin_semantic_view.yaml" in lake.files
+
+
+def test_shortcut_sources_and_missing_dataset_tables(monkeypatch):
+    import sempy_labs._helper_functions as hf
+
+    root = "Context/Semantic Views"
+    ext = """version: 0.2.0.dev0
+name: ext
+datasets:
+  - name: products
+    source: dbo.products
+  - name: stores
+    source: Stores
+"""
+    target = {
+        "type": "OneLake",
+        "workspace_id": "ws2",
+        "item_id": "lh2",
+        "path": "Context/Semantic Views/ext",
+        "location": "",
+    }
+    lake = _FakeOneLake(
+        files={
+            f"{root}/sales/sales.yaml": _VIEW_SCHEMA,
+            f"{root}/sales/ext/ext.yaml": ext,
+            # The tables of the source lakehouse (the fake is one namespace).
+            "Tables/dbo/products/part-0.parquet": "x",
+        },
+        shortcuts={f"{root}/sales/ext": target},
+        tables=["dbo.sales", "dbo.customers", "dbo.stores"],
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    monkeypatch.setattr(
+        hf, "resolve_workspace_name", lambda ws, throw_error=True: "Shared WS"
+    )
+    monkeypatch.setattr(hf, "resolve_item_name", lambda item, ws=None: "Source LH")
+
+    payload = sx._semantic_view_payload("ws", "lh", "sales")
+    files = {f["path"]: f["shortcut_source"] for f in payload["files"]}
+    assert files["sales.yaml"] is None
+    assert files["ext/ext.yaml"] == dict(
+        target, workspace_name="Shared WS", item_name="Source LH"
+    )
+    assert payload["view"]["shortcut_source"] is None
+    assert [t["name"] for t in payload["lakehouse_tables"]] == [
+        "dbo.customers",
+        "dbo.sales",
+        "dbo.stores",
+    ]
+    # 'Stores' is dbo.stores (default schema, any case); products is missing.
+    missing = [
+        i for i in payload["issues"] if "isn't in this lakehouse" in i["message"]
+    ]
+    assert [(i["level"], i["file"]) for i in missing] == [("warning", "ext/ext.yaml")]
+    assert "'dbo.products'" in missing[0]["message"]
+
+    # Tables the lakehouse can't list: no warnings.
+    lake.tables = None
+    payload = sx._semantic_view_payload("ws", "lh", "sales")
+    assert payload["lakehouse_tables"] is None
+    assert not [
+        i for i in payload["issues"] if "isn't in this lakehouse" in i["message"]
+    ]
+
+    # Linking the missing tables from the lakehouse the YAML file comes from.
+    import sempy_labs.lakehouse._shortcuts as shortcuts_module
+
+    created = []
+    monkeypatch.setattr(
+        shortcuts_module, "create_shortcut_onelake", lambda **kw: created.append(kw)
+    )
+    monkeypatch.setattr(sx, "_lakehouse_has_schemas", lambda ws, lh: True)
+    lake.tables = ["dbo.sales"]
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    result = send(
+        action="create_table_shortcuts",
+        file="ext/ext.yaml",
+        tables=["dbo.products", "dbo.gone"],
+        request_id=1,
+    )
+    assert result["ok"]
+    assert result["data"]["created"] == ["dbo.products"]
+    assert result["data"]["errors"] == ["dbo.gone: not found in the source lakehouse"]
+    assert created == [
+        {
+            "table_name": "products",
+            "source_workspace": "ws2",
+            "source_item": "lh2",
+            "destination_lakehouse": "lh-id",
+            "destination_workspace": "ws-id",
+            "source_path": "Tables/dbo",
+            "destination_path": "Tables/dbo",
+        }
+    ]
+    # Only a YAML file from a OneLake shortcut has a lakehouse to link from.
+    result = send(
+        action="create_table_shortcuts",
+        file="sales.yaml",
+        tables=["dbo.x"],
+        request_id=2,
+    )
+    assert (
+        not result["ok"] and "isn't a shortcut to another lakehouse" in result["error"]
+    )
+
+
+def test_table_shortcuts_without_schemas_link_dbo_tables_only(monkeypatch):
+    import sempy_labs.lakehouse._shortcuts as shortcuts_module
+
+    root = "Context/Semantic Views"
+    target = {
+        "type": "OneLake",
+        "workspace_id": "ws2",
+        "item_id": "lh2",
+        "path": "",
+        "location": "",
+    }
+    # A source lakehouse without schemas: Tables/<table>.
+    lake = _FakeOneLake(
+        files={
+            "Tables/products/part-0.parquet": "x",
+            "Tables/ext/orders/p.parquet": "x",
+        },
+        shortcuts={f"{root}/sales/ext": target},
+    )
+    created = []
+    monkeypatch.setattr(
+        shortcuts_module, "create_shortcut_onelake", lambda **kw: created.append(kw)
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    monkeypatch.setattr(sx, "_lakehouse_has_schemas", lambda ws, lh: False)
+
+    done, errors = sx._create_table_shortcuts(
+        "ws", "lh", "sales", "ext/ext.yaml", ["products", "ext.orders"]
+    )
+
+    assert done == ["products"]
+    assert [
+        (c["source_path"], c["table_name"], c["destination_path"]) for c in created
+    ] == [("Tables", "products", "Tables")]
+    assert errors == [
+        "ext.orders: this lakehouse has no schemas, so it can only link dbo tables"
+    ]
 
 
 def test_create_semantic_view_writes_a_valid_starter_definition(monkeypatch):
@@ -1918,42 +2110,29 @@ def test_removing_a_yaml_file_makes_it_a_view_of_its_own(monkeypatch):
 
 
 def test_view_tables_marks_shortcuts(monkeypatch):
-    import sempy_labs._helper_functions as hf
-
-    shortcuts = [
-        {"name": "sales", "path": "/Tables/dbo"},
-        {"name": "ext", "path": "Tables"},  # a whole schema, or a dbo table
-        {"name": "docs", "path": "Files"},
-    ]
-
-    def _api(request, **kwargs):
-        assert request.endswith("/shortcuts")
-        return [{"value": shortcuts}]
-
-    monkeypatch.setattr(hf, "_base_api", _api)
+    lake = _FakeOneLake(
+        shortcuts=["Tables/dbo/sales", "Tables/ext", "Tables/dbo/fresh", "Files/docs"],
+        tables=["dbo.customers", "dbo.sales", "ext.orders"],
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    # 'Tables/ext' is a whole schema, or a dbo table without schemas.
     assert sx._lakehouse_shortcut_tables("ws", "lh") == {
         "dbo.sales",
+        "dbo.fresh",
         "dbo.ext",
         "ext.*",
     }
 
     widget, send = _view_explorer_widget(monkeypatch)
-    monkeypatch.setattr(
-        sx, "_lakehouse_tables", lambda *a: ["dbo.customers", "dbo.sales", "ext.orders"]
-    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
     result = send(action="view_tables", request_id=1)
+    # dbo.fresh is a shortcut not registered as a table yet.
     assert result["ok"] and result["data"]["items"] == [
         {"name": "dbo.customers", "shortcut": False},
+        {"name": "dbo.fresh", "shortcut": True},
         {"name": "dbo.sales", "shortcut": True},
         {"name": "ext.orders", "shortcut": True},
     ]
-
-    def _fails(request, **kwargs):
-        raise RuntimeError("forbidden")
-
-    # Without access to the shortcuts, tables are listed without the marks.
-    monkeypatch.setattr(hf, "_base_api", _fails)
-    assert sx._lakehouse_shortcut_tables("ws", "lh") == set()
 
 
 def test_save_semantic_view_refuses_to_overwrite_changed_files(monkeypatch):

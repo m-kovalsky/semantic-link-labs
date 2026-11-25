@@ -253,6 +253,11 @@ _WIDGET_CSS = """
 .slls-sx-vdupes > .slls-sx-ricon { color: var(--sx-warn); flex-shrink: 0; margin-top: 1px; }
 .slls-sx-vdupes svg { width: 13px; height: 13px; }
 .slls-sx-vdupes > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.slls-sx-vdupes .slls-sx-btn.small { margin-top: 4px; }
+.slls-sx-files-src {
+    flex-shrink: 1; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 11.5px; color: var(--ui-text-tertiary);
+}
 .slls-sx-issue { display: flex; align-items: flex-start; gap: 8px; padding: 6px 2px; font-size: 12.5px; border-bottom: 1px solid var(--ui-border); }
 .slls-sx-issue:last-child { border-bottom: none; }
 .slls-sx-issue > span:nth-child(2) { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
@@ -2783,6 +2788,7 @@ function render({ model, el }) {
         vMode = "read";
         vTables = null;
         vTablesLoading = false;
+        seedViewTables();
         vColCache = {};
     }
     function renderViewPicker() {
@@ -2975,6 +2981,7 @@ function render({ model, el }) {
         vWork = vBase ? JSON.parse(JSON.stringify(vBase)) : null;
         vUndo = []; vRedo = []; vEditKey = "";
         if (!vMultiFile() || !viewYamlFiles().includes(vFileFilter)) vFileFilter = "";
+        seedViewTables();
         rebuildViewIndex();
         if (vPendingSelect) {
             const p = vPendingSelect;
@@ -2997,6 +3004,44 @@ function render({ model, el }) {
         return ((viewData && viewData.files) || []).filter((f) => f.area === "definition" && !f.ignored && !f.error && !f.shortcut).map((f) => f.path);
     }
     function vCanAdd() { return vWritableFiles().length > 0; }
+    // The payload lists the lakehouse's tables (with table shortcuts), which
+    // are also the choices for dataset sources.
+    function seedViewTables() {
+        if (viewData && Array.isArray(viewData.lakehouse_tables)) { vTables = viewData.lakehouse_tables; vTablesLoading = false; }
+    }
+    // Where a shortcut points to: "Lakehouse (Workspace)" for OneLake targets.
+    function vSourceLabel(src) {
+        if (!src) return "";
+        if (src.type === "OneLake") return `${src.item_name || src.item_id || "?"} (${src.workspace_name || src.workspace_id || "?"})`;
+        return [src.type, [src.location, src.path].filter(Boolean).join("")].filter(Boolean).join(": ");
+    }
+    function vSourceText(src) {
+        if (!src) return "a OneLake shortcut";
+        if (src.type === "OneLake") return `a OneLake shortcut to the \u201c${src.item_name || src.item_id}\u201d lakehouse in the \u201c${src.workspace_name || src.workspace_id}\u201d workspace`;
+        return `a OneLake shortcut to ${vSourceLabel(src)}`;
+    }
+    function vFileSource(path) {
+        const f = ((viewData && viewData.files) || []).find((x) => x.area === "definition" && x.path === path);
+        return (f && f.shortcut_source) || null;
+    }
+    // A dataset source as a lower-cased 'schema.table' ('dbo' by default).
+    function vSourceKey(source) {
+        const t = String(source || "").replace(/[\[\]"`]/g, "").trim().toLowerCase();
+        return !t || t.includes(".") ? t : `dbo.${t}`;
+    }
+    // A dataset whose source table isn't in the view's lakehouse (unknown
+    // when the lakehouse's tables couldn't be listed).
+    function vSourceMissing(d) {
+        if (!d || d.type !== "dataset" || !d.file || !Array.isArray(vTables) || vTablesLoading) return false;
+        const key = vSourceKey(d.source);
+        return !!key && !vTables.some((t) => vSourceKey(typeof t === "string" ? t : t.name) === key);
+    }
+    // The missing source tables can be linked (shortcuts) from the lakehouse
+    // which the dataset's YAML file is a shortcut from.
+    function vCanLinkSource(d) {
+        const src = vSourceMissing(d) ? vFileSource(d.file) : null;
+        return !!(src && src.type === "OneLake" && src.workspace_id && src.item_id);
+    }
     // YAML files which can be removed from a combined view (not shortcuts).
     function vRemovableFiles() {
         if (!vMultiFile()) return [];
@@ -3152,6 +3197,12 @@ function render({ model, el }) {
             if (d.changed) continue;
             if (!warnings.has(d.o.key)) warnings.set(d.o.key, []);
             warnings.get(d.o.key).push(d.msg);
+        }
+        const lakehouse = (viewData && viewData.view && viewData.view.lakehouse_name) || "this";
+        for (const d of vLive("datasets").filter(vSourceMissing)) {
+            if (!warnings.has(d.key)) warnings.set(d.key, []);
+            warnings.get(d.key).push(`The source table \u201c${d.source}\u201d isn\u2019t in the \u201c${lakehouse}\u201d lakehouse.`
+                + (vCanLinkSource(d) ? ` It can be linked with a OneLake shortcut from ${vSourceLabel(vFileSource(d.file))}.` : ""));
         }
         return warnings;
     }
@@ -4063,7 +4114,7 @@ function render({ model, el }) {
                 row.classList.add("vfile");
                 row.style.setProperty("--sx-vfile", vFileColor(file));
             }
-            label.title += `\nDefined in ${file || "(inferred when published)"}${vFileReadOnly(file) ? " (shortcut, read-only)" : ""}`;
+            label.title += `\nDefined in ${file || "(inferred when published)"}${vFileReadOnly(file) ? ` (shortcut to ${vSourceLabel(vFileSource(file)) || "another location"}, read-only)` : ""}`;
         }
         row.appendChild(label);
         if (node && ((node.type === "column" && node.is_hidden) || (node.type === "metric" && !String(node.dax || "").trim() && !node.isNew))) row.classList.add("muted");
@@ -4139,11 +4190,118 @@ function render({ model, el }) {
         if (rows.length <= 1 && vSearch.trim()) vTreeEl.appendChild(h("div", "slls-sx-empty", "No matches."));
         vTreeEl.scrollTop = top;
         paintViewDuplicates();
+        paintViewMissing();
     }
     // Banner above the tree naming the duplicated names; each name reveals
     // its next object.
+    // Banner naming the datasets whose source table isn't in the lakehouse,
+    // with the shortcuts which can be created for them.
+    function paintViewMissing() {
+        const box = treePane.querySelector(".slls-sx-vmissing");
+        if (!box) return;
+        clear(box);
+        const missing = vLive("datasets").filter(vSourceMissing).sort(byName);
+        box.style.display = missing.length ? "" : "none";
+        if (!missing.length) return;
+        box.appendChild(iconEl("alert", ""));
+        const text = h("span", "");
+        const lakehouse = (viewData && viewData.view && viewData.view.lakehouse_name) || "this";
+        text.appendChild(document.createTextNode(`${plural(missing.length, "dataset")} use${missing.length === 1 ? "s" : ""} a table which isn\u2019t in the \u201c${lakehouse}\u201d lakehouse: `));
+        missing.forEach((d, i) => {
+            if (i) text.appendChild(document.createTextNode(", "));
+            const link = vLink(d.name || "(unnamed)", () => vReveal(d.key));
+            link.title = d.source;
+            text.appendChild(link);
+        });
+        const linkable = missing.filter(vCanLinkSource);
+        if (linkable.length) {
+            const b = button("slls-sx-btn small", `Create ${plural(linkable.length, "shortcut")}`, "link", () => openCreateTableShortcuts(linkable),
+                vMode === "write" ? "Create OneLake shortcuts to these tables from the lakehouses their YAML files come from"
+                    : "Switch to edit mode to create shortcuts");
+            b.disabled = vMode !== "write" || vSaving || !!model.get("busy");
+            text.appendChild(document.createTextNode(" "));
+            text.appendChild(b);
+        }
+        box.appendChild(text);
+    }
+    // Creates OneLake shortcuts in the view's lakehouse to the missing source
+    // tables of datasets defined in shortcut YAML files, from the lakehouse
+    // each file comes from (one request per file).
+    function openCreateTableShortcuts(datasets) {
+        const byFile = new Map();
+        for (const d of datasets.filter(vCanLinkSource)) {
+            if (!byFile.has(d.file)) byFile.set(d.file, []);
+            const list = byFile.get(d.file);
+            if (!list.some((t) => vSourceKey(t) === vSourceKey(d.source))) list.push(String(d.source).trim());
+        }
+        if (!byFile.size) return;
+        const lakehouse = viewData.view.lakehouse_name;
+        const m = modal("Create OneLake shortcuts", "link");
+        m.body.appendChild(h("div", "", `Creates OneLake shortcuts in the \u201c${lakehouse}\u201d lakehouse to these tables, from the lakehouse `
+            + "which each dataset\u2019s YAML file comes from:"));
+        const list = h("div", "slls-sx-sublist");
+        list.style.margin = "10px 0";
+        for (const [file, tables] of byFile) {
+            for (const t of tables) {
+                const it = h("div", "slls-sx-subitem");
+                it.append(iconEl("link", ""), h("span", "slls-sx-mono", t), h("span", "meta", `from ${vSourceLabel(vFileSource(file))}`));
+                it.title = `${t} \u2014 used by datasets in ${file}`;
+                list.appendChild(it);
+            }
+        }
+        m.body.appendChild(list);
+        m.body.appendChild(h("div", "slls-sx-picker-note", "The shortcuts are created in the lakehouse right away (not on Save). "
+            + "Existing shortcuts with the same name are left as they are."));
+        const err = h("div", "slls-sx-picker-error");
+        err.style.display = "none";
+        m.body.appendChild(err);
+        const foot = h("div", "slls-sx-modal-foot");
+        const total = [...byFile.values()].reduce((a, t) => a + t.length, 0);
+        const ok = button("slls-sx-btn primary", `Create ${plural(total, "shortcut")}`, "link", () => {
+            ok.disabled = true;
+            ok.textContent = "Creating\u2026";
+            err.style.display = "none";
+            const jobs = [...byFile];
+            const failures = [];
+            let created = 0;
+            const next = () => {
+                if (!jobs.length) {
+                    if (!created) {
+                        err.textContent = failures.join(" ");
+                        err.style.display = "";
+                        ok.disabled = false;
+                        ok.textContent = `Create ${plural(total, "shortcut")}`;
+                        return;
+                    }
+                    m.close();
+                    // The new tables' columns come with a reload; pending
+                    // changes are kept instead when there are some.
+                    if (!viewPendingCount()) request("reload_view", {}, () => renderAll());
+                    renderAll();
+                    return;
+                }
+                const [file, tables] = jobs.shift();
+                request("create_table_shortcuts", { file, tables }, (res) => {
+                    if (res.ok) {
+                        created += (res.data.created || []).length;
+                        const listed = Array.isArray(res.data.tables) ? res.data.tables : (vTables || []).slice();
+                        for (const t of res.data.created || []) {
+                            if (!listed.some((x) => vSourceKey(typeof x === "string" ? x : x.name) === vSourceKey(t))) listed.push({ name: t, shortcut: true });
+                        }
+                        viewData.lakehouse_tables = listed;
+                        seedViewTables();
+                    } else failures.push(res.error || `The shortcuts for ${file} could not be created.`);
+                    next();
+                });
+            };
+            next();
+        });
+        foot.append(button("slls-sx-btn", "Cancel", "", () => m.close()), ok);
+        m.box.appendChild(foot);
+        setTimeout(() => ok.focus(), 0);
+    }
     function paintViewDuplicates() {
-        const box = treePane.querySelector(".slls-sx-vdupes");
+        const box = treePane.querySelector(".slls-sx-vdupes:not(.slls-sx-vmissing)");
         if (!box) return;
         clear(box);
         const groups = [];
@@ -4245,6 +4403,7 @@ function render({ model, el }) {
         if (vMultiFile()) filters.appendChild(viewFileFilter());
         treePane.appendChild(filters);
         treePane.appendChild(h("div", "slls-sx-vdupes"));
+        treePane.appendChild(h("div", "slls-sx-vdupes slls-sx-vmissing"));
         vTreeEl = h("div", "slls-sx-tree slls-sx-vtree");
         vTreeEl.setAttribute("role", "tree");
         treePane.appendChild(vTreeEl);
@@ -4418,7 +4577,7 @@ function render({ model, el }) {
         if (node.type === "dataset" && node.inferred) typeEl.appendChild(h("span", "slls-sx-pill", "Inferred"));
         if (["dataset", "relationship", "metric"].includes(node.type) && vFileReadOnly(node.file)) {
             const ro = h("span", "slls-sx-pill", "Read-only");
-            ro.title = `Defined in ${node.file}, a OneLake shortcut (shortcuts are read-only)`;
+            ro.title = `Defined in ${node.file}, ${vSourceText(vFileSource(node.file))} (shortcuts are read-only)`;
             typeEl.appendChild(ro);
         }
         if (node.type === "metric" && !node.isNew && !String(node.dax || "").trim()) typeEl.appendChild(h("span", "slls-sx-pill warn", "No DAX"));
@@ -4528,7 +4687,11 @@ function render({ model, el }) {
                     rf.disabled = !!model.get("busy");
                     actions.appendChild(rf);
                 }
-            } else if (vEditable(node)) {
+            } else if (node.type === "dataset" && vCanLinkSource(node)) {
+                actions.appendChild(button("slls-sx-btn small", "Create shortcut", "link", () => openCreateTableShortcuts([node]),
+                    `Create a OneLake shortcut to \u201c${node.source}\u201d from ${vSourceLabel(vFileSource(node.file))}`));
+            }
+            if (node.type !== "view" && vEditable(node)) {
                 actions.appendChild(node.deleted
                     ? button("slls-sx-btn small", "Restore", "undo", () => vToggleDelete(node))
                     : button("slls-sx-btn small danger", "Delete", "trash", () => vToggleDelete(node)));
@@ -4548,7 +4711,7 @@ function render({ model, el }) {
         else if (node.type === "metric") metricDetail(node, b, write);
         if (vMode === "write" && ["dataset", "relationship", "metric"].includes(node.type) && !vEditable(node)) {
             const note = vFileReadOnly(node.file)
-                ? `Defined in ${node.file}, which is a OneLake shortcut: shortcuts are read-only, so it can\u2019t be edited here.`
+                ? `Defined in ${node.file}, which is ${vSourceText(vFileSource(node.file))}: shortcuts are read-only, so it can\u2019t be edited here.`
                 : "Fabric added this table when the view was published; it isn\u2019t defined in the YAML files, so it can\u2019t be edited here.";
             b.insertBefore(h("div", "slls-sx-picker-note slls-sx-vnote", note), errBox.nextSibling);
         }
@@ -4577,6 +4740,7 @@ function render({ model, el }) {
             ["Lakehouse", node.lakehouse_name],
             ["Workspace", node.workspace_name],
             ["Definition folder", node.folder],
+            ...(node.shortcut_source ? [["Shortcut to", h("span", "slls-sx-unpub-text", vSourceLabel(node.shortcut_source))]] : []),
             ["YAML files", `${yamlFiles.length} of 20 \u00b7 ${fmtBytes(yamlFiles.reduce((a, f) => a + f.size, 0))}`],
             ["Published", !!node.published],
             ["Semantic model", node.published ? node.name : h("span", "none", "Created when the view is published")],
@@ -4591,9 +4755,11 @@ function render({ model, el }) {
                 const it = h("div", "slls-sx-subitem" + (f.ignored ? " muted" : ""));
                 it.appendChild(iconEl(f.error ? "alert" : f.shortcut ? "link" : "file", ""));
                 if (vMultiFile() && vFileColor(f.path)) it.appendChild(vSwatch(f.path));
-                it.append(h("span", "slls-sx-files-name", f.path), h("span", "meta", f.ignored ? "ignored" : fmtBytes(f.size)));
+                it.append(h("span", "slls-sx-files-name", f.path));
+                if (f.shortcut_source) it.appendChild(h("span", "slls-sx-files-src", vSourceLabel(f.shortcut_source)));
+                it.appendChild(h("span", "meta", f.ignored ? "ignored" : fmtBytes(f.size)));
                 it.title = (f.ignored ? `${f.path}\nIgnored \u2014 only .yaml files are part of the view` : f.path)
-                    + (f.shortcut ? "\nRead through a OneLake shortcut" : "");
+                    + (f.shortcut ? `\nRead-only: ${vSourceText(f.shortcut_source)}` : "");
                 it.addEventListener("click", () => openViewFiles(f.path));
                 if (write && vMultiFile() && !f.ignored && !f.shortcut) {
                     const rm = button("slls-sx-iconbtn", "", "unlink", (ev) => { ev.stopPropagation(); openRemoveViewFile(f.path); },
@@ -13289,9 +13455,11 @@ def _onelake_list(
         params["continuation"] = continuation
 
 
-def _onelake_shortcuts(workspace_id: str, item_id: str) -> List[str]:
-    """The paths (from the item root) of an item's shortcuts, e.g.
-    ``Context/Semantic Views/sales``; empty if they can't be listed."""
+def _onelake_shortcut_details(workspace_id: str, item_id: str) -> Dict[str, dict]:
+    """An item's shortcuts by path (from the item root, e.g. ``Context/Semantic
+    Views/sales``) with their targets: ``type`` (e.g. 'OneLake', 'AdlsGen2'),
+    ``workspace_id`` / ``item_id`` / ``path`` for OneLake targets and
+    ``location`` / ``path`` for external ones. Empty if they can't be listed."""
 
     from sempy_labs._helper_functions import _base_api
 
@@ -13302,15 +13470,68 @@ def _onelake_shortcuts(workspace_id: str, item_id: str) -> List[str]:
             client="fabric_sp",
         )
     except Exception:
-        return []
-    out = []
+        return {}
+    out = {}
     for r in responses:
         for s in r.get("value") or []:
             name = str(s.get("name") or "").strip("/")
             parent = str(s.get("path") or "").strip("/")
-            if name:
-                out.append(f"{parent}/{name}" if parent else name)
+            if not name:
+                continue
+            target = s.get("target") or {}
+            kind = str(target.get("type") or "")
+            # The target's details are under the type in camelCase (oneLake,
+            # adlsGen2, amazonS3, ...).
+            spec = target.get(kind[:1].lower() + kind[1:]) if kind else None
+            spec = spec if isinstance(spec, dict) else {}
+            out[f"{parent}/{name}" if parent else name] = {
+                "type": kind,
+                "workspace_id": str(spec.get("workspaceId") or ""),
+                "item_id": str(spec.get("itemId") or ""),
+                "path": str(spec.get("path") or spec.get("subpath") or ""),
+                "location": str(spec.get("location") or spec.get("bucket") or ""),
+            }
     return out
+
+
+def _onelake_shortcuts(workspace_id: str, item_id: str) -> List[str]:
+    """The paths (from the item root) of an item's shortcuts, e.g.
+    ``Context/Semantic Views/sales``; empty if they can't be listed."""
+
+    return list(_onelake_shortcut_details(workspace_id, item_id))
+
+
+def _innermost_shortcut(path: str, shortcuts) -> Optional[str]:
+    """The shortcut which ``path`` is (in), innermost first; None if none."""
+
+    hits = [sc for sc in shortcuts if path == sc or path.startswith(sc + "/")]
+    return max(hits, key=len) if hits else None
+
+
+def _shortcut_source(target: dict, names: dict) -> dict:
+    """A shortcut's target for display; OneLake targets also get the names of
+    their workspace and item (``names`` caches them)."""
+
+    info = dict(target)
+    if target.get("type") == "OneLake" and target.get("workspace_id"):
+        key = (target["workspace_id"], target.get("item_id", ""))
+        if key not in names:
+            from sempy_labs._helper_functions import (
+                resolve_item_name,
+                resolve_workspace_name,
+            )
+
+            try:
+                workspace_name = resolve_workspace_name(key[0], throw_error=False)
+            except Exception:
+                workspace_name = key[0]
+            try:
+                item_name = resolve_item_name(key[1], key[0]) if key[1] else ""
+            except Exception:
+                item_name = key[1]
+            names[key] = (str(workspace_name or key[0]), str(item_name or key[1]))
+        info["workspace_name"], info["item_name"] = names[key]
+    return info
 
 
 def _onelake_list_deep(
@@ -14186,7 +14407,8 @@ def _semantic_view_payload(
     import yaml
 
     folder = f"{_VIEWS_FOLDER}/{view_name}"
-    shortcuts = _onelake_shortcuts(workspace_id, lakehouse_id)
+    shortcut_details = _onelake_shortcut_details(workspace_id, lakehouse_id)
+    shortcuts = list(shortcut_details)
     paths = _onelake_list_deep(
         workspace_id, lakehouse_id, folder, recursive=True, shortcuts=shortcuts
     )
@@ -14194,6 +14416,16 @@ def _semantic_view_payload(
         raise ValueError(
             f"The '{view_name}' semantic view was not found in this lakehouse."
         )
+    source_names: dict = {}
+
+    def shortcut_source(path):
+        """Where the shortcut which ``path`` is (in) points to."""
+
+        shortcut = _innermost_shortcut(path, shortcuts)
+        if not shortcut:
+            return None
+        return _shortcut_source(shortcut_details[shortcut], source_names)
+
     files, documents = [], []
     yaml_bytes = 0
     for p in sorted(paths, key=lambda p: p["path"].lower()):
@@ -14212,6 +14444,9 @@ def _semantic_view_payload(
             "ignored": not rel.endswith(".yaml"),
             # Read through a shortcut (the file or a folder above it).
             "shortcut": bool(p.get("shortcut")),
+            "shortcut_source": (
+                shortcut_source(p["path"]) if p.get("shortcut") else None
+            ),
         }
         files.append(entry)
         if entry["ignored"]:
@@ -14244,6 +14479,27 @@ def _semantic_view_payload(
         any(path in read_only for path in describing) if describing else not writable
     )
     issues = merged["issues"]
+    # The lakehouse's tables, to check the datasets' sources (None when they
+    # can't be listed).
+    try:
+        lakehouse_tables = _lakehouse_table_items(
+            workspace_id, lakehouse_id, shortcut_paths=shortcuts
+        )
+    except Exception:
+        lakehouse_tables = None
+    if lakehouse_tables is not None:
+        known = {t["name"].lower() for t in lakehouse_tables}
+        for d in merged["datasets"]:
+            key = _view_source_key(d["source"])
+            if key and key not in known:
+                issues.append(
+                    {
+                        "level": "warning",
+                        "message": f"Dataset '{d['name']}': the source table "
+                        f"'{d['source']}' isn't in this lakehouse.",
+                        "file": d["file"],
+                    }
+                )
     for f in files:
         if f["error"]:
             issues.insert(
@@ -14490,8 +14746,10 @@ def _semantic_view_payload(
             "unpublished_count": unpublished,
             # The view folder itself is (in) a shortcut: nothing is writable.
             "shortcut": _in_shortcut(folder, shortcuts),
+            "shortcut_source": shortcut_source(folder),
             "description_read_only": description_read_only,
         },
+        "lakehouse_tables": lakehouse_tables,
         "datasets": datasets,
         "relationships": relationships,
         "metrics": metrics,
@@ -14963,35 +15221,161 @@ def _lakehouse_tables(workspace_id: str, lakehouse_id: str) -> List[str]:
         )
 
 
+def _shortcut_table_names(paths, has_schemas: Optional[bool] = None) -> Dict[str, str]:
+    """Lakehouse table shortcuts by lower-cased 'schema.table' (to their names).
+
+    A shortcut directly in 'Tables' is a table in a lakehouse without schemas
+    ('dbo.<name>') or a whole schema ('<name>.*'): both are included unless
+    ``has_schemas`` says which.
+    """
+
+    out = {}
+    for path in paths:
+        parts = [p for p in str(path).split("/") if p]
+        if len(parts) < 2 or parts[0].lower() != "tables":
+            continue
+        if len(parts) == 2:
+            if has_schemas is not True:
+                out[f"dbo.{parts[1]}".lower()] = f"dbo.{parts[1]}"
+            if has_schemas is not False:
+                out[f"{parts[1]}.*".lower()] = f"{parts[1]}.*"
+        else:
+            out[f"{parts[1]}.{parts[-1]}".lower()] = f"{parts[1]}.{parts[-1]}"
+    return out
+
+
 def _lakehouse_shortcut_tables(workspace_id: str, lakehouse_id: str) -> set:
     """The lakehouse tables which are shortcuts, as lower-cased 'schema.table';
     a schema which is itself a shortcut is included as 'schema.*'. Empty if the
     shortcuts can't be listed."""
 
+    return set(_shortcut_table_names(_onelake_shortcuts(workspace_id, lakehouse_id)))
+
+
+def _lakehouse_table_items(
+    workspace_id: str,
+    lakehouse_id: str,
+    shortcut_paths: Optional[List[str]] = None,
+    has_schemas: Optional[bool] = None,
+) -> List[dict]:
+    """The lakehouse's tables for dataset sources (``{name, shortcut}``),
+    including table shortcuts the lakehouse hasn't registered as tables yet."""
+
+    tables = _lakehouse_tables(workspace_id, lakehouse_id)
+    if shortcut_paths is None:
+        shortcut_paths = _onelake_shortcuts(workspace_id, lakehouse_id)
+    shortcuts = _shortcut_table_names(shortcut_paths, has_schemas)
+    names = {t.lower(): t for t in tables}
+    # Shortcuts the lakehouse hasn't registered as tables yet (it does so after
+    # a while), where it is clear which table they are: Tables/<schema>/<name>,
+    # or Tables/<name> in a lakehouse known to have no schemas.
+    if has_schemas is None:
+        clear = _shortcut_table_names(
+            [p for p in shortcut_paths if len([x for x in str(p).split("/") if x]) > 2]
+        )
+    else:
+        clear = shortcuts
+    for key, name in clear.items():
+        if not key.endswith(".*"):
+            names.setdefault(key, name)
+    return [
+        {
+            "name": name,
+            "shortcut": key in shortcuts or f"{key.split('.', 1)[0]}.*" in shortcuts,
+        }
+        for key, name in sorted(names.items())
+    ]
+
+
+def _view_source_key(source) -> str:
+    """A dataset source as a lower-cased 'schema.table' ('dbo' by default)."""
+
+    text = re.sub(r'[\[\]"`]', "", str(source or "")).strip().lower()
+    return text if not text or "." in text else f"dbo.{text}"
+
+
+def _lakehouse_has_schemas(workspace_id: str, lakehouse_id: str) -> bool:
     from sempy_labs._helper_functions import _base_api
 
-    try:
-        responses = _base_api(
-            request=f"/v1/workspaces/{workspace_id}/items/{lakehouse_id}/shortcuts",
-            uses_pagination=True,
-            client="fabric_sp",
+    response = _base_api(
+        request=f"/v1/workspaces/{workspace_id}/lakehouses/{lakehouse_id}",
+        client="fabric_sp",
+    ).json()
+    return bool((response.get("properties") or {}).get("defaultSchema"))
+
+
+def _create_table_shortcuts(
+    workspace_id: str,
+    lakehouse_id: str,
+    view_name: str,
+    file: str,
+    sources: List[str],
+) -> Tuple[List[str], List[str]]:
+    """Creates OneLake shortcuts in the view's lakehouse to dataset source
+    tables, in the lakehouse which the YAML ``file`` is a shortcut from.
+    Returns the sources linked and the errors."""
+
+    from sempy_labs.lakehouse._shortcuts import create_shortcut_onelake
+
+    folder = f"{_VIEWS_FOLDER}/{view_name}"
+    details = _onelake_shortcut_details(workspace_id, lakehouse_id)
+    shortcut = _innermost_shortcut(f"{folder}/{file}", details)
+    target = details.get(shortcut) if shortcut else None
+    if (
+        not target
+        or target.get("type") != "OneLake"
+        or not target.get("workspace_id")
+        or not target.get("item_id")
+    ):
+        raise ValueError(
+            f"'{file}' isn't a shortcut to another lakehouse, so there is no "
+            "lakehouse to link its tables from."
         )
-    except Exception:
-        return set()
-    out = set()
-    for r in responses:
-        for s in r.get("value") or []:
-            name = str(s.get("name") or "")
-            parts = [p for p in str(s.get("path") or "").split("/") if p]
-            if not name or not parts or parts[0].lower() != "tables":
-                continue
-            if len(parts) == 1:
-                # A table in a lakehouse without schemas, or a whole schema.
-                out.add(f"dbo.{name}".lower())
-                out.add(f"{name}.*".lower())
-            else:
-                out.add(f"{parts[1]}.{name}".lower())
-    return out
+    source_ws, source_item = target["workspace_id"], target["item_id"]
+    has_schemas = _lakehouse_has_schemas(workspace_id, lakehouse_id)
+    created, errors = [], []
+    for source in sources:
+        text = re.sub(r'[\[\]"`]', "", str(source or "")).strip()
+        schema, table = text.split(".", 1) if "." in text else ("dbo", text)
+        if not table:
+            continue
+        # Lakehouses with schemas keep tables in Tables/<schema>/<table>.
+        candidates = [f"Tables/{schema}/{table}"]
+        if schema.lower() == "dbo":
+            candidates.append(f"Tables/{table}")
+        found = next(
+            (
+                c
+                for c in candidates
+                if _onelake_request("HEAD", source_ws, f"{source_item}/{c}").status_code
+                == 200
+            ),
+            None,
+        )
+        if not found:
+            errors.append(f"{text}: not found in the source lakehouse")
+            continue
+        if not has_schemas and schema.lower() != "dbo":
+            errors.append(
+                f"{text}: this lakehouse has no schemas, so it can only link dbo tables"
+            )
+            continue
+        source_path, source_table = found.rsplit("/", 1)
+        try:
+            with _QuietTool():
+                create_shortcut_onelake(
+                    table_name=source_table,
+                    source_workspace=source_ws,
+                    source_item=source_item,
+                    destination_lakehouse=lakehouse_id,
+                    destination_workspace=workspace_id,
+                    source_path=source_path,
+                    destination_path=f"Tables/{schema}" if has_schemas else "Tables",
+                )
+            created.append(text)
+        except Exception as e:
+            errors.append(f"{text}: {e}")
+    return created, errors
 
 
 def _generate_measure_descriptions(workspace_id: str, measures: List[dict]) -> list:
@@ -15785,7 +16169,11 @@ def semantic_explorer(
 
     The explorer also opens semantic views (preview): the YAML definitions in a
     lakehouse's Context/Semantic Views folder, including OneLake shortcuts (a
-    view, or folders and files within one, can be a shortcut). A view's datasets, columns,
+    view, or folders and files within one, can be a shortcut; shortcut files are
+    read-only and show the lakehouse and workspace they come from). Datasets
+    whose source table isn't in the lakehouse are flagged; when their YAML file
+    comes from another lakehouse, OneLake shortcuts to the tables can be created
+    from it. A view's datasets, columns,
     relationships and metrics are shown in a read-only tree built from its YAML
     and, once it is published, the generated TMDL in SystemContext. The YAML
     and TMDL files can be viewed, and a new view can be created with a starter
@@ -16242,17 +16630,43 @@ def semantic_explorer(
                 if not ctx["view"]:
                     raise ValueError("Select a semantic view first.")
                 workspace_id, lakehouse_id, _ = ctx["view"]
-                tables = _lakehouse_tables(workspace_id, lakehouse_id)
-                shortcuts = _lakehouse_shortcut_tables(workspace_id, lakehouse_id)
-                items = [
-                    {
-                        "name": t,
-                        "shortcut": t.lower() in shortcuts
-                        or f"{t.split('.', 1)[0]}.*".lower() in shortcuts,
-                    }
-                    for t in tables
-                ]
+                items = _lakehouse_table_items(workspace_id, lakehouse_id)
                 _reply(data, True, {"items": items})
+                return
+            if action == "create_table_shortcuts":
+                if not ctx["view"]:
+                    raise ValueError("Select a semantic view first.")
+                workspace_id, lakehouse_id, view_name = ctx["view"]
+                created, errors = _create_table_shortcuts(
+                    workspace_id,
+                    lakehouse_id,
+                    view_name,
+                    str(data.get("file") or ""),
+                    [str(t) for t in data.get("tables") or []],
+                )
+                if not created:
+                    raise ValueError("; ".join(errors) or "No tables to link.")
+                try:
+                    items = _lakehouse_table_items(
+                        workspace_id,
+                        lakehouse_id,
+                        has_schemas=_lakehouse_has_schemas(workspace_id, lakehouse_id),
+                    )
+                except Exception:
+                    items = None
+                message = (
+                    f"Created {len(created)} shortcut{'s' if len(created) != 1 else ''}"
+                    f": {', '.join(created)}."
+                )
+                if errors:
+                    message += " Not created: " + "; ".join(errors)
+                widget.status = {
+                    "message": message,
+                    "kind": "info" if errors else "success",
+                }
+                _reply(
+                    data, True, {"created": created, "errors": errors, "tables": items}
+                )
                 return
             if action == "view_columns":
                 if not ctx["view"]:
