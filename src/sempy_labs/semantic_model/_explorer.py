@@ -1706,6 +1706,8 @@ function render({ model, el }) {
     let vCheck = null;
     let vChecking = false;
     let vIssuesView = null;
+    // Redraws the open "Add a YAML file" dialog (e.g. when the workspaces load).
+    let vAddViewRefresh = null;
     let vPendingSelect = null;
     let requestSeq = 0;
     const callbacks = new Map();
@@ -3484,8 +3486,14 @@ function render({ model, el }) {
     // one YAML file becomes a combined view: its folder is renamed to the
     // combined view's name. The file is written right away, so staged changes
     // are discarded first.
+    // Adds a YAML file to the view: a blank one (a semantic view of its own),
+    // or an existing semantic view's folder (moved here from this lakehouse,
+    // a OneLake shortcut to it from another one). A view with one YAML file
+    // becomes a combined view: its folder is renamed to the combined view's
+    // name. The lakehouse is changed right away, so staged changes are
+    // discarded first; adding a view is followed by a check of the sources.
     function openAddViewFile() {
-        if (vSaving || model.get("busy")) return;
+        if (vSaving || model.get("busy") || viewData.view.shortcut) return;
         if (viewPendingCount()) {
             confirmDialog(`Adding a YAML file reloads the view and discards ${plural(viewPendingCount(), "pending change")}.`, "Discard", () => {
                 discardViewChanges();
@@ -3495,88 +3503,192 @@ function render({ model, el }) {
             return;
         }
         const view = viewData.view;
-        const combined = vMultiFile();
+        // A single YAML file directly in the view folder: adding makes it a
+        // combined view, which needs a name. Otherwise the view folder already
+        // groups its views (several files, or a file in a subfolder) and
+        // names the combined view.
+        const files = viewYamlFiles();
+        const combined = !(files.length === 1 && !files[0].includes("/"));
         const m = modal("Add a YAML file", "file");
+        let mode = "blank";
+        const segHost = h("div", "");
+        segHost.style.marginBottom = "12px";
         const intro = h("div", "slls-sx-picker-note");
         intro.style.margin = "0 0 12px";
         intro.textContent = combined
             ? `Adds a semantic view to the \u201c${view.name}\u201d combined view. Every YAML file in the view\u2019s folder is merged into it when it is published.`
             : `Adding a YAML file makes \u201c${view.name}\u201d a combined view of its YAML files. The combined view name is the name `
                 + "of its folder in Context/Semantic Views and of the semantic model it publishes.";
-        const row = h("div", "slls-sx-picker-row");
+        // A blank file.
+        const blankRow = h("div", "slls-sx-picker-row");
         const nameInput = h("input", "slls-sx-input");
         nameInput.placeholder = "e.g. finance";
         nameInput.setAttribute("aria-label", "New semantic view name");
-        row.appendChild(pickerField("Semantic view name", nameInput));
+        blankRow.appendChild(pickerField("Semantic view name", nameInput));
+        // An existing semantic view.
+        let srcWs = view.workspace_id, srcLh = view.lakehouse_id, srcView = "";
+        let lhState = { ws: null, items: [], loading: false, error: "" };
+        let vwState = { key: null, items: [], loading: false, error: "" };
+        const existingRow = h("div", "slls-sx-picker-row three");
+        const wsSel = createSearchSelect({
+            placeholder: "Select a workspace\u2026", searchPlaceholder: "Filter workspaces\u2026", ariaLabel: "Source workspace",
+            emptyLabel: "Loading workspaces\u2026",
+            onChange: (o) => { srcWs = o.value; srcLh = ""; srcView = ""; err.style.display = "none"; refresh(); },
+        });
+        const lhSel = createSearchSelect({
+            placeholder: "Select a lakehouse\u2026", searchPlaceholder: "Filter lakehouses\u2026", ariaLabel: "Source lakehouse",
+            onChange: (o) => { srcLh = o.value; srcView = ""; err.style.display = "none"; refresh(); },
+        });
+        const viewSel = createSearchSelect({
+            placeholder: "Select a semantic view\u2026", searchPlaceholder: "Filter semantic views\u2026", ariaLabel: "Semantic view to add",
+            onChange: (o) => { srcView = o.value; err.style.display = "none"; refresh(); },
+        });
+        existingRow.append(pickerField("Workspace", wsSel.el), pickerField("Lakehouse", lhSel.el), pickerField("Semantic view", viewSel.el));
+        const loadLakehouses = () => {
+            if (!srcWs || lhState.ws === srcWs) return;
+            const ws = srcWs;
+            lhState = { ws, items: [], loading: true, error: "" };
+            request("list_lakehouses", { workspace_id: ws }, (res) => {
+                if (lhState.ws !== ws) return;
+                lhState = { ws, items: res.ok ? (res.data.items || []) : [], loading: false, error: res.ok ? "" : (res.error || "The lakehouses could not be listed.") };
+                if (srcLh && !lhState.items.some((l) => l.id === srcLh)) { srcLh = ""; srcView = ""; }
+                refresh();
+            });
+        };
+        const loadViews = () => {
+            const key = `${srcWs}/${srcLh}`;
+            if (!srcWs || !srcLh || vwState.key === key) return;
+            vwState = { key, items: [], loading: true, error: "" };
+            request("list_views", { workspace_id: srcWs, lakehouse_id: srcLh }, (res) => {
+                if (vwState.key !== key) return;
+                vwState = { key, items: res.ok ? (res.data.items || []) : [], loading: false, error: res.ok ? "" : (res.error || "The semantic views could not be listed.") };
+                refresh();
+            });
+        };
+        const sameLakehouse = () => srcLh === view.lakehouse_id;
+        const views = () => vwState.items.filter((v) => !(sameLakehouse() && v.name === view.name));
         let comboInput = null;
+        const comboRow = h("div", "slls-sx-picker-row");
         if (!combined) {
             comboInput = h("input", "slls-sx-input");
             comboInput.placeholder = `e.g. ${view.name}_combined`;
             comboInput.setAttribute("aria-label", "Combined view name");
-            row.appendChild(pickerField("Combined view name", comboInput));
+            comboRow.appendChild(pickerField("Combined view name", comboInput));
+            comboRow.style.marginTop = "10px";
         }
         const note = h("div", "slls-sx-picker-note");
         const err = h("div", "slls-sx-picker-error");
         err.style.display = "none";
-        m.body.append(intro, row, note, err);
+        m.body.append(segHost, intro, blankRow, existingRow, comboRow, note, err);
         const foot = h("div", "slls-sx-modal-foot");
         let adding = false;
+        const done = (res, onAdded) => {
+            adding = false;
+            if (res.ok) {
+                if (res.data.view && res.data.view !== view.name) { viewPick = res.data.view; viewList.key = null; }
+                m.close();
+                renderAll();
+                if (onAdded) onAdded();
+                return;
+            }
+            err.textContent = res.error || "The YAML file could not be added.";
+            err.style.display = "";
+            // A failure after the folder was renamed leaves the dialog
+            // describing the old view; the reloaded view is shown instead.
+            if (viewData && viewData.view && viewData.view.name !== view.name) { m.close(); renderAll(); return; }
+            refresh();
+        };
         const add = button("slls-sx-btn primary", "Add", "", () => {
             if (add.disabled) return;
             adding = true;
             err.style.display = "none";
             refresh();
-            const name = nameInput.value.trim();
-            request("add_view_file", { name, combined_name: comboInput ? comboInput.value.trim() : "" }, (res) => {
-                adding = false;
-                if (res.ok) {
-                    if (res.data.view && res.data.view !== view.name) { viewPick = res.data.view; viewList.key = null; }
+            const combined_name = comboInput ? comboInput.value.trim() : "";
+            if (mode === "blank") {
+                request("add_view_file", { name: nameInput.value.trim(), combined_name }, (res) => done(res, () => {
                     // New objects go to the new file while the tree shows it.
-                    if (viewYamlFiles().includes(res.data.file)) vFileFilter = res.data.file;
-                    m.close();
-                    renderAll();
-                    return;
-                }
-                err.textContent = res.error || "The YAML file could not be added.";
-                err.style.display = "";
-                // A failure after the folder was renamed leaves the dialog
-                // describing the old view; the reloaded view is shown instead.
-                if (viewData && viewData.view && viewData.view.name !== view.name) { m.close(); renderAll(); return; }
-                refresh();
-            });
+                    if (viewYamlFiles().includes(res.data.file)) { vFileFilter = res.data.file; renderAll(); }
+                }));
+                return;
+            }
+            request("add_view_folder", { workspace_id: srcWs, lakehouse_id: srcLh, view: srcView, combined_name }, (res) => done(res, () => {
+                // Check the added view's datasets: missing source tables can
+                // be linked from the lakehouse it comes from.
+                runViewCheck(() => {
+                    const linkable = vLive("datasets").filter(vCanLinkSource);
+                    if (linkable.length) openCreateTableShortcuts(linkable);
+                    else openViewIssues();
+                });
+            }));
         });
         foot.append(button("slls-sx-btn", "Cancel", "", () => m.close()), add);
         m.box.appendChild(foot);
         const invalid = (s) => /[\\/:*?"<>|#%\u0000-\u001f]/.test(s) || s.endsWith(".");
         const refresh = () => {
-            const name = nameInput.value.trim();
+            if (!m.overlay.isConnected) return;
+            clear(segHost);
+            segHost.appendChild(segmented("What to add", [["blank", "Blank YAML file"], ["existing", "Existing semantic view"]], mode, adding,
+                (id) => { mode = id; err.style.display = "none"; refresh(); if (id === "blank") nameInput.focus(); }));
+            const existing = mode === "existing";
+            blankRow.style.display = existing ? "none" : "";
+            existingRow.style.display = existing ? "" : "none";
             const combo = comboInput ? comboInput.value.trim() : view.name;
-            // Each added file goes in a subfolder named after its semantic view.
-            // Whether the file already exists is checked when adding: the
-            // file list read with the view may be out of date (e.g. a file
-            // deleted in the lakehouse since).
-            const file = `${name}/${name}_semantic_view.yaml`;
-            const bad = (!!name && invalid(name)) || (!!combo && invalid(combo));
-            nameInput.classList.toggle("invalid", !!name && invalid(name));
-            if (comboInput) comboInput.classList.toggle("invalid", !!combo && invalid(combo));
+            const comboBad = !!combo && invalid(combo);
+            if (comboInput) comboInput.classList.toggle("invalid", comboBad);
+            let bad = comboBad, ready = !!combo, text;
+            const renamed = combo !== view.name;
+            const renameText = renamed ? ` The view\u2019s folder is renamed from \u201c${view.name}\u201d to \u201c${combo}\u201d.` : "";
+            const publishedText = renamed && view.published ? ` The \u201c${view.name}\u201d semantic model published from it is kept; `
+                + `publishing the combined view creates a \u201c${combo}\u201d semantic model.` : "";
+            if (!existing) {
+                const name = nameInput.value.trim();
+                const nameBad = !!name && invalid(name);
+                nameInput.classList.toggle("invalid", nameBad);
+                bad = bad || nameBad;
+                ready = ready && !!name;
+                // Each added file goes in a subfolder named after its semantic
+                // view. Whether the file already exists is checked when adding:
+                // the file list read with the view may be out of date.
+                text = name && combo ? `Creates Context/Semantic Views/${combo}/${name}/${name}_semantic_view.yaml.` + renameText + publishedText
+                    : combined ? "The new file defines a semantic view with this name." : "Enter the new semantic view\u2019s name and the combined view\u2019s name.";
+            } else {
+                loadLakehouses();
+                loadViews();
+                const workspaces = model.get("available_workspaces") || [];
+                wsSel.setOptions(workspaces.map((w) => ({ value: w.id, label: w.name })), srcWs);
+                wsSel.setDisabled(adding);
+                lhSel.setEmptyLabel(!srcWs ? "Select a workspace first\u2026" : lhState.loading ? "Loading lakehouses\u2026" : (lhState.error || "No lakehouses in this workspace"));
+                lhSel.setOptions(lhState.items.map((l) => ({ value: l.id, label: l.name })), srcLh);
+                lhSel.setDisabled(!srcWs || adding);
+                viewSel.setEmptyLabel(!srcLh ? "Select a lakehouse first\u2026" : vwState.loading ? "Loading semantic views\u2026" : (vwState.error || "No other semantic views in this lakehouse"));
+                viewSel.setOptions(views().map((v) => ({ value: v.name, label: v.shortcut ? `${v.name} (shortcut)` : v.name })), srcView);
+                viewSel.setDisabled(!srcLh || adding);
+                ready = ready && !!srcView;
+                const ws = workspaces.find((w) => w.id === srcWs), lh = lhState.items.find((l) => l.id === srcLh);
+                const where = `${lh ? lh.name : "the lakehouse"} (${ws ? ws.name : "the workspace"})`;
+                text = !srcView ? "Choose the semantic view (its folder in Context/Semantic Views) to add to this view."
+                    : sameLakehouse()
+                        ? `Moves Context/Semantic Views/${srcView} to Context/Semantic Views/${combo || view.name}/${srcView}: it becomes part of this view `
+                            + "and is no longer a semantic view of its own." + renameText + publishedText
+                        : `Creates a OneLake shortcut Context/Semantic Views/${combo || view.name}/${srcView} to the \u201c${srcView}\u201d semantic view in ${where}. `
+                            + "Its YAML files are read-only here; source tables missing from this lakehouse can be linked afterwards." + renameText + publishedText;
+                if (!combo) text = "Enter the combined view\u2019s name.";
+            }
             note.classList.toggle("error", bad);
-            if (bad) note.textContent = "A name can\u2019t contain \\ / : * ? \" < > | # % or end with a period.";
-            else if (name && combo) {
-                const renamed = combo !== view.name;
-                note.textContent = `Creates Context/Semantic Views/${combo}/${file}`
-                    + (renamed ? ` and renames the view\u2019s folder from \u201c${view.name}\u201d to \u201c${combo}\u201d.` : ".")
-                    + (renamed && view.published ? ` The \u201c${view.name}\u201d semantic model published from it is kept; `
-                        + `publishing the combined view creates a \u201c${combo}\u201d semantic model.` : "");
-            } else note.textContent = combined ? "The new file defines a semantic view with this name." : "Enter the new semantic view\u2019s name and the combined view\u2019s name.";
+            note.textContent = bad ? "A name can\u2019t contain \\ / : * ? \" < > | # % or end with a period." : text;
             add.textContent = adding ? "Adding\u2026" : "Add";
-            add.disabled = adding || !name || !combo || bad;
+            add.disabled = adding || !ready || bad;
             nameInput.disabled = adding;
             if (comboInput) comboInput.disabled = adding;
         };
+        vAddViewRefresh = refresh;
+        const previous = m.onClose;
+        m.onClose = () => { if (vAddViewRefresh === refresh) vAddViewRefresh = null; if (previous) previous(); };
         for (const input of [nameInput, comboInput].filter(Boolean)) {
             input.addEventListener("input", () => { err.style.display = "none"; refresh(); });
             input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") add.click(); });
         }
+        ensureWorkspaces();
         refresh();
         setTimeout(() => nameInput.focus(), 0);
     }
@@ -3692,7 +3804,7 @@ function render({ model, el }) {
     }
     function viewEtags() {
         const out = {};
-        for (const f of (viewData && viewData.files) || []) if (f.area === "definition" && f.etag) out[f.path] = f.etag;
+        for (const f of (viewData && viewData.files) || []) if (f.area === "definition" && !f.ignored && f.etag) out[f.path] = f.etag;
         return out;
     }
     function vSave(publish) {
@@ -4626,7 +4738,7 @@ function render({ model, el }) {
     }
     // Checks the view with the pending changes applied (nothing is saved) and
     // shows the problems; the lakehouse's tables are listed again.
-    function runViewCheck() {
+    function runViewCheck(after) {
         if (vChecking || vSaving || !viewOpen()) return;
         vChecking = true;
         renderHeader();
@@ -4647,7 +4759,7 @@ function render({ model, el }) {
             renderViewTree();
             renderViewDetail();
             if (vIssuesView) vIssuesView.paint();
-            else if (res.ok) openViewIssues();
+            else if (res.ok) (typeof after === "function" ? after : openViewIssues)();
         });
     }
     function openViewIssues() {
@@ -11539,7 +11651,7 @@ function render({ model, el }) {
         else renderTreePane();
     });
     model.on("change:status", renderStatus);
-    model.on("change:available_workspaces", () => { if (pickerOpen) renderPicker(); });
+    model.on("change:available_workspaces", () => { if (pickerOpen) renderPicker(); if (vAddViewRefresh) vAddViewRefresh(); });
     model.on("change:available_datasets", () => { if (pickerOpen) renderPicker(); });
     model.on("change:picker_loading", () => { if (pickerOpen) renderPicker(); });
     model.on("change:dataset_name", renderHeader);
@@ -13684,29 +13796,52 @@ def _onelake_list_deep(
         if not recursive and "/" in rest:
             continue
         head = _onelake_request("HEAD", workspace_id, f"{item_id}/{shortcut}")
-        if head.status_code != 200:
+        headers = head.headers if head.status_code == 200 else {}
+        listed = by_path.get(shortcut)
+        # Whether the shortcut is a folder: the 'x-ms-resource-type' header
+        # isn't always returned for shortcuts (e.g. one just created), so
+        # without it the shortcut is listed as a folder: content (or, for a
+        # name without a file extension, an empty listing) means a folder.
+        kind = str(headers.get("x-ms-resource-type", "")).lower()
+        content = None
+        if kind == "directory" or (
+            kind != "file" and not (listed and listed["is_dir"])
+        ):
+            try:
+                content = _onelake_list(
+                    workspace_id, item_id, shortcut, recursive=recursive
+                )
+            except Exception:
+                content = None
+        if kind in ("directory", "file"):
+            is_dir = kind == "directory"
+        else:
+            looks_like_file = bool(re.search(r"\.[A-Za-z0-9]{1,8}$", shortcut))
+            is_dir = bool(listed and listed["is_dir"]) or (
+                content is not None and (bool(content) or not looks_like_file)
+            )
+        if not is_dir and head.status_code != 200 and listed is None:
             continue  # A broken shortcut (its target is gone).
-        is_dir = str(head.headers.get("x-ms-resource-type", "")).lower() == "directory"
-        entry = by_path.get(shortcut) or {
+        entry = listed or {
             "path": shortcut,
             "size": 0,
-            "modified": str(head.headers.get("Last-Modified") or ""),
-            "etag": str(head.headers.get("ETag") or ""),
+            "modified": str(headers.get("Last-Modified") or ""),
+            "etag": str(headers.get("ETag") or ""),
         }
         entry["is_dir"] = is_dir
-        if not is_dir:
-            entry["size"] = int(
-                head.headers.get("Content-Length") or entry["size"] or 0
-            )
+        if is_dir:
+            entry["size"] = 0
+        else:
+            entry["size"] = int(headers.get("Content-Length") or entry["size"] or 0)
         by_path[shortcut] = entry
         if (
             is_dir
             and recursive
             and not any(p.startswith(shortcut + "/") for p in by_path)
         ):
-            for p in (
-                _onelake_list(workspace_id, item_id, shortcut, recursive=True) or []
-            ):
+            if content is None:
+                content = _onelake_list(workspace_id, item_id, shortcut, recursive=True)
+            for p in content or []:
                 by_path.setdefault(p["path"], p)
         for p in by_path.values():
             if p["path"] == shortcut or p["path"].startswith(shortcut + "/"):
@@ -13944,8 +14079,36 @@ def _plan_view_yaml_file(
             continue
         if isinstance(doc, dict) and _text(doc.get("name")).lower() == name.lower():
             raise ValueError(f"'{f}' already defines a semantic view named '{name}'.")
-    if len(yaml_files) >= 2:
-        return view_name, path
+    target = _combined_view_name(
+        workspace_id, lakehouse_id, view_name, listing, combined_name
+    )
+    return target, path
+
+
+def _combined_view_name(
+    workspace_id: str,
+    lakehouse_id: str,
+    view_name: str,
+    listing: List[dict],
+    combined_name: str,
+) -> str:
+    """The view's name once YAML files are added to it (``listing`` is its
+    folder). A view whose folder holds a single YAML file directly becomes a
+    combined view named ``combined_name``, its folder being renamed to it.
+    Otherwise the view folder already groups its views and keeps its name: a
+    combined view (two YAML files or more), or a view whose YAML file is in a
+    subfolder (the view folder then names the combined view)."""
+
+    folder = f"{_VIEWS_FOLDER}/{view_name}"
+    if not _needs_combined_name(
+        [
+            _relative_path(p["path"], folder)
+            for p in listing
+            if not p["is_dir"] and p["path"].endswith(".yaml")
+        ]
+    ):
+        return view_name
+    combined_name = str(combined_name or "").strip()
     if not combined_name:
         raise ValueError(
             "Enter a name for the combined view: the view becomes a combined view "
@@ -13968,7 +14131,121 @@ def _plan_view_yaml_file(
                 f"A semantic view named '{combined_name}' already exists in this "
                 "lakehouse. Choose another name."
             )
-    return combined_name, path
+    return combined_name
+
+
+def _needs_combined_name(yaml_files: List[str]) -> bool:
+    """Whether adding to a view with these YAML files (paths in its folder)
+    makes it a combined view which needs a name: only when its single YAML
+    file is directly in the view folder."""
+
+    return len(yaml_files) == 1 and "/" not in yaml_files[0]
+
+
+def _plan_view_import(
+    workspace_id: str,
+    lakehouse_id: str,
+    view_name: str,
+    source_workspace_id: str,
+    source_lakehouse_id: str,
+    source_view: str,
+    combined_name: str = "",
+) -> Tuple[str, bool]:
+    """Checks that an existing semantic view (``source_view`` in the source
+    lakehouse) can be added to a view, as a subfolder named after it: moved
+    there when it is in the same lakehouse, a OneLake shortcut to it otherwise.
+    Returns the view's folder name afterwards (see :func:`_combined_view_name`)
+    and whether the source view is moved."""
+
+    source_view = str(source_view or "").strip()
+    if not source_workspace_id or not source_lakehouse_id or not source_view:
+        raise ValueError(
+            "Select the workspace, the lakehouse and the semantic view to add."
+        )
+    same = source_lakehouse_id == lakehouse_id
+    if same and source_view == view_name:
+        raise ValueError("A semantic view can't be added to itself.")
+    folder = f"{_VIEWS_FOLDER}/{view_name}"
+    shortcuts = _onelake_shortcuts(workspace_id, lakehouse_id)
+    if _in_shortcut(folder, shortcuts):
+        raise ValueError(
+            f"The '{view_name}' semantic view is a shortcut, which is read-only: "
+            "semantic views can't be added to it."
+        )
+    listing = _onelake_list_deep(
+        workspace_id, lakehouse_id, folder, recursive=True, shortcuts=shortcuts
+    )
+    if listing is None:
+        raise ValueError(f"The '{view_name}' semantic view no longer exists.")
+    yaml_count = sum(
+        1 for p in listing if not p["is_dir"] and p["path"].endswith(".yaml")
+    )
+    taken = {_relative_path(p["path"], folder).split("/")[0].lower() for p in listing}
+    if source_view.lower() in taken:
+        raise ValueError(
+            f"The view already has a '{source_view}' folder or file; the added view "
+            "would go there."
+        )
+    source_folder = f"{_VIEWS_FOLDER}/{source_view}"
+    source = _onelake_list_deep(
+        source_workspace_id, source_lakehouse_id, source_folder, recursive=True
+    )
+    if source is None:
+        raise ValueError(f"The '{source_view}' semantic view was not found.")
+    source_yaml = sum(
+        1 for p in source if not p["is_dir"] and p["path"].endswith(".yaml")
+    )
+    if not source_yaml:
+        raise ValueError(f"The '{source_view}' semantic view has no .yaml files.")
+    if yaml_count + source_yaml > _VIEW_MAX_FILES:
+        raise ValueError(
+            f"Adding '{source_view}' ({source_yaml} .yaml file"
+            f"{'s' if source_yaml != 1 else ''}) would exceed the limit of "
+            f"{_VIEW_MAX_FILES} .yaml files in a view."
+        )
+    if same and (
+        _in_shortcut(source_folder, shortcuts) or any(p.get("shortcut") for p in source)
+    ):
+        raise ValueError(
+            f"The '{source_view}' semantic view is or contains a shortcut, so it can't "
+            "be moved; add it from the lakehouse it comes from instead."
+        )
+    target = _combined_view_name(
+        workspace_id, lakehouse_id, view_name, listing, combined_name
+    )
+    return target, same
+
+
+def _create_folder_shortcut(
+    workspace_id: str,
+    item_id: str,
+    path: str,
+    name: str,
+    target_workspace_id: str,
+    target_item_id: str,
+    target_path: str,
+) -> None:
+    """Creates a OneLake shortcut ``path/name`` to a folder of another item."""
+
+    from sempy_labs._helper_functions import _base_api
+
+    _base_api(
+        request=f"/v1/workspaces/{workspace_id}/items/{item_id}/shortcuts",
+        method="post",
+        payload={
+            "path": path,
+            "name": name,
+            "target": {
+                "oneLake": {
+                    "workspaceId": target_workspace_id,
+                    "itemId": target_item_id,
+                    "path": target_path,
+                }
+            },
+        },
+        status_codes=[200, 201],
+        client="fabric_sp",
+    )
 
 
 def _onelake_rename(
@@ -15106,6 +15383,8 @@ def _check_semantic_view(
     )
     documents, issues = [], []
     for path, known in sorted((etags or {}).items()):
+        if not path.endswith(".yaml"):
+            continue
         entry = current.get(path)
         if entry is None or (known and entry.get("etag") and known != entry["etag"]):
             issues.append(
@@ -16438,7 +16717,10 @@ def semantic_explorer(
     staged with undo / redo and written to the YAML files only on Save. Comments
     in the YAML files are kept when the ruamel.yaml package is installed. A YAML
     file (a semantic view of its own, in a subfolder named after it) can be
-    added to a view; a view with a single YAML file then becomes a combined
+    added to a view, blank or an existing semantic view from any workspace and
+    lakehouse (moved into the view from the same lakehouse, a OneLake shortcut
+    to its folder otherwise, after which the sources are checked); a view with
+    a single YAML file then becomes a combined
     view, and its folder is renamed to the combined view's name. A YAML file
     can be removed from a combined view: it moves to a folder of its own in
     Context/Semantic Views (nothing there is overwritten). Deleting a dataset
@@ -16739,6 +17021,63 @@ def semantic_explorer(
                     "kind": "success",
                 }
                 _reply(data, True, {"view": target, "file": path})
+                return
+            if action == "add_view_folder":
+                if not ctx["view"]:
+                    raise ValueError("Select a semantic view first.")
+                workspace_id, lakehouse_id, view_name = ctx["view"]
+                source_ws = str(data.get("workspace_id") or "")
+                source_lh = str(data.get("lakehouse_id") or "")
+                source_view = str(data.get("view") or "").strip()
+                target, move = _plan_view_import(
+                    workspace_id,
+                    lakehouse_id,
+                    view_name,
+                    source_ws,
+                    source_lh,
+                    source_view,
+                    str(data.get("combined_name") or ""),
+                )
+                if target != view_name:
+                    _onelake_rename(
+                        workspace_id,
+                        lakehouse_id,
+                        f"{_VIEWS_FOLDER}/{view_name}",
+                        f"{_VIEWS_FOLDER}/{target}",
+                    )
+                    ctx["view"] = (workspace_id, lakehouse_id, target)
+                try:
+                    if move:
+                        _onelake_rename(
+                            workspace_id,
+                            lakehouse_id,
+                            f"{_VIEWS_FOLDER}/{source_view}",
+                            f"{_VIEWS_FOLDER}/{target}/{source_view}",
+                        )
+                    else:
+                        _create_folder_shortcut(
+                            workspace_id,
+                            lakehouse_id,
+                            f"{_VIEWS_FOLDER}/{target}",
+                            source_view,
+                            source_ws,
+                            source_lh,
+                            f"{_VIEWS_FOLDER}/{source_view}",
+                        )
+                finally:
+                    # Shows the renamed folder even if the view wasn't added.
+                    _load_view(workspace_id, lakehouse_id, target)
+                how = "moved into" if move else "added (as a OneLake shortcut) to"
+                widget.status = {
+                    "message": f"The '{source_view}' semantic view was {how} the "
+                    f"'{target}' view.",
+                    "kind": "success",
+                }
+                _reply(
+                    data,
+                    True,
+                    {"view": target, "folder": source_view, "moved": move},
+                )
                 return
             if action == "remove_view_file":
                 if not ctx["view"]:

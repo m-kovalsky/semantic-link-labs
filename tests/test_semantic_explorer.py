@@ -1143,6 +1143,8 @@ class _FakeOneLake:
         # do the lakehouse tables (None: they can't be listed).
         self.shortcuts = shortcuts if isinstance(shortcuts, dict) else list(shortcuts)
         self.tables = tables
+        # Paths whose HEAD has no x-ms-resource-type (as for some shortcuts).
+        self.untyped = set()
         self.calls = []
 
     def hidden(self, path, directory):
@@ -1191,16 +1193,19 @@ class _FakeOneLake:
             return _FakeResponse(body={"paths": paths})
         rel = path.split("/", 1)[1]
         if method == "HEAD":
+            typed = rel not in self.untyped
             if rel in self.folders:
-                return _FakeResponse(headers={"x-ms-resource-type": "directory"})
-            if rel in self.files:
                 return _FakeResponse(
-                    headers={
-                        "x-ms-resource-type": "file",
-                        "Content-Length": str(len(self.files[rel])),
-                        "ETag": self.etag(rel),
-                    }
+                    headers={"x-ms-resource-type": "directory"} if typed else {}
                 )
+            if rel in self.files:
+                headers = {
+                    "Content-Length": str(len(self.files[rel])),
+                    "ETag": self.etag(rel),
+                }
+                if typed:
+                    headers["x-ms-resource-type"] = "file"
+                return _FakeResponse(headers=headers)
             return _FakeResponse(404)
         if method == "PUT" and "x-ms-rename-source" in (headers or {}):
             from urllib.parse import unquote
@@ -1317,6 +1322,50 @@ datasets:
     with pytest.raises(ValueError, match="ext/ext.yaml is a shortcut"):
         sx._save_semantic_view("ws", "lh", "sales", {"updates": [update]})
     assert b"From the shortcut" not in lake.files[f"{root}/sales/ext/ext.yaml"]
+
+
+def test_shortcuts_without_a_resource_type_are_listed_by_their_content(
+    monkeypatch,
+):
+    root = "Context/Semantic Views"
+    sv = _VIEW_METRICS.replace("name: sales\nmetrics", "name: semview3\nmetrics")
+    lake = _FakeOneLake(
+        files={
+            f"{root}/mview/semview1/semview1_semantic_view.yaml": _VIEW_SCHEMA,
+            # Added from another lakehouse: a shortcut folder whose HEAD has no
+            # resource type and which listings leave out.
+            f"{root}/mview/semview3/semview3_semantic_view.yaml": sv,
+            f"{root}/mview/linked.yaml": sv.replace("semview3", "linked"),
+        },
+        shortcuts=[
+            f"{root}/mview/semview1",
+            f"{root}/mview/semview3",
+            f"{root}/mview/linked.yaml",
+            f"{root}/mview/broken",
+        ],
+    )
+    lake.untyped = {f"{root}/mview/semview3", f"{root}/mview/linked.yaml"}
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    payload = sx._semantic_view_payload("ws", "lh", "mview")
+
+    assert sorted(f["path"] for f in payload["files"]) == [
+        "linked.yaml",
+        "semview1/semview1_semantic_view.yaml",
+        "semview3/semview3_semantic_view.yaml",
+    ]
+    assert all(f["shortcut"] and not f["ignored"] for f in payload["files"])
+    assert {m["file"] for m in payload["metrics"]} == {
+        "semview3/semview3_semantic_view.yaml",
+        "linked.yaml",
+    }
+    # Only YAML files' versions are compared (no false 'removed' warnings).
+    etags = {f["path"]: f["etag"] for f in payload["files"]}
+    etags["semview3"] = '"folder"'
+    result = sx._check_semantic_view("ws", "lh", "mview", {}, etags)
+    assert not [
+        i for i in result["issues"] if "after the view was loaded" in i["message"]
+    ]
 
 
 def test_shortcut_details_list_paths_and_targets(monkeypatch):
@@ -1672,6 +1721,140 @@ def test_check_view_reports_the_problems_of_the_staged_changes(monkeypatch):
     assert result["ok"] and [(i["level"], i["file"]) for i in stale] == [
         ("warning", "schema.yaml")
     ]
+
+
+def test_adding_an_existing_view_moves_or_links_its_folder(monkeypatch):
+    import sempy_labs._helper_functions as hf
+
+    root = "Context/Semantic Views"
+    fin = _VIEW_METRICS.replace("name: sales\nmetrics", "name: finance\nmetrics")
+    lake = _FakeOneLake(
+        files={
+            f"{root}/sales/a.yaml": _VIEW_SCHEMA,
+            f"{root}/sales/b.yaml": _VIEW_METRICS,
+            f"{root}/finance/finance.yaml": fin,
+            f"{root}/remote/remote.yaml": fin,
+            f"{root}/linked/linked.yaml": fin,
+        },
+        shortcuts=[f"{root}/linked"],
+    )
+    posts = []
+    monkeypatch.setattr(
+        hf, "_base_api", lambda **kw: posts.append(kw) or _FakeResponse(201)
+    )
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    def add(view, lakehouse="lh-id", **kw):
+        return send(
+            action="add_view_folder",
+            workspace_id="ws-id" if lakehouse == "lh-id" else "ws2",
+            lakehouse_id=lakehouse,
+            view=view,
+            request_id=1,
+            **kw,
+        )
+
+    for view, error in (
+        ("sales", "can't be added to itself"),
+        ("nope", "was not found"),
+        ("linked", "can't be moved"),
+    ):
+        result = add(view)
+        assert not result["ok"] and error in result["error"], (view, result["error"])
+
+    # Same lakehouse: the view's folder moves into this (combined) view.
+    result = add("finance")
+    assert result["ok"] and result["data"] == {
+        "view": "sales",
+        "folder": "finance",
+        "moved": True,
+    }
+    assert f"{root}/sales/finance/finance.yaml" in lake.files
+    assert not any(p.startswith(f"{root}/finance/") for p in lake.files)
+    # The added view's folder name must be free in this view.
+    lake.files[f"{root}/sales/remote/notes.txt"] = b"x"
+    result = add("remote", lakehouse="lh2")
+    assert not result["ok"] and "already has a 'remote'" in result["error"]
+    del lake.files[f"{root}/sales/remote/notes.txt"]
+
+    # Another lakehouse: a OneLake shortcut to the view's folder.
+    posts.clear()
+    result = add("remote", lakehouse="lh2")
+    assert result["ok"] and result["data"]["moved"] is False
+    assert [p["payload"] for p in posts if p.get("method") == "post"] == [
+        {
+            "path": f"{root}/sales",
+            "name": "remote",
+            "target": {
+                "oneLake": {
+                    "workspaceId": "ws2",
+                    "itemId": "lh2",
+                    "path": f"{root}/remote",
+                }
+            },
+        }
+    ]
+    assert f"{root}/remote/remote.yaml" in lake.files  # Not moved.
+
+
+def test_adding_an_existing_view_to_a_single_file_view_combines_it(monkeypatch):
+    root = "Context/Semantic Views"
+    fin = _VIEW_METRICS.replace("name: sales\nmetrics", "name: finance\nmetrics")
+    lake = _FakeOneLake(
+        files={f"{root}/sales/a.yaml": _VIEW_SCHEMA, f"{root}/finance/f.yaml": fin}
+    )
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    args = dict(
+        action="add_view_folder",
+        workspace_id="ws-id",
+        lakehouse_id="lh-id",
+        view="finance",
+    )
+
+    result = send(request_id=1, **args)
+    assert not result["ok"] and "name for the combined view" in result["error"]
+    result = send(request_id=2, combined_name="all", **args)
+
+    assert result["ok"] and result["data"]["view"] == "all"
+    assert sorted(p for p in lake.files if p.startswith(root)) == [
+        f"{root}/all/a.yaml",
+        f"{root}/all/finance/f.yaml",
+    ]
+
+
+def test_a_view_whose_yaml_is_in_a_subfolder_needs_no_combined_name(monkeypatch):
+    root = "Context/Semantic Views"
+    fin = _VIEW_METRICS.replace("name: sales\nmetrics", "name: finance\nmetrics")
+    lake = _FakeOneLake(
+        files={
+            # The view folder already groups its (one) view in a subfolder.
+            f"{root}/sales/core/core.yaml": _VIEW_SCHEMA,
+            f"{root}/finance/f.yaml": fin,
+        }
+    )
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    result = send(action="add_view_file", name="hr", request_id=1)
+    assert result["ok"] and result["data"]["view"] == "sales"
+    result = send(
+        action="add_view_folder",
+        workspace_id="ws-id",
+        lakehouse_id="lh-id",
+        view="finance",
+        request_id=2,
+    )
+    assert result["ok"] and result["data"]["view"] == "sales"
+    assert sorted(p for p in lake.files if p.startswith(root)) == [
+        f"{root}/sales/core/core.yaml",
+        f"{root}/sales/finance/f.yaml",
+        f"{root}/sales/hr/hr_semantic_view.yaml",
+    ]
+    assert sx._needs_combined_name(["sales.yaml"])
+    assert not sx._needs_combined_name(["core/core.yaml"])
+    assert not sx._needs_combined_name(["a.yaml", "b.yaml"])
 
 
 def test_create_semantic_view_writes_a_valid_starter_definition(monkeypatch):
