@@ -258,6 +258,7 @@ _WIDGET_CSS = """
 .slls-sx-linkall { font-weight: 600; border-bottom: 1px solid var(--ui-border); border-radius: 0; cursor: pointer; }
 .slls-sx-linklist { max-height: 300px; overflow: auto; }
 .slls-sx-linklist .slls-sx-subitem, .slls-sx-linkall { cursor: pointer; }
+.slls-sx-linklist .slls-sx-switch, .slls-sx-linkall .slls-sx-switch { flex-shrink: 0; gap: 0; }
 .slls-sx-files-src {
     flex-shrink: 1; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font-size: 11.5px; color: var(--ui-text-tertiary);
@@ -276,7 +277,15 @@ _WIDGET_CSS = """
 .slls-sx-files-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slls-sx-subitem .meta { white-space: nowrap; flex-shrink: 0; }
 .slls-sx-verrors { border: 1px solid var(--ui-danger-border); border-radius: var(--sx-radius); background: var(--ui-danger-bg); padding: 2px 10px; }
-.slls-sx-vnote { margin: 0; }
+.slls-sx-vnote {
+    display: flex; align-items: flex-start; gap: 8px; margin: 0 0 10px; padding: 8px 10px; border-radius: 8px;
+    font-size: 12.5px; color: var(--ui-text-secondary);
+    border: 1px solid color-mix(in srgb, var(--ui-accent) 35%, transparent); background: var(--ui-accent-soft);
+}
+.slls-sx-vnote-icon { display: inline-flex; flex-shrink: 0; margin-top: 1px; color: var(--ui-accent); }
+.slls-sx-vnote-icon svg { width: 15px; height: 15px; }
+.slls-sx-vnote-text { min-width: 0; overflow-wrap: anywhere; }
+.slls-sx-vnote-text b { color: var(--ui-text); font-weight: 600; }
 .slls-sx-vsource { width: 100%; position: relative; display: flex; align-items: center; }
 .slls-sx-vsource > input.slls-sx-input { flex: 1 1 auto; min-width: 0; padding-right: 30px; }
 .slls-sx-vsource-btn {
@@ -4374,27 +4383,25 @@ function render({ model, el }) {
         const m = modal("Create OneLake shortcuts", "link");
         m.body.appendChild(h("div", "", `Creates OneLake shortcuts in the \u201c${lakehouse}\u201d lakehouse to the selected tables, from the `
             + "lakehouse which each dataset\u2019s YAML file comes from."));
-        const head = h("label", "slls-sx-subitem slls-sx-linkall");
-        const all = h("input", "slls-sx-tool-check");
-        all.type = "checkbox";
-        all.setAttribute("aria-label", "Select all tables");
+        // Toggles: one per table, and one for all of them (on when every
+        // table is selected). A click anywhere on a row flips its toggle.
+        const setToggle = (sw, on) => { sw.classList.toggle("on", on); sw.setAttribute("aria-checked", String(on)); };
+        const onRowClick = (row, flip) => row.addEventListener("click", (ev) => { if (!creating && !ev.target.closest(".slls-sx-switch")) flip(); });
+        const head = h("div", "slls-sx-subitem slls-sx-linkall");
+        const flipAll = () => { const on = !rows.every((r) => r.on); rows.forEach((r) => { r.on = on; }); refresh(); };
+        const all = switchEl(false, "Select all tables", flipAll, "");
         head.append(all, h("span", "", "All tables"), h("span", "meta", ""));
+        onRowClick(head, flipAll);
         const list = h("div", "slls-sx-sublist slls-sx-linklist");
-        const boxes = rows.map((r) => {
-            const it = h("label", "slls-sx-subitem");
-            const cb = h("input", "slls-sx-tool-check");
-            cb.type = "checkbox";
-            cb.checked = r.on;
-            cb.setAttribute("aria-label", `Create a shortcut to ${r.table}`);
-            cb.addEventListener("change", () => { r.on = cb.checked; refresh(); });
-            it.append(cb, iconEl("link", ""), h("span", "slls-sx-mono", r.table), h("span", "meta", `from ${vSourceLabel(vFileSource(r.file))}`));
+        const toggles = rows.map((r) => {
+            const it = h("div", "slls-sx-subitem");
+            const flip = () => { r.on = !r.on; refresh(); };
+            const sw = switchEl(r.on, `Create a shortcut to ${r.table}`, flip, "");
+            it.append(sw, iconEl("link", ""), h("span", "slls-sx-mono", r.table), h("span", "meta", `from ${vSourceLabel(vFileSource(r.file))}`));
             it.title = `${r.table} \u2014 used by ${r.users.join(", ")} (${r.file})`;
+            onRowClick(it, flip);
             list.appendChild(it);
-            return cb;
-        });
-        all.addEventListener("change", () => {
-            rows.forEach((r, i) => { r.on = all.checked; boxes[i].checked = all.checked; });
-            refresh();
+            return sw;
         });
         const wrap = h("div", "");
         wrap.style.margin = "10px 0";
@@ -4455,14 +4462,14 @@ function render({ model, el }) {
         });
         const refresh = () => {
             const n = rows.filter((r) => r.on).length;
-            all.checked = n === rows.length;
-            all.indeterminate = n > 0 && n < rows.length;
+            setToggle(all, n === rows.length);
+            toggles.forEach((sw, i) => setToggle(sw, rows[i].on));
             head.querySelector(".meta").textContent = `${n} of ${rows.length} selected`;
             ok.innerHTML = ICON.link || "";
             ok.appendChild(document.createTextNode(creating ? "Creating\u2026" : n ? `Create ${plural(n, "shortcut")}` : "Select tables"));
             ok.disabled = !n || creating;
             all.disabled = creating;
-            boxes.forEach((b) => { b.disabled = creating; });
+            toggles.forEach((sw) => { sw.disabled = creating; });
         };
         foot.append(button("slls-sx-btn", "Cancel", "", () => m.close()), ok);
         m.box.appendChild(foot);
@@ -4943,12 +4950,25 @@ function render({ model, el }) {
             const note = vFileReadOnly(node.file)
                 ? `Defined in ${node.file}, which is ${vSourceText(vFileSource(node.file))}: shortcuts are read-only, so it can\u2019t be edited here.`
                 : "Fabric added this table when the view was published; it isn\u2019t defined in the YAML files, so it can\u2019t be edited here.";
-            b.insertBefore(h("div", "slls-sx-picker-note slls-sx-vnote", note), errBox.nextSibling);
+            b.insertBefore(vInfoNote(note, vFileReadOnly(node.file) ? "Read-only" : ""), errBox.nextSibling);
         }
         if (vMode === "write" && node.type === "view" && node.description_read_only) {
-            b.insertBefore(h("div", "slls-sx-picker-note slls-sx-vnote", "The view description is defined in a OneLake shortcut, which is read-only, "
-                + "so it can\u2019t be edited here."), errBox.nextSibling);
+            b.insertBefore(vInfoNote("The view description is defined in a OneLake shortcut, which is read-only, "
+                + "so it can\u2019t be edited here.", "Read-only"), errBox.nextSibling);
         }
+    }
+    // An info callout in the detail pane: an info icon, an optional bold
+    // heading and the text.
+    function vInfoNote(text, heading) {
+        const box = h("div", "slls-sx-vnote");
+        box.setAttribute("role", "note");
+        const icon = iconEl("info", "slls-sx-vnote-icon");
+        icon.setAttribute("aria-hidden", "true");
+        const body = h("div", "slls-sx-vnote-text");
+        if (heading) body.appendChild(h("b", "", heading + " \u2014 "));
+        body.appendChild(document.createTextNode(text));
+        box.append(icon, body);
+        return box;
     }
     function notApplied(parent, node) {
         if (!(node.ignored || []).length) return;
