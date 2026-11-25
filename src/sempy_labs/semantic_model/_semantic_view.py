@@ -19,10 +19,14 @@ def publish_semantic_view(
     """
     Publishes a semantic view in a lakehouse.
 
-    Publishing validates the view's YAML definition (the files in the
-    lakehouse's Context/Semantic Views/<semantic_view> folder), writes the
-    compiled TMDL to SystemContext/Semantic Views/<semantic_view> and creates or
-    updates the semantic model generated from the view.
+    Publishing compiles the view's YAML definition (the files in the
+    lakehouse's Context/Semantic Views/<semantic_view> folder) into a
+    read-only Direct Lake semantic model. Republishing the same view updates
+    the same semantic model.
+
+    This is a wrapper function for the following API: `Semantic Views - Publish (beta) <https://learn.microsoft.com/rest/api/fabric/lakehouse/semantic-views/publish(beta)>`_.
+
+    Service Principal Authentication is supported (see `here <https://github.com/microsoft/semantic-link-labs/blob/main/notebooks/Service%20Principal.ipynb>`_ for examples).
 
     Parameters
     ----------
@@ -39,8 +43,8 @@ def publish_semantic_view(
     Returns
     -------
     dict
-        The publish result returned by the service (e.g. the generated semantic
-        model and any warnings), or an empty dictionary if there is none.
+        The publish result returned by the service: the generated semantic
+        model ("semanticModel") and any non-fatal "warnings".
     """
 
     workspace_name, workspace_id = resolve_workspace_name_and_id(workspace)
@@ -48,19 +52,16 @@ def publish_semantic_view(
         lakehouse=lakehouse, workspace=workspace_id
     )
 
-    response = _base_api(
-        request=f"modeling/workspaces/{workspace_id}/items/{lakehouse_id}/semanticViews/{quote(semantic_view)}/publish",
+    result = _base_api(
+        request=f"/v1/workspaces/{workspace_id}/lakehouses/{lakehouse_id}/semanticViews/{quote(semantic_view, safe='')}/publish?beta=True",
         method="post",
-        status_codes=[200, 201, 202],
-        client="internal",
+        status_codes=[200, 202],
+        lro_return_json=True,
+        client="fabric_sp",
     )
 
     print(
         f"{icons.green_dot} The '{semantic_view}' semantic view in the '{lakehouse_name}' lakehouse within the '{workspace_name}' workspace has been published."
     )
 
-    try:
-        result = response.json()
-    except ValueError:
-        result = {}
-    return result if isinstance(result, dict) else {"result": result}
+    return result if isinstance(result, dict) else {}

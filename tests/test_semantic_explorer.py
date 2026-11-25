@@ -2526,19 +2526,17 @@ def test_publish_semantic_view_calls_the_publish_api(monkeypatch):
     from sempy_labs.semantic_model import _semantic_view as sv
 
     calls = []
-
-    class _Resp:
-        def json(self):
-            return {
-                "warnings": [
-                    {
-                        "code": "W1",
-                        "message": "Omitted",
-                        "sourcePath": "m.yaml",
-                        "line": 3,
-                    }
-                ]
+    result = {
+        "semanticModel": {"referenceType": "ById", "itemId": "sm-id"},
+        "warnings": [
+            {
+                "code": "W1",
+                "message": "Omitted",
+                "sourcePath": "m.yaml",
+                "line": 3,
             }
+        ],
+    }
 
     monkeypatch.setattr(sv, "resolve_workspace_name_and_id", lambda w: ("WS", "ws-id"))
     monkeypatch.setattr(
@@ -2546,13 +2544,14 @@ def test_publish_semantic_view_calls_the_publish_api(monkeypatch):
         "resolve_lakehouse_name_and_id",
         lambda lakehouse, workspace: ("LH", "lh-id"),
     )
-    monkeypatch.setattr(sv, "_base_api", lambda **kw: calls.append(kw) or _Resp())
+    monkeypatch.setattr(sv, "_base_api", lambda **kw: calls.append(kw) or result)
 
-    assert sx._publish_view("ws-id", "lh-id", "sales view") == ["Omitted (m.yaml:3)"]
+    assert sx._publish_view("ws-id", "lh-id", "sales/view") == ["Omitted (m.yaml:3)"]
     assert calls[0]["request"] == (
-        "modeling/workspaces/ws-id/items/lh-id/semanticViews/sales%20view/publish"
+        "/v1/workspaces/ws-id/lakehouses/lh-id/semanticViews/sales%2Fview/publish?beta=True"
     )
-    assert (calls[0]["method"], calls[0]["client"]) == ("post", "internal")
+    assert (calls[0]["method"], calls[0]["client"]) == ("post", "fabric_sp")
+    assert calls[0]["lro_return_json"] and 202 in calls[0]["status_codes"]
 
 
 def _explorer_without_a_model(monkeypatch, workspaces, error=""):
