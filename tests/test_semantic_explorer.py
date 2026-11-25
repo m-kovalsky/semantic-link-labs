@@ -311,6 +311,21 @@ def _build_model():
     return model
 
 
+_real_onelake_shortcuts = sx._onelake_shortcuts
+
+
+@pytest.fixture(autouse=True)
+def _shortcuts_from_the_fake_lake(monkeypatch):
+    """The Fabric shortcuts API answers with the shortcuts of the fake
+    lakehouse in use (none otherwise), so no test calls Fabric."""
+
+    monkeypatch.setattr(
+        sx,
+        "_onelake_shortcuts",
+        lambda ws, item: list(getattr(sx._onelake_request, "shortcuts", [])),
+    )
+
+
 @pytest.fixture
 def fake_clr(monkeypatch):
     """Installs stand-ins for the ``System`` and TOM modules."""
@@ -1100,14 +1115,28 @@ class _FakeResponse:
 class _FakeOneLake:
     """An in-memory lakehouse (paths relative to the item root)."""
 
-    def __init__(self, files=None, folders=()):
+    def __init__(self, files=None, folders=(), shortcuts=()):
         self.files = {k: v.encode("utf-8") for k, v in (files or {}).items()}
         self.folders = set(folders)
         for path in self.files:
             parts = path.split("/")[:-1]
             for i in range(1, len(parts) + 1):
                 self.folders.add("/".join(parts[:i]))
+        # Shortcut paths (folders or files), also returned by the fake Fabric
+        # shortcuts API (see _shortcuts_from_the_fake_lake).
+        self.shortcuts = list(shortcuts)
         self.calls = []
+
+    def hidden(self, path, directory):
+        """Like OneLake at worst, a listing leaves out shortcuts and their
+        content, unless it lists the shortcut itself."""
+
+        def under(p, sc):
+            return p == sc or p.startswith(sc + "/")
+
+        return any(
+            under(path, sc) and not under(directory, sc) for sc in self.shortcuts
+        )
 
     def etag(self, name):
         return '"%s"' % hash(self.files.get(name, b""))
@@ -1126,10 +1155,14 @@ class _FakeOneLake:
             for folder in sorted(self.folders):
                 rest = sx._relative_path(folder, directory)
                 if rest and (recursive or "/" not in rest):
+                    if self.hidden(folder, directory):
+                        continue
                     paths.append({"name": f"{item}/{folder}", "isDirectory": "true"})
             for name, content in sorted(self.files.items()):
                 rest = sx._relative_path(name, directory)
                 if rest and (recursive or "/" not in rest):
+                    if self.hidden(name, directory):
+                        continue
                     paths.append(
                         {
                             "name": f"{item}/{name}",
@@ -1139,6 +1172,18 @@ class _FakeOneLake:
                     )
             return _FakeResponse(body={"paths": paths})
         rel = path.split("/", 1)[1]
+        if method == "HEAD":
+            if rel in self.folders:
+                return _FakeResponse(headers={"x-ms-resource-type": "directory"})
+            if rel in self.files:
+                return _FakeResponse(
+                    headers={
+                        "x-ms-resource-type": "file",
+                        "Content-Length": str(len(self.files[rel])),
+                        "ETag": self.etag(rel),
+                    }
+                )
+            return _FakeResponse(404)
         if method == "PUT" and "x-ms-rename-source" in (headers or {}):
             from urllib.parse import unquote
 
@@ -1204,6 +1249,91 @@ def test_list_semantic_views_lists_only_view_folders(monkeypatch):
 
     monkeypatch.setattr(sx, "_onelake_request", _FakeOneLake())
     assert sx._list_semantic_views("ws", "lh") == []
+
+
+def test_views_include_shortcut_folders_and_files(monkeypatch):
+    root = "Context/Semantic Views"
+    ext = """version: 0.2.0.dev0
+name: ext
+datasets:
+  - name: products
+    source: dbo.products
+"""
+    lake = _FakeOneLake(
+        files={
+            f"{root}/sales/sales.yaml": _VIEW_SCHEMA,
+            # A shortcut folder and a shortcut file inside the view.
+            f"{root}/sales/ext/ext.yaml": ext,
+            f"{root}/sales/linked.yaml": _VIEW_METRICS,
+            # A whole view which is a shortcut.
+            f"{root}/shared/shared.yaml": _VIEW_METRICS,
+        },
+        shortcuts=[f"{root}/sales/ext", f"{root}/sales/linked.yaml", f"{root}/shared"],
+    )
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+
+    views = sx._list_semantic_views("ws", "lh")
+    assert [(v["name"], v["shortcut"]) for v in views] == [
+        ("sales", False),
+        ("shared", True),
+    ]
+    payload = sx._semantic_view_payload("ws", "lh", "sales")
+    files = {f["path"]: f["shortcut"] for f in payload["files"]}
+    assert files == {"ext/ext.yaml": True, "linked.yaml": True, "sales.yaml": False}
+    assert {(d["name"], d["file"]) for d in payload["datasets"]} >= {
+        ("products", "ext/ext.yaml"),
+        ("sales", "sales.yaml"),
+    }
+    assert [m["file"] for m in payload["metrics"]] == ["linked.yaml"] * 2
+    # A view which is itself a shortcut is read like any other.
+    shared = sx._semantic_view_payload("ws", "lh", "shared")
+    assert [f["path"] for f in shared["files"]] == ["shared.yaml"]
+    # Saving finds (and writes) files in shortcuts too.
+    count, _ = sx._save_semantic_view(
+        "ws",
+        "lh",
+        "sales",
+        {
+            "updates": [
+                {
+                    "kind": "datasets",
+                    "file": "ext/ext.yaml",
+                    "index": 0,
+                    "name": "products",
+                    "values": {"description": "From the shortcut"},
+                }
+            ]
+        },
+    )
+    assert count == 1
+    assert b"From the shortcut" in lake.files[f"{root}/sales/ext/ext.yaml"]
+
+
+def test_onelake_shortcuts_lists_shortcut_paths(monkeypatch):
+    import sempy_labs._helper_functions as hf
+
+    monkeypatch.setattr(
+        hf,
+        "_base_api",
+        lambda request, **kw: [
+            {
+                "value": [
+                    {"name": "shared", "path": "Context/Semantic Views"},
+                    {"name": "sales", "path": "/Tables/dbo"},
+                ]
+            }
+        ],
+    )
+    assert _real_onelake_shortcuts("ws", "lh") == [
+        "Context/Semantic Views/shared",
+        "Tables/dbo/sales",
+    ]
+
+    def _fails(request, **kw):
+        raise RuntimeError("forbidden")
+
+    monkeypatch.setattr(hf, "_base_api", _fails)
+    assert _real_onelake_shortcuts("ws", "lh") == []
 
 
 def test_create_semantic_view_writes_a_valid_starter_definition(monkeypatch):
@@ -1935,6 +2065,47 @@ def _view_explorer_widget(monkeypatch):
 
     send(action="open_view", workspace_id="ws-id", lakehouse_id="lh-id", view="sales")
     return widget, send
+
+
+def test_batched_actions_run_once_each_in_order(monkeypatch):
+    calls = []
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(
+        sx, "_list_semantic_views", lambda ws, lh: calls.append(lh) or []
+    )
+
+    def batch(client, *seqs):
+        widget.pending_action = {
+            "action": "batch",
+            "client": client,
+            "actions": [
+                {
+                    "seq": s,
+                    "action": "list_views",
+                    "workspace_id": "ws",
+                    "lakehouse_id": f"lh{s}",
+                    "request_id": s,
+                }
+                for s in seqs
+            ],
+        }
+        widget.run += 1
+
+    # Jupyter merged the update carrying 1 into the one carrying 1-3.
+    batch("a", 3, 1, 2)
+    assert calls == ["lh1", "lh2", "lh3"]
+    assert widget.action_ack == {"a": 3}
+    # Unacknowledged actions are resent: only the new one runs.
+    batch("a", 2, 3, 4)
+    assert calls == ["lh1", "lh2", "lh3", "lh4"]
+    # Another view of the widget numbers its actions on its own.
+    batch("b", 1)
+    assert calls[-1] == "lh1" and widget.action_ack == {"a": 4, "b": 1}
+    # Single (unbatched) actions still work.
+    assert send(action="list_views", workspace_id="ws", lakehouse_id="x", request_id=9)[
+        "ok"
+    ]
+    assert calls[-1] == "x"
 
 
 def _step_states(status):

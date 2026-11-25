@@ -1696,6 +1696,11 @@ function render({ model, el }) {
     let vPendingSelect = null;
     let requestSeq = 0;
     const callbacks = new Map();
+    // Unacknowledged kernel actions (see dispatch); the client id tells this
+    // view's numbering apart from other views of the same widget.
+    let actionSeq = 0;
+    let outbox = [];
+    const clientId = Math.random().toString(36).slice(2) + Date.now().toString(36);
     const collapsedCards = new Set(["Lineage", "Timeline", "Extended properties"]);
     let statusTimer = null;
     let pendingSelect = null;
@@ -1707,10 +1712,21 @@ function render({ model, el }) {
     // Kernel communication
     // ------------------------------------------------------------------
     function dispatch(payload) {
-        model.set("pending_action", payload);
+        // Jupyter widgets send one state update at a time and merge the ones
+        // made meanwhile, keeping only the latest value of each trait, so
+        // actions sent back to back (e.g. reload: workspaces, lakehouses and
+        // views) would be lost. Each action is numbered and resent with every
+        // update until the kernel acknowledges it (action_ack); the kernel
+        // runs each number once.
+        outbox.push(Object.assign({ seq: ++actionSeq }, payload));
+        model.set("pending_action", { action: "batch", client: clientId, actions: outbox.slice() });
         model.set("run", (model.get("run") || 0) + 1);
         model.save_changes();
     }
+    model.on("change:action_ack", () => {
+        const ack = Number((model.get("action_ack") || {})[clientId] || 0);
+        outbox = outbox.filter((a) => a.seq > ack);
+    });
     function request(action, payload, onDone) {
         const id = ++requestSeq;
         if (onDone) callbacks.set(id, onDone);
@@ -4500,10 +4516,11 @@ function render({ model, el }) {
             const list = h("div", "slls-sx-sublist");
             for (const f of files) {
                 const it = h("div", "slls-sx-subitem" + (f.ignored ? " muted" : ""));
-                it.appendChild(iconEl(f.error ? "alert" : "file", ""));
+                it.appendChild(iconEl(f.error ? "alert" : f.shortcut ? "link" : "file", ""));
                 if (vMultiFile() && vFileColor(f.path)) it.appendChild(vSwatch(f.path));
                 it.append(h("span", "slls-sx-files-name", f.path), h("span", "meta", f.ignored ? "ignored" : fmtBytes(f.size)));
-                it.title = f.ignored ? `${f.path}\nIgnored \u2014 only .yaml files are part of the view` : f.path;
+                it.title = (f.ignored ? `${f.path}\nIgnored \u2014 only .yaml files are part of the view` : f.path)
+                    + (f.shortcut ? "\nRead through a OneLake shortcut" : "");
                 it.addEventListener("click", () => openViewFiles(f.path));
                 if (write && vMultiFile() && !f.ignored) {
                     const rm = button("slls-sx-iconbtn", "", "unlink", (ev) => { ev.stopPropagation(); openRemoveViewFile(f.path); },
@@ -13199,6 +13216,86 @@ def _onelake_list(
         params["continuation"] = continuation
 
 
+def _onelake_shortcuts(workspace_id: str, item_id: str) -> List[str]:
+    """The paths (from the item root) of an item's shortcuts, e.g.
+    ``Context/Semantic Views/sales``; empty if they can't be listed."""
+
+    from sempy_labs._helper_functions import _base_api
+
+    try:
+        responses = _base_api(
+            request=f"/v1/workspaces/{workspace_id}/items/{item_id}/shortcuts",
+            uses_pagination=True,
+            client="fabric_sp",
+        )
+    except Exception:
+        return []
+    out = []
+    for r in responses:
+        for s in r.get("value") or []:
+            name = str(s.get("name") or "").strip("/")
+            parent = str(s.get("path") or "").strip("/")
+            if name:
+                out.append(f"{parent}/{name}" if parent else name)
+    return out
+
+
+def _onelake_list_deep(
+    workspace_id: str, item_id: str, directory: str, recursive: bool = False
+) -> Optional[List[dict]]:
+    """:func:`_onelake_list` including the shortcuts under ``directory``.
+
+    A listing doesn't reliably include shortcuts (folders or files): they may
+    be missing, not marked as folders, or (recursively) not descended into.
+    The item's shortcuts are therefore listed with the Fabric API and each one
+    under ``directory`` is added, and listed itself when its content is
+    missing.
+    """
+
+    paths = _onelake_list(workspace_id, item_id, directory, recursive=recursive)
+    if paths is None:
+        return None
+    by_path = {p["path"]: p for p in paths}
+    prefix = directory + "/"
+    # Outer shortcuts first, so that their content is listed before checking
+    # for shortcuts inside them.
+    for shortcut in sorted(_onelake_shortcuts(workspace_id, item_id), key=len):
+        rest = _relative_path(shortcut, directory)
+        if not shortcut.startswith(prefix) or not rest:
+            continue
+        if not recursive and "/" in rest:
+            continue
+        head = _onelake_request("HEAD", workspace_id, f"{item_id}/{shortcut}")
+        if head.status_code != 200:
+            continue  # A broken shortcut (its target is gone).
+        is_dir = str(head.headers.get("x-ms-resource-type", "")).lower() == "directory"
+        entry = by_path.get(shortcut) or {
+            "path": shortcut,
+            "size": 0,
+            "modified": str(head.headers.get("Last-Modified") or ""),
+            "etag": str(head.headers.get("ETag") or ""),
+        }
+        entry["is_dir"] = is_dir
+        if not is_dir:
+            entry["size"] = int(
+                head.headers.get("Content-Length") or entry["size"] or 0
+            )
+        by_path[shortcut] = entry
+        if (
+            is_dir
+            and recursive
+            and not any(p.startswith(shortcut + "/") for p in by_path)
+        ):
+            for p in (
+                _onelake_list(workspace_id, item_id, shortcut, recursive=True) or []
+            ):
+                by_path.setdefault(p["path"], p)
+        for p in by_path.values():
+            if p["path"] == shortcut or p["path"].startswith(shortcut + "/"):
+                p["shortcut"] = True
+    return list(by_path.values())
+
+
 def _onelake_read(workspace_id: str, item_id: str, path: str) -> str:
     response = _onelake_request("GET", workspace_id, f"{item_id}/{path}")
     if response.status_code != 200:
@@ -13268,14 +13365,21 @@ def _relative_path(path: str, folder: str) -> str:
 
 
 def _list_semantic_views(workspace_id: str, lakehouse_id: str) -> List[dict]:
-    """The views of a lakehouse: the folders directly under Context/Semantic Views."""
+    """The views of a lakehouse: the folders directly under Context/Semantic
+    Views, including shortcuts to folders."""
 
-    paths = _onelake_list(workspace_id, lakehouse_id, _VIEWS_FOLDER)
+    paths = _onelake_list_deep(workspace_id, lakehouse_id, _VIEWS_FOLDER)
     views = []
     for p in paths or []:
         name = _relative_path(p["path"], _VIEWS_FOLDER)
         if p["is_dir"] and name and "/" not in name:
-            views.append({"name": name, "modified": p["modified"]})
+            views.append(
+                {
+                    "name": name,
+                    "modified": p["modified"],
+                    "shortcut": bool(p.get("shortcut")),
+                }
+            )
     return sorted(views, key=lambda v: v["name"].lower())
 
 
@@ -13383,7 +13487,7 @@ def _plan_view_yaml_file(
         raise ValueError("Enter a name for the new semantic view.")
     _check_view_name(name, "A semantic view name")
     folder = f"{_VIEWS_FOLDER}/{view_name}"
-    listing = _onelake_list(workspace_id, lakehouse_id, folder, recursive=True)
+    listing = _onelake_list_deep(workspace_id, lakehouse_id, folder, recursive=True)
     if listing is None:
         raise ValueError(f"The '{view_name}' semantic view no longer exists.")
     files = {
@@ -13472,7 +13576,7 @@ def _remove_view_yaml_file(
         raise ValueError("Enter a name for the semantic view the file becomes.")
     _check_view_name(new_name, "A semantic view name")
     folder = f"{_VIEWS_FOLDER}/{view_name}"
-    listing = _onelake_list(workspace_id, lakehouse_id, folder, recursive=True)
+    listing = _onelake_list_deep(workspace_id, lakehouse_id, folder, recursive=True)
     if listing is None:
         raise ValueError(f"The '{view_name}' semantic view no longer exists.")
     yaml_files = [
@@ -13493,7 +13597,7 @@ def _remove_view_yaml_file(
     # with that name would be overwritten.
     taken = {
         _relative_path(p["path"], _VIEWS_FOLDER).lower(): p["is_dir"]
-        for p in _onelake_list(workspace_id, lakehouse_id, _VIEWS_FOLDER) or []
+        for p in _onelake_list_deep(workspace_id, lakehouse_id, _VIEWS_FOLDER) or []
     }
     if new_name.lower() in taken:
         what = "semantic view" if taken[new_name.lower()] else "file"
@@ -13976,7 +14080,7 @@ def _semantic_view_payload(
     import yaml
 
     folder = f"{_VIEWS_FOLDER}/{view_name}"
-    paths = _onelake_list(workspace_id, lakehouse_id, folder, recursive=True)
+    paths = _onelake_list_deep(workspace_id, lakehouse_id, folder, recursive=True)
     if paths is None:
         raise ValueError(
             f"The '{view_name}' semantic view was not found in this lakehouse."
@@ -13997,6 +14101,8 @@ def _semantic_view_payload(
             "content": "",
             "error": "",
             "ignored": not rel.endswith(".yaml"),
+            # Read through a shortcut (the file or a folder above it).
+            "shortcut": bool(p.get("shortcut")),
         }
         files.append(entry)
         if entry["ignored"]:
@@ -14461,7 +14567,7 @@ def _save_semantic_view(
     """
 
     folder = f"{_VIEWS_FOLDER}/{view_name}"
-    listing = _onelake_list(workspace_id, lakehouse_id, folder, recursive=True)
+    listing = _onelake_list_deep(workspace_id, lakehouse_id, folder, recursive=True)
     if listing is None:
         raise ValueError(f"The '{view_name}' semantic view no longer exists.")
     current = {
@@ -15535,7 +15641,8 @@ def semantic_explorer(
     (compatibility level 1706) in a workspace and open it in the explorer.
 
     The explorer also opens semantic views (preview): the YAML definitions in a
-    lakehouse's Context/Semantic Views folder. A view's datasets, columns,
+    lakehouse's Context/Semantic Views folder, including OneLake shortcuts (a
+    view, or folders and files within one, can be a shortcut). A view's datasets, columns,
     relationships and metrics are shown in a read-only tree built from its YAML
     and, once it is published, the generated TMDL in SystemContext. The YAML
     and TMDL files can be viewed, and a new view can be created with a starter
@@ -15644,6 +15751,8 @@ def semantic_explorer(
         status = traitlets.Dict().tag(sync=True)
         pending_action = traitlets.Dict().tag(sync=True)
         run = traitlets.Int(0).tag(sync=True)
+        # Last action number run per view (client id -> seq); see _on_run.
+        action_ack = traitlets.Dict().tag(sync=True)
         busy = traitlets.Unicode("").tag(sync=True)
         dataset_name = traitlets.Unicode("").tag(sync=True)
         workspace_name = traitlets.Unicode("").tag(sync=True)
@@ -16142,13 +16251,36 @@ def semantic_explorer(
             if action in ("list_workspaces", "list_datasets", "connect"):
                 widget.picker_loading = False
 
+    # Highest action number run per view. The browser resends every action
+    # until it is acknowledged (Jupyter merges widget updates sent while one is
+    # in flight), so an action already run is skipped.
+    actions_run: Dict[str, int] = {}
+
     def _on_run(_change):
         data = dict(widget.pending_action or {})
-        if not data.get("action"):
-            return
-        if data["action"] not in _BACKGROUND_ACTIONS:
-            widget.busy = str(data.get("action"))
-        run_widget_task(_handle, (data,))
+        if data.get("action") == "batch":
+            client = str(data.get("client") or "")
+            done = actions_run.get(client, 0)
+            actions = sorted(
+                (
+                    dict(a)
+                    for a in data.get("actions") or []
+                    if isinstance(a, dict) and int(a.get("seq") or 0) > done
+                ),
+                key=lambda a: int(a.get("seq") or 0),
+            )
+            if not actions:
+                return
+            actions_run[client] = int(actions[-1].get("seq") or 0)
+            widget.action_ack = {**widget.action_ack, client: actions_run[client]}
+        else:
+            actions = [data]
+        for item in actions:
+            if not item.get("action"):
+                continue
+            if item["action"] not in _BACKGROUND_ACTIONS:
+                widget.busy = str(item.get("action"))
+            run_widget_task(_handle, (item,))
 
     widget.observe(_on_run, names=["run"])
 
