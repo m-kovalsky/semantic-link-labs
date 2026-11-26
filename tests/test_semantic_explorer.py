@@ -3059,3 +3059,135 @@ def test_new_cultures_are_validated_and_functions_need_level_1702(
     sx._apply_changes(_tom(model), [upgrade], [], [])
     assert model.Database.CompatibilityLevel == 1702
     assert model.Functions["AddOne"].Expression == "() => BLANK()"
+
+
+class _NoQuiet:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_vertipaq_state_is_json_safe_and_lists_delta_tables(monkeypatch):
+    import pandas as pd
+    from sempy_labs.semantic_model import _vertipaq_analyzer as va
+
+    def fake_vertipaq(dataset, workspace, read_stats_from_data, visualize):
+        assert (dataset, workspace, visualize) == ("ds", "ws", False)
+        partitions = pd.DataFrame(
+            [
+                {
+                    "Table Name": "Sales",
+                    "Partition Name": "Sales",
+                    "Mode": "DirectLake",
+                    "Source Type": "Lakehouse",
+                    "Source Name": "LH",
+                    "Source Workspace": "WS",
+                    "Source Schema Name": "dbo",
+                    "Source Table Name": "sales",
+                },
+                {
+                    "Table Name": "Dates",
+                    "Partition Name": "Dates",
+                    "Mode": "Import",
+                    "Source Type": None,
+                    "Source Name": None,
+                    "Source Workspace": None,
+                    "Source Schema Name": None,
+                    "Source Table Name": None,
+                },
+            ]
+        )
+        columns = pd.DataFrame(
+            [
+                {
+                    "Table Name": "Sales",
+                    "Column Name": "Amount",
+                    "Temperature": float("nan"),
+                    "Last Accessed": pd.Timestamp("2026-11-26 10:00"),
+                    "Is Resident": True,
+                }
+            ]
+        )
+        model = pd.DataFrame([{"Dataset Name": "M", "Total Size": 10}])
+        return {"Model Summary": model, "Partitions": partitions, "Columns": columns}
+
+    monkeypatch.setattr(va, "vertipaq_analyzer", fake_vertipaq)
+    monkeypatch.setattr(sx, "_QuietTool", _NoQuiet)
+
+    state = sx._vertipaq_state("ds", "ws")
+
+    json.dumps(state, allow_nan=False)
+    assert state["model"] == {"Dataset Name": "M", "Total Size": 10}
+    assert state["columns"][0]["Temperature"] is None
+    assert state["columns"][0]["Last Accessed"].startswith("2026-11-26T10:00")
+    assert state["tables"] == []
+    assert [t["deltaTableName"] for t in state["delta_tables"]] == ["dbo.sales"]
+
+
+def test_backup_files_and_restore_across_workspaces(monkeypatch):
+    from sempy_labs import _clear_cache, _helper_functions
+
+    class _Path:
+        def __init__(self, name, is_directory=False):
+            self.name, self.is_directory = name, is_directory
+            self.content_length, self.last_modified = 42, None
+
+    class _FileSystem:
+        def get_paths(self, path, recursive):
+            if path == "Empty WS":
+                raise type(
+                    "ResourceNotFoundError", (Exception,), {"status_code": 404}
+                )()
+            return [
+                _Path(f"{path}/Sales.abf"),
+                _Path(f"{path}/Old", True),
+                _Path(f"{path}/Old/HR.ABF"),
+                _Path(f"{path}/notes.txt"),
+            ]
+
+    client = types.SimpleNamespace(get_file_system_client=lambda name: _FileSystem())
+    monkeypatch.setattr(_helper_functions, "_get_adls_client", lambda account: client)
+    names = {"ws1": "Sales WS", "ws2": "Empty WS"}
+    monkeypatch.setattr(
+        _helper_functions, "resolve_workspace_name_and_id", lambda ws: (names[ws], ws)
+    )
+    monkeypatch.setattr(sx, "_QuietTool", _NoQuiet)
+
+    files = sx._backup_files("https://MyStore.dfs.core.windows.net", "ws1")
+    assert [f["name"] for f in files] == ["Old/HR.ABF", "Sales.abf"]
+    assert sx._backup_files("mystore", "ws2") == []
+    assert sx._backup_file_name(" Old/HR.ABF ") == "Old/HR.ABF"
+    assert sx._backup_file_name("My Model") == "My Model.abf"
+    with pytest.raises(ValueError, match="storage account"):
+        sx._backup_files("not a name!", "ws1")
+
+    calls = []
+    monkeypatch.setattr(
+        _clear_cache,
+        "copy_semantic_model_backup_file",
+        lambda **kw: calls.append(("copy", kw)),
+    )
+    monkeypatch.setattr(
+        _clear_cache,
+        "restore_semantic_model",
+        lambda **kw: calls.append(("restore", kw)),
+    )
+    result = sx._restore_model(
+        {
+            "storage_account": "mystore",
+            "source_workspace_id": "ws1",
+            "target_workspace_id": "ws2",
+            "file": "Sales",
+            "dataset": " Sales Copy ",
+        }
+    )
+
+    assert [c[0] for c in calls] == ["copy", "restore"]
+    assert calls[0][1]["source_workspace"] == "Sales WS"
+    assert calls[0][1]["target_workspace"] == "Empty WS"
+    assert calls[1][1]["dataset"] == "Sales Copy"
+    assert calls[1][1]["file_path"] == "Sales.abf"
+    assert calls[1][1]["workspace"] == "ws2"
+    assert result["message"].endswith("Restored 'Sales Copy' from 'Sales.abf'.")

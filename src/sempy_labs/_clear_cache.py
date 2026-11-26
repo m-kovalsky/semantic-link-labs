@@ -266,6 +266,16 @@ def copy_semantic_model_backup_file(
     )
 
 
+def _workspace_storage_account(workspace_id) -> str:
+    """The ADLS Gen2 storage account connected to a workspace ('' if none)."""
+
+    response = _base_api(
+        request=f"/v1.0/myorg/resources?resourceType=StorageAccount&folderObjectId={workspace_id}"
+    )
+    v = response.json().get("value", [])
+    return str(v[0].get("resourceName") or "") if v else ""
+
+
 @log
 def list_backups(workspace: Optional[str | UUID] = None) -> pd.DataFrame:
     """
@@ -286,16 +296,11 @@ def list_backups(workspace: Optional[str | UUID] = None) -> pd.DataFrame:
     """
 
     workspace_name, workspace_id = resolve_workspace_name_and_id(workspace)
-    response = _base_api(
-        request=f"/v1.0/myorg/resources?resourceType=StorageAccount&folderObjectId={workspace_id}"
-    )
-
-    v = response.json().get("value", [])
-    if not v:
+    storage_account = _workspace_storage_account(workspace_id)
+    if not storage_account:
         raise ValueError(
             f"{icons.red_dot} A storage account is not associated with the '{workspace_name}' workspace."
         )
-    storage_account = v[0]["resourceName"]
 
     df = list_storage_account_files(storage_account=storage_account)
     colName = "Storage Account Name"

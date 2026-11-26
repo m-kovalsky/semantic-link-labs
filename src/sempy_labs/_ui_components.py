@@ -513,6 +513,58 @@ ICONS: dict[str, str] = {
         '<path d="M3 3.5v9c0 1 2.24 1.8 5 1.8s5-.8 5-1.8v-9"/>'
         '<path d="M3 8c0 1 2.24 1.8 5 1.8s5-.8 5-1.8"/></svg>'
     ),
+    # Lucide icons used by the backup / copy / restore tool (as in the Tools app).
+    "database_backup": (
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+        'stroke-linejoin="round" aria-hidden="true">'
+        '<ellipse cx="12" cy="5" rx="9" ry="3"/>'
+        '<path d="M3 12a9 3 0 0 0 5 2.69"/>'
+        '<path d="M21 9.3V5"/>'
+        '<path d="M3 5v14a9 3 0 0 0 6.47 2.88"/>'
+        '<path d="M12 12v4h4"/>'
+        '<path d="M13 20a5 5 0 0 0 9-3 4.5 4.5 0 0 0-4.5-4.5c-1.33 0-2.54.54-3.41 1.41L12 16"/></svg>'
+    ),
+    "hard_drive_upload": (
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+        'stroke-linejoin="round" aria-hidden="true">'
+        '<path d="m16 6-4-4-4 4"/>'
+        '<path d="M12 2v8"/>'
+        '<rect width="20" height="8" x="2" y="14" rx="2"/>'
+        '<path d="M6 18h.01"/>'
+        '<path d="M10 18h.01"/></svg>'
+    ),
+    "hard_drive_download": (
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+        'stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M12 2v8"/>'
+        '<path d="m16 6-4 4-4-4"/>'
+        '<rect width="20" height="8" x="2" y="14" rx="2"/>'
+        '<path d="M6 18h.01"/>'
+        '<path d="M10 18h.01"/></svg>'
+    ),
+    "folder_sync": (
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+        'stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v.5"/>'
+        '<path d="M12 10v4h4"/>'
+        '<path d="m12 14 1.535-1.605a5 5 0 0 1 8 1.5"/>'
+        '<path d="M22 22v-4h-4"/>'
+        '<path d="m22 18-1.535 1.605a5 5 0 0 1-8-1.5"/></svg>'
+    ),
+    "archive_restore": (
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+        'stroke-linejoin="round" aria-hidden="true">'
+        '<rect width="20" height="5" x="2" y="3" rx="1"/>'
+        '<path d="M4 8v11a2 2 0 0 0 2 2h2"/>'
+        '<path d="M20 8v11a2 2 0 0 1-2 2h-2"/>'
+        '<path d="m9 15 3-3 3 3"/>'
+        '<path d="M12 12v9"/></svg>'
+    ),
     "database_zap": (
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" '
         'stroke="currentColor" stroke-width="2" stroke-linecap="round" '

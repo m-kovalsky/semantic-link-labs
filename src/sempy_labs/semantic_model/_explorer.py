@@ -1353,6 +1353,58 @@ pre.slls-sx-dialect {
 .slls-sx-warm-sort .dir { font-size: 9px; }
 .slls-sx-warm-table th:first-child .slls-sx-warm-sort { padding-left: 46px; }
 
+/* Read-only data grid (VertiPaq Analyzer, data dictionary) */
+.slls-sx { --sx-bar: rgba(0, 122, 255, 0.16); }
+.slls-sx.slls-sx-dark { --sx-bar: rgba(64, 156, 255, 0.24); }
+.slls-sx-tool-tabs { flex-shrink: 0; flex-wrap: wrap; }
+.slls-sx-vpa-pane { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.slls-sx-grid2 td.num, .slls-sx-grid2 th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.slls-sx-grid2 th.num .slls-sx-warm-sort { flex-direction: row-reverse; }
+.slls-sx-grid2 td { white-space: nowrap; text-overflow: ellipsis; padding: 4px 8px; }
+/* Frozen (left) columns stay in view when scrolling sideways. */
+.slls-sx-grid2 tbody tr:hover td { background-color: var(--ui-bg-secondary); }
+.slls-sx-grid2 td.frozen { position: sticky; z-index: 1; background-color: var(--ui-bg); }
+.slls-sx-grid2 tbody tr:hover td.frozen { background-color: var(--ui-bg-secondary); }
+.slls-sx-grid2 th.frozen { position: sticky; z-index: 3; }
+.slls-sx-grid2 .frozen-edge { box-shadow: inset -1px 0 0 var(--ui-border), 6px 0 6px -6px rgba(0, 0, 0, 0.25); }
+.slls-sx-grid2 tr.expandable { cursor: pointer; }
+.slls-sx-grid2 tr.expandable td:first-child .slls-sx-caret { display: inline-flex; vertical-align: -2px; margin-right: 4px; }
+.slls-sx-grid2 tr.slls-sx-grid-detail > td { position: static; white-space: normal; padding: 6px 12px 12px 28px; background: var(--ui-bg-tertiary); }
+.slls-sx-grid-dax { font-family: var(--sx-mono); font-size: 11.5px; }
+.slls-sx-dd-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 20px; }
+.slls-sx-dd-detail .slls-sx-grid td { white-space: normal; }
+.slls-sx-vpa-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 12px 16px 4px; flex-shrink: 0; }
+.slls-sx-vpa-card { display: flex; flex-direction: column; gap: 3px; padding: 9px 12px; border: 1px solid var(--ui-border); border-radius: var(--sx-radius-sm); background: var(--ui-bg); min-width: 0; }
+.slls-sx-vpa-card span { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ui-text-tertiary); }
+.slls-sx-vpa-card b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-vpa-credit { flex-shrink: 0; padding: 6px 16px 8px; font-size: 11.5px; color: var(--ui-text-tertiary); }
+@media (max-width: 760px) { .slls-sx-vpa-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Backup / copy / restore */
+.slls-sx-bk { max-width: 760px; }
+.slls-sx-bk .slls-sx-dlm-text, .slls-sx-bk .slls-sx-dlm-note { margin: 0; }
+.slls-sx-bk-actions { display: flex; justify-content: flex-end; }
+.slls-sx-bk-filerow { display: flex; align-items: center; gap: 6px; }
+.slls-sx-bk-filerow .slls-sx-select { flex: 1; min-width: 0; }
+.slls-sx-bk-top { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.slls-sx-bk-top .slls-sx-tool-field { flex: 1 1 260px; }
+.slls-sx-bk-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.slls-sx-bk-panels.dual { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.slls-sx-bk-panel { display: flex; flex-direction: column; border: 1px solid var(--ui-border); border-radius: var(--sx-radius-sm); background: var(--ui-bg); min-width: 0; }
+.slls-sx-bk-panel.drop { border-color: var(--ui-accent); box-shadow: 0 0 0 3px var(--ui-accent-soft); }
+.slls-sx-bk-panel-head { display: flex; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--ui-border); }
+.slls-sx-bk-panel-head > :first-child { flex: 1; min-width: 0; }
+.slls-sx-bk-files { min-height: 120px; max-height: 320px; overflow: auto; }
+.slls-sx-bk-file { display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 12.5px; border-bottom: 1px solid var(--ui-border); cursor: pointer; }
+.slls-sx-bk-file[draggable="true"] { cursor: grab; }
+.slls-sx-bk-file:hover { background: var(--ui-surface-2); }
+.slls-sx-bk-file input { margin: 0; accent-color: var(--ui-accent); }
+.slls-sx-bk-file svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-bk-file .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-bk-file .meta { font-size: 11.5px; color: var(--ui-text-tertiary); font-variant-numeric: tabular-nums; }
+.slls-sx-bk-panel-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px 4px 10px; font-size: 11.5px; color: var(--ui-text-tertiary); border-top: 1px solid var(--ui-border); }
+@media (max-width: 760px) { .slls-sx-bk-panels.dual { grid-template-columns: minmax(0, 1fr); } }
+
 /* Create .vpax file */
 .slls-sx-modal.slls-sx-vpax { width: min(560px, 100%); }
 .slls-sx-vpax .slls-sx-modal-body { display: flex; flex-direction: column; gap: 12px; overflow: visible; }
@@ -8456,7 +8508,9 @@ function render({ model, el }) {
     // Tools menu + Field parameter manager
     // ------------------------------------------------------------------
     const TOOLS = [
+        { label: "Backup, copy, restore", icon: "database_backup", open: () => openBackupRestore() },
         { label: "Create .vpax file", icon: "file_box", open: () => openCreateVpax() },
+        { label: "Data dictionary", icon: "book", open: () => openDataDictionary() },
         { label: "DAXLib package manager", icon: "package", open: () => openDaxLibManager() },
         { label: "Description manager", icon: "file", open: () => openDescriptionManager() },
         { label: "Field parameter manager", icon: "field_parameter", open: () => openFieldParameterManager() },
@@ -8467,6 +8521,7 @@ function render({ model, el }) {
         { label: "Relationship manager", icon: "git_branch", open: () => openRelationshipManager() },
         { label: "Security manager", icon: "shield_check", open: () => openSecurityManager() },
         { label: "Translation manager", icon: "languages", open: () => openTranslationManager() },
+        { label: "VertiPaq Analyzer", icon: "vertipaq", open: () => openVertipaqAnalyzer() },
         { label: "Warm Direct Lake cache", icon: "flame", open: () => openWarmCache() },
     ];
     // Open tool windows redraw when the explorer re-renders (mode switch,
@@ -12991,6 +13046,950 @@ function render({ model, el }) {
     }
 
     // ------------------------------------------------------------------
+    // Read-only data grid (VertiPaq Analyzer, data dictionary): filter,
+    // sortable headers, resizable columns, data bars and expandable rows.
+    // ------------------------------------------------------------------
+    // cols: [{ key, label, kind: "text"|"int"|"num"|"bytes"|"pct"|"bool"|"dax"|"date", bar, title, width }]
+    // st (per tab, kept across redraws): { search, sortKey, sortDir, bars, widths: Map, open: Set }
+    const GRID_MAX_ROWS = 2000;
+    function fmtBytes(n) {
+        if (n === null || n === undefined || n === "" || Number.isNaN(Number(n))) return "";
+        let v = Number(n), i = 0;
+        const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+        while (Math.abs(v) >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+        return i === 0 ? `${v.toLocaleString()} B` : `${v.toFixed(2)} ${units[i]}`;
+    }
+    function gridText(col, v) {
+        if (v === null || v === undefined || v === "") return "";
+        switch (col.kind) {
+            case "int": return Number.isFinite(Number(v)) ? Math.round(Number(v)).toLocaleString() : String(v);
+            case "num": return Number.isFinite(Number(v)) ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 4 }) : String(v);
+            case "bytes": return fmtBytes(v);
+            case "pct": return Number.isFinite(Number(v)) ? `${Number(v).toFixed(2)}%` : String(v);
+            case "bool": return v === true || v === "true" || v === "True" ? "Yes" : v === false || v === "false" || v === "False" ? "No" : String(v);
+            case "date": return fmtTime(v);
+            default: return String(v);
+        }
+    }
+    const NUMERIC_KINDS = new Set(["int", "num", "bytes", "pct"]);
+    function gridState(sortKey, sortDir) {
+        return { search: "", sortKey: sortKey || "", sortDir: sortDir || "desc", bars: true, widths: new Map(), open: new Set() };
+    }
+    function dataGrid(container, o) {
+        const st = o.state;
+        const cols = o.cols;
+        const hasBars = cols.some((c) => c.bar);
+        const bar = h("div", "slls-sx-tool-toolbar");
+        bar.appendChild(searchBox(o.placeholder || "Filter\u2026", st.search, (v) => { st.search = v; paintRows(); }));
+        for (const extra of o.extras || []) if (extra) bar.appendChild(extra);
+        if (hasBars) {
+            const bars = switchEl(st.bars, "Data bars", () => {
+                st.bars = !st.bars;
+                bars.classList.toggle("on", st.bars);
+                bars.setAttribute("aria-checked", String(st.bars));
+                paintRows();
+            }, "Bars");
+            bars.title = "Show data bars in the size and count columns";
+            bar.appendChild(bars);
+        }
+        const count = h("span", "slls-sx-tool-count");
+        bar.appendChild(count);
+        container.appendChild(bar);
+        const scroll = h("div", "slls-sx-tool-scroll");
+        scroll.dataset.scroll = o.key;
+        const table = h("table", "slls-sx-tm-table slls-sx-grid2");
+        const thead = h("thead", "");
+        const tbody = h("tbody", "");
+        table.append(thead, tbody);
+        scroll.appendChild(table);
+        container.appendChild(scroll);
+        const textOf = (r, c) => gridText(c, r[c.key]);
+        // The first `freeze` columns stay in view when scrolling sideways; their
+        // offsets follow the column widths (which can be resized).
+        const freeze = Math.min(o.freeze === undefined ? 1 : o.freeze, cols.length);
+        let lefts = [];
+        function applyFreeze() {
+            if (!freeze || !lefts.length) return;
+            for (const row of table.rows) {
+                // Rows spanning the whole grid (details, messages) aren't frozen.
+                if (row.cells.length < freeze || row.cells[0].colSpan > 1) continue;
+                for (let i = 0; i < freeze; i++) {
+                    const cell = row.cells[i];
+                    cell.classList.add("frozen");
+                    cell.classList.toggle("frozen-edge", i === freeze - 1);
+                    cell.style.left = `${lefts[i]}px`;
+                }
+            }
+        }
+        function setWidths(widths) {
+            lefts = [];
+            let x = 0;
+            for (let i = 0; i < freeze; i++) { lefts.push(x); x += widths[i] || 0; }
+            applyFreeze();
+        }
+        const sortButtons = [];
+        function paintHead() {
+            for (const [c, btn] of sortButtons) {
+                const on = st.sortKey === c.key;
+                btn.classList.toggle("on", on);
+                const dir = btn.querySelector(".dir");
+                if (dir) dir.remove();
+                if (on) btn.appendChild(h("span", "dir", st.sortDir === "asc" ? "\u25b2" : "\u25bc"));
+            }
+        }
+        function buildHead() {
+            const hr = h("tr", "");
+            for (const c of cols) {
+                const th = h("th", NUMERIC_KINDS.has(c.kind) ? "num" : "");
+                th.dataset.columnWidth = String(c.width || (NUMERIC_KINDS.has(c.kind) ? 120 : 160));
+                if (c.title) th.title = c.title;
+                const b = h("button", "slls-sx-warm-sort", c.label);
+                b.type = "button";
+                b.addEventListener("click", () => {
+                    if (st.sortKey === c.key) st.sortDir = st.sortDir === "asc" ? "desc" : "asc";
+                    else { st.sortKey = c.key; st.sortDir = NUMERIC_KINDS.has(c.kind) ? "desc" : "asc"; }
+                    paintHead();
+                    paintRows();
+                });
+                sortButtons.push([c, b]);
+                th.appendChild(b);
+                hr.appendChild(th);
+            }
+            thead.appendChild(hr);
+            paintHead();
+        }
+        function sorted(rows) {
+            const c = cols.find((x) => x.key === st.sortKey);
+            if (!c) return rows;
+            const dir = st.sortDir === "asc" ? 1 : -1;
+            const num = NUMERIC_KINDS.has(c.kind);
+            return rows.slice().sort((a, b) => {
+                const x = a[c.key], y = b[c.key];
+                const ex = x === null || x === undefined || x === "", ey = y === null || y === undefined || y === "";
+                if (ex || ey) return ex === ey ? 0 : ex ? 1 : -1;
+                return (num ? Number(x) - Number(y) : String(textOf(a, c)).localeCompare(String(textOf(b, c)), undefined, { sensitivity: "base", numeric: true })) * dir;
+            });
+        }
+        function paintRows() {
+            clear(tbody);
+            const q = st.search.trim().toLowerCase();
+            const all = o.rows;
+            const rows = sorted(q ? all.filter((r) => cols.some((c) => String(textOf(r, c)).toLowerCase().includes(q))) : all);
+            count.textContent = rows.length === all.length ? plural(all.length, "row") : `${rows.length.toLocaleString()} of ${plural(all.length, "row")}`;
+            if (!rows.length) {
+                const tr = h("tr", "");
+                const td = h("td", "slls-sx-empty", all.length ? "No rows match the current filter." : (o.empty || "No data available."));
+                td.colSpan = cols.length;
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                return;
+            }
+            const max = new Map();
+            if (st.bars) {
+                for (const c of cols) if (c.bar) max.set(c.key, Math.max(0, ...rows.map((r) => Math.abs(Number(r[c.key]) || 0))));
+            }
+            for (const r of rows.slice(0, GRID_MAX_ROWS)) {
+                const k = o.rowKey ? o.rowKey(r) : "";
+                const expandable = !!(o.detail && k);
+                const open = expandable && st.open.has(k);
+                const tr = h("tr", expandable ? "expandable" : "");
+                cols.forEach((c, i) => {
+                    const td = h("td", NUMERIC_KINDS.has(c.kind) ? "num" : "");
+                    const text = textOf(r, c);
+                    if (c.kind === "dax" && text) {
+                        const code = h("code", "slls-sx-grid-dax");
+                        code.innerHTML = highlight(text, "dax");
+                        td.appendChild(code);
+                    } else td.textContent = text || (o.blank === undefined ? "" : o.blank);
+                    if (text) td.title = text;
+                    if (i === 0 && expandable) {
+                        const caret = h("span", "slls-sx-caret" + (open ? " open" : ""));
+                        caret.innerHTML = ICON.caret_right;
+                        td.insertBefore(caret, td.firstChild);
+                    }
+                    const m = max.get(c.key);
+                    if (m) {
+                        const pct = Math.min(100, (Math.abs(Number(r[c.key]) || 0) / m) * 100);
+                        td.style.background = `linear-gradient(to right, var(--sx-bar) ${pct}%, transparent ${pct}%)`;
+                    }
+                    tr.appendChild(td);
+                });
+                if (expandable) {
+                    tr.addEventListener("click", () => { if (st.open.has(k)) st.open.delete(k); else st.open.add(k); paintRows(); });
+                }
+                tbody.appendChild(tr);
+                if (open) {
+                    const dr = h("tr", "slls-sx-grid-detail");
+                    const td = h("td", "");
+                    td.colSpan = cols.length;
+                    td.appendChild(o.detail(r));
+                    dr.appendChild(td);
+                    tbody.appendChild(dr);
+                }
+            }
+            if (rows.length > GRID_MAX_ROWS) {
+                const tr = h("tr", "");
+                const td = h("td", "slls-sx-empty", `Showing the first ${GRID_MAX_ROWS.toLocaleString()} of ${rows.length.toLocaleString()} rows. Filter to narrow the list.`);
+                td.colSpan = cols.length;
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+            }
+            applyFreeze();
+        }
+        buildHead();
+        paintRows();
+        sllsInstallColumnResizers(table, { widths: st.widths, key: o.key, minWidth: 64,
+            onWidthsChanged: (_t, widths) => { st.widths.set(o.key, widths); setWidths(widths); } });
+    }
+    function toolTabs(items, active, onPick) {
+        const tabs = h("div", "slls-sx-tabs slls-sx-tool-tabs");
+        tabs.setAttribute("role", "tablist");
+        for (const [id, label, count, icon] of items) {
+            const b = h("button", "slls-sx-tab" + (active === id ? " active" : ""));
+            b.type = "button";
+            b.setAttribute("role", "tab");
+            b.setAttribute("aria-selected", String(active === id));
+            if (icon) b.appendChild(iconEl(icon, ""));
+            b.appendChild(document.createTextNode(label));
+            if (count !== null && count !== undefined) b.appendChild(h("span", "slls-sx-pill", Number(count).toLocaleString()));
+            b.addEventListener("click", () => onPick(id));
+            tabs.appendChild(b);
+        }
+        return tabs;
+    }
+
+    // ------------------------------------------------------------------
+    // VertiPaq Analyzer (statistics from sempy_labs' vertipaq_analyzer)
+    // ------------------------------------------------------------------
+    // Kept per model across open / close; "delta" holds Delta Analyzer stats by table.
+    let vpaCache = { key: "", data: null, delta: {} };
+    const VPA_SECTIONS = {
+        tables: { label: "Tables", noun: "table", freeze: 1, sort: "Total Size", cols: () => [
+            { key: "Table Name", label: "Table", kind: "text", width: 200 },
+            { key: "Type", label: "Type", kind: "text", width: 130 },
+            { key: "Row Count", label: "Rows", kind: "int", bar: true },
+            { key: "Total Size", label: "Total Size", kind: "bytes", bar: true, title: "Data + dictionary + hierarchy + relationship + user hierarchy size" },
+            { key: "Data Size", label: "Data Size", kind: "bytes", bar: true },
+            { key: "Dictionary Size", label: "Dictionary Size", kind: "bytes", bar: true },
+            { key: "Hierarchy Size", label: "Hierarchy Size", kind: "bytes", bar: true },
+            { key: "Relationship Size", label: "Relationship Size", kind: "bytes", bar: true },
+            { key: "User Hierarchy Size", label: "User Hierarchy Size", kind: "bytes", bar: true },
+            { key: "Partitions", label: "Partitions", kind: "int", width: 100 },
+            { key: "Columns", label: "Columns", kind: "int", width: 100 },
+            { key: "% DB", label: "% DB", kind: "pct", bar: true, width: 100, title: "The table's share of the model size" },
+        ] },
+        partitions: { label: "Partitions", noun: "partition", freeze: 2, sort: "Record Count", cols: () => [
+            { key: "Table Name", label: "Table", kind: "text", width: 180 },
+            { key: "Partition Name", label: "Partition", kind: "text", width: 180 },
+            { key: "Mode", label: "Mode", kind: "text", width: 110 },
+            { key: "Record Count", label: "Record Count", kind: "int", bar: true },
+            { key: "Segment Count", label: "Segment Count", kind: "int" },
+            { key: "Records per Segment", label: "Records per Segment", kind: "int", width: 150 },
+        ] },
+        columns: { label: "Columns", noun: "column", freeze: 2, sort: "Total Size", cols: () => [
+            { key: "Table Name", label: "Table", kind: "text", width: 170 },
+            { key: "Column Name", label: "Column", kind: "text", width: 180 },
+            { key: "Type", label: "Type", kind: "text", width: 110 },
+            { key: "Cardinality", label: "Cardinality", kind: "int", bar: true },
+            { key: "Total Size", label: "Total Size", kind: "bytes", bar: true },
+            { key: "Data Size", label: "Data Size", kind: "bytes", bar: true },
+            { key: "Dictionary Size", label: "Dictionary Size", kind: "bytes", bar: true },
+            { key: "Hierarchy Size", label: "Hierarchy Size", kind: "bytes", bar: true },
+            { key: "% Table", label: "% Table", kind: "pct", width: 100 },
+            { key: "% DB", label: "% DB", kind: "pct", width: 100 },
+            { key: "Data Type", label: "Data Type", kind: "text", width: 110 },
+            { key: "Encoding", label: "Encoding", kind: "text", width: 110 },
+            { key: "Is Resident", label: "Is Resident", kind: "bool", width: 100, title: "Whether the column is held in memory (Direct Lake pages columns in on demand)" },
+            { key: "Temperature", label: "Temperature", kind: "num", bar: true, title: "How frequently and recently the column was queried (higher = hotter)" },
+            { key: "Last Accessed", label: "Last Accessed", kind: "date", width: 180 },
+        ] },
+        relationships: { label: "Relationships", noun: "relationship", freeze: 1, sort: "Used Size", cols: (d) => [
+            { key: "From Object", label: "From Object", kind: "text", width: 220 },
+            { key: "To Object", label: "To Object", kind: "text", width: 220 },
+            { key: "Multiplicity", label: "Multiplicity", kind: "text", width: 100 },
+            { key: "Used Size", label: "Used Size", kind: "bytes", bar: true },
+            { key: "Max From Cardinality", label: "Max From Cardinality", kind: "int", width: 160 },
+            { key: "Max To Cardinality", label: "Max To Cardinality", kind: "int", width: 150 },
+            ...((d.relationships || []).some((r) => "Missing Rows" in r) ? [{ key: "Missing Rows", label: "Missing Rows", kind: "int", title: "Rows on the many side without a match (referential integrity violations)" }] : []),
+        ] },
+        hierarchies: { label: "Hierarchies", noun: "hierarchy", freeze: 2, sort: "Used Size", cols: () => [
+            { key: "Table Name", label: "Table", kind: "text", width: 200 },
+            { key: "Hierarchy Name", label: "Hierarchy", kind: "text", width: 200 },
+            { key: "Used Size", label: "Used Size", kind: "bytes", bar: true },
+            { key: "Levels", label: "Levels", kind: "int", width: 100 },
+        ] },
+    };
+    const VPA_DL_PARTITION_COLS = [
+        { key: "Direct Lake Type", label: "Direct Lake Type", kind: "text", width: 130 },
+        { key: "Source Table Name", label: "Entity Name", kind: "text", width: 160 },
+        { key: "Source Schema Name", label: "Schema Name", kind: "text", width: 120 },
+        { key: "Source Type", label: "Source Type", kind: "text", width: 120 },
+        { key: "Source Name", label: "Source Name", kind: "text", width: 160 },
+        { key: "Source Workspace", label: "Source Workspace", kind: "text", width: 160 },
+    ];
+    const VPA_DELTA_TABLE_COLS = [
+        { key: "Delta Total Size", label: "Delta Total Size", kind: "bytes", bar: true, delta: true },
+        { key: "Delta Row Count", label: "Delta Row Count", kind: "int", bar: true, delta: true },
+        { key: "Row Groups", label: "Row Groups", kind: "int", delta: true },
+        { key: "Parquet Files", label: "Parquet Files", kind: "int", delta: true },
+        { key: "V-Order", label: "V-Order", kind: "text", width: 100, delta: true },
+        { key: "Z-Order", label: "Z-Order", kind: "text", width: 120, delta: true },
+        { key: "Liquid Clustering", label: "Liquid Clustering", kind: "text", width: 140, delta: true },
+        { key: "Deletion Vectors", label: "Deletion Vectors", kind: "text", width: 130, delta: true },
+        { key: "Auto-compaction", label: "Auto-compaction", kind: "text", width: 130, delta: true },
+    ];
+    const VPA_DELTA_COLUMN_COLS = [
+        { key: "Delta Cardinality", label: "Column Cardinality", kind: "int", bar: true, delta: true },
+        { key: "Compressed Size", label: "Compressed Size", kind: "bytes", bar: true, delta: true },
+        { key: "Uncompressed Size", label: "Uncompressed Size", kind: "bytes", bar: true, delta: true },
+    ];
+    function openVertipaqAnalyzer() {
+        const m = toolWindow("VertiPaq Analyzer", "vertipaq");
+        const modelKey = () => `${model.get("active_workspace_id") || ""}|${model.get("active_dataset_id") || ""}`;
+        if (vpaCache.key !== modelKey()) vpaCache = { key: modelKey(), data: null, delta: {} };
+        let tab = "tables", loading = false, error = null, sourceDetails = false;
+        let readStats = vpaCache.data ? !!vpaCache.data.read_stats_from_data : false;
+        let delta = { running: false, done: 0, total: 0, error: null, cancel: false };
+        const states = {};
+        for (const [id, sec] of Object.entries(VPA_SECTIONS)) states[id] = gridState(sec.sort, "desc");
+        function load() {
+            if (loading) return;
+            loading = true; error = null;
+            draw();
+            const key = modelKey();
+            request("vertipaq", { read_stats_from_data: readStats }, (res) => {
+                loading = false;
+                if (res.ok) {
+                    if (key === vpaCache.key) vpaCache.data = res.data;
+                } else error = res.error || "The VertiPaq Analyzer statistics could not be read.";
+                if (m.overlay.isConnected) draw();
+            });
+        }
+        const deltaTables = () => (vpaCache.data && vpaCache.data.delta_tables) || [];
+        function rowsOf(id) {
+            const d = vpaCache.data;
+            const rows = (d && d[id]) || [];
+            if (id === "tables" && Object.keys(vpaCache.delta).length) {
+                return rows.map((r) => Object.assign({}, r, (vpaCache.delta[r["Table Name"]] || {}).table || {}));
+            }
+            if (id === "columns" && Object.keys(vpaCache.delta).length) {
+                return rows.map((r) => {
+                    const stats = (vpaCache.delta[r["Table Name"]] || {}).columns;
+                    if (!stats) return r;
+                    const want = String(r["Source Column"] || r["Column Name"] || "").toLowerCase();
+                    const hit = Object.keys(stats).find((n) => n.toLowerCase() === want);
+                    return hit ? Object.assign({}, r, stats[hit]) : r;
+                });
+            }
+            return rows;
+        }
+        function colsOf(id) {
+            const d = vpaCache.data || {};
+            let cols = VPA_SECTIONS[id].cols(d);
+            const anyDelta = Object.keys(vpaCache.delta).length > 0;
+            if (id === "partitions" && sourceDetails) cols = cols.concat(VPA_DL_PARTITION_COLS.filter((c) => (d.partitions || []).some((p) => c.key in p)));
+            if (id === "tables" && anyDelta) cols = cols.concat(VPA_DELTA_TABLE_COLS);
+            if (id === "columns" && anyDelta) cols = cols.concat(VPA_DELTA_COLUMN_COLS);
+            return cols.map((c) => (c.delta ? Object.assign({}, c, { title: "From Delta Analyzer" }) : c));
+        }
+        function runDelta(tables, skip) {
+            delta = { running: true, done: 0, total: tables.length, error: null, cancel: false };
+            draw();
+            const next = (i) => {
+                if (i >= tables.length || delta.cancel) {
+                    delta.running = false;
+                    if (m.overlay.isConnected) draw();
+                    return;
+                }
+                request("vertipaq_delta", { table: tables[i], skip_cardinality: skip }, (res) => {
+                    if (res.ok) vpaCache.delta[tables[i].tableName] = res.data;
+                    else delta.error = `${tables[i].tableName}: ${res.error || "The Delta Analyzer failed."}`;
+                    delta.done = i + 1;
+                    if (m.overlay.isConnected) draw();
+                    next(i + 1);
+                });
+            };
+            next(0);
+        }
+        function openDeltaDialog() {
+            const list = deltaTables();
+            const picked = new Set(list.map((t) => t.tableName));
+            let skip = true;
+            const d = modal("Run Delta Analyzer stats", "delta_stats");
+            const paint = () => {
+                clear(d.body);
+                d.body.appendChild(h("p", "slls-sx-dlm-text", "Choose the Direct Lake source tables to analyze on Spark."));
+                const head = h("div", "slls-sx-tool-toolbar");
+                head.append(button("slls-sx-btn small", "Select all", "", () => { list.forEach((t) => picked.add(t.tableName)); paint(); }),
+                    button("slls-sx-btn small", "Clear", "", () => { picked.clear(); paint(); }));
+                const sk = switchEl(skip, "Skip cardinality", () => { skip = !skip; paint(); }, "Skip cardinality");
+                sk.title = "Skip computing column cardinality (faster; the Column Cardinality column stays blank)";
+                head.appendChild(sk);
+                d.body.appendChild(head);
+                const rows = h("div", "slls-sx-sublist");
+                for (const t of list) {
+                    const row = h("label", "slls-sx-sync-row");
+                    const cb = h("input");
+                    cb.type = "checkbox";
+                    cb.checked = picked.has(t.tableName);
+                    cb.addEventListener("change", () => { if (cb.checked) picked.add(t.tableName); else picked.delete(t.tableName); paint(); });
+                    row.append(cb, iconEl("table", ""), h("span", "name", t.tableName),
+                        h("span", "meta", `${t.lakehouse} \u00b7 ${t.deltaTableName}${vpaCache.delta[t.tableName] ? " \u00b7 loaded" : ""}`));
+                    rows.appendChild(row);
+                }
+                d.body.appendChild(rows);
+                const foot = d.box.querySelector(".slls-sx-modal-foot") || h("div", "slls-sx-modal-foot");
+                clear(foot);
+                const go = button("slls-sx-btn primary", `Run on ${plural(picked.size, "table")}`, "delta_stats", () => {
+                    d.close();
+                    runDelta(list.filter((t) => picked.has(t.tableName)), skip);
+                });
+                go.disabled = !picked.size;
+                foot.append(button("slls-sx-btn", "Cancel", "", () => d.close()), go);
+                d.box.appendChild(foot);
+            };
+            paint();
+        }
+        function draw() {
+            const d = vpaCache.data;
+            toolSubtitle(m, `${model.get("dataset_name") || "Model"} \u00b7 Storage statistics from the VertiPaq engine`);
+            clear(m.actions);
+            const rs = switchEl(readStats, "Read statistics from data", () => { readStats = !readStats; load(); }, "Read statistics from data");
+            rs.title = "Get column cardinality and missing rows (referential integrity) by querying the data. Slower.";
+            rs.disabled = loading;
+            m.actions.appendChild(rs);
+            if (deltaTables().length) {
+                const db = button("slls-sx-btn small", delta.running ? `Delta Analyzer ${delta.done}/${delta.total}\u2026` : "Delta Analyzer", "delta_stats",
+                    openDeltaDialog, "Run the Delta Analyzer on the Direct Lake source tables (Spark)");
+                db.disabled = delta.running || loading;
+                m.actions.appendChild(db);
+            }
+            const reload = button("slls-sx-btn small", "Reload", "refresh", load, "Analyze the model again");
+            reload.disabled = loading;
+            if (loading) reload.querySelector("svg").classList.add("slls-sx-spin");
+            m.actions.appendChild(reload);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                if (!d) {
+                    if (error) {
+                        const err = h("div", "slls-sx-dlm-error");
+                        err.append(iconEl("alert", ""), h("div", "", error), button("slls-sx-btn small", "Try again", "refresh", load));
+                        m.body.appendChild(err);
+                    } else {
+                        const box = loadingBox("Analyzing the model with VertiPaq Analyzer\u2026");
+                        box.appendChild(h("div", "slls-sx-dlm-note", "Reading storage statistics over XMLA can take a moment."));
+                        m.body.appendChild(box);
+                    }
+                    return;
+                }
+                if (error) m.body.appendChild(toolNotice(false, error, () => { error = null; draw(); }));
+                if (delta.running) {
+                    m.body.appendChild(toolNotice(true, `Running Delta Analyzer (${delta.done}/${delta.total})\u2026 a cold Spark session can take a few minutes.`,
+                        () => { delta.cancel = true; draw(); }));
+                }
+                if (delta.error) m.body.appendChild(toolNotice(false, delta.error, () => { delta.error = null; draw(); }));
+                const mm = d.model || {};
+                const cards = h("div", "slls-sx-vpa-cards");
+                for (const [label, val] of [["Total Size", fmtBytes(mm["Total Size"])], ["Tables", gridText({ kind: "int" }, mm["Table Count"])],
+                    ["Columns", gridText({ kind: "int" }, mm["Column Count"])], ["Compatibility Level", String(mm["Compatibility Level"] ?? "")],
+                    ["Default Mode", mm["Default Mode"] || "\u2014"]]) {
+                    const c = h("div", "slls-sx-vpa-card");
+                    c.append(h("span", "", label), h("b", "", val || "\u2014"));
+                    cards.appendChild(c);
+                }
+                m.body.appendChild(cards);
+                m.body.appendChild(toolTabs(Object.entries(VPA_SECTIONS).map(([id, s]) => [id, s.label, (d[id] || []).length]), tab, (id) => { tab = id; draw(); }));
+                const extras = [];
+                if (tab === "partitions" && (d.partitions || []).some((p) => p.Mode === "DirectLake")) {
+                    const sd = switchEl(sourceDetails, "Source details", () => { sourceDetails = !sourceDetails; draw(); }, "Source details");
+                    sd.title = "Show the Direct Lake source of each partition";
+                    extras.push(sd);
+                }
+                const pane = h("div", "slls-sx-vpa-pane");
+                m.body.appendChild(pane);
+                dataGrid(pane, { key: "vpa-" + tab, cols: colsOf(tab), rows: rowsOf(tab), state: states[tab], freeze: VPA_SECTIONS[tab].freeze,
+                    placeholder: `Filter ${VPA_SECTIONS[tab].noun === "hierarchy" ? "hierarchies" : VPA_SECTIONS[tab].noun + "s"}\u2026`, extras });
+                const credit = h("div", "slls-sx-vpa-credit");
+                const a = h("a", "slls-sx-link", "SQLBI.com");
+                a.href = "https://www.sqlbi.com/tools/vertipaq-analyzer/"; a.target = "_blank"; a.rel = "noreferrer";
+                credit.append(document.createTextNode("The .vpax format and VertiPaq Analyzer were created by "), a, document.createTextNode("."));
+                m.body.appendChild(credit);
+            });
+        }
+        registerTool(m, draw);
+        draw();
+        if (!vpaCache.data) load();
+    }
+
+    // ------------------------------------------------------------------
+    // Data dictionary (read-only, from the loaded model incl. staged changes)
+    // ------------------------------------------------------------------
+    const yesNo = (v) => (v ? "Yes" : "No");
+    function dictionaryRows() {
+        const tables = savedTables().sort(byLabel);
+        const live = (list) => (list || []).filter((n) => !isDeleted(n));
+        const out = { tables: [], measures: [], calculationItems: [], columns: [], relationships: [], hierarchies: [], roles: [] };
+        for (const t of tables) {
+            const tn = effName(t);
+            const calc = (t.partitions || []).find((p) => p.source_type === "Calculated");
+            out.tables.push({ name: tn, type: TABLE_KIND_LABEL[t.kind] || "Table", hidden: yesNo(isHidden(t)),
+                columns: live(t.columns).length, measures: live(t.measures).length, hierarchies: live(t.hierarchies).length,
+                mode: [...new Set((t.partitions || []).map((p) => p.mode).filter(Boolean))].join(", "),
+                category: value(t, "DataCategory") || "", description: value(t, "Description") || "",
+                expression: calc && t.kind !== "calculation_group" ? value(calc, "Expression") || "" : "" });
+            for (const ms of live(t.measures)) {
+                out.measures.push({ table: tn, name: effName(ms), hidden: yesNo(isHidden(ms)), format: value(ms, "FormatString") || "",
+                    folder: value(ms, "DisplayFolder") || "", description: value(ms, "Description") || "", expression: value(ms, "Expression") || "" });
+            }
+            for (const it of live(t.calculation_items)) {
+                const ord = value(it, "Ordinal");
+                out.calculationItems.push({ table: tn, name: effName(it), ordinal: ord === null || ord === undefined || ord === "" ? null : Number(ord),
+                    formatExpression: value(it, "FormatStringExpression") || "", description: value(it, "Description") || "", expression: value(it, "Expression") || "" });
+            }
+            for (const c of live(t.columns)) {
+                const sortBy = value(c, "SortByColumn");
+                out.columns.push({ table: tn, name: effName(c), dataType: value(c, "DataType") || "", columnType: c.column_type || "",
+                    source: value(c, "SourceColumn") || "", hidden: yesNo(isHidden(c)), key: yesNo(!!value(c, "IsKey")),
+                    format: value(c, "FormatString") || "", folder: value(c, "DisplayFolder") || "",
+                    sortBy: sortBy ? columnDisplayName(t.name, sortBy) : "", summarizeBy: value(c, "SummarizeBy") || "",
+                    category: value(c, "DataCategory") || "", description: value(c, "Description") || "",
+                    expression: c.column_type === "Calculated" ? value(c, "Expression") || "" : "" });
+            }
+            for (const hi of live(t.hierarchies)) {
+                const levels = (hi.levels || []).filter((lv) => !isDeleted(lv));
+                out.hierarchies.push({ table: tn, name: effName(hi), hidden: yesNo(isHidden(hi)), levels: levels.length,
+                    levelNames: levels.map(effName).join(", "), folder: value(hi, "DisplayFolder") || "", description: value(hi, "Description") || "" });
+            }
+        }
+        for (const r of live(data.relationships)) {
+            const from = value(r, "FromCardinality") || "Many", to = value(r, "ToCardinality") || "One";
+            out.relationships.push({ fromTable: tableDisplayName(r.from_table), fromColumn: columnDisplayName(r.from_table, value(r, "FromColumn") || r.from_column),
+                toTable: tableDisplayName(r.to_table), toColumn: columnDisplayName(r.to_table, value(r, "ToColumn") || r.to_column),
+                active: yesNo(!!value(r, "IsActive")), crossFilter: value(r, "CrossFilteringBehavior") || "", cardinality: `${from} \u2192 ${to}` });
+        }
+        for (const r of live(data.roles).sort(byLabel)) {
+            const members = jsonValue(r, "Members", []);
+            out.roles.push({ key: r.key, name: effName(r), permission: value(r, "ModelPermission") || "", members: members.length,
+                memberNames: members.join(", "), description: value(r, "Description") || "", node: r });
+        }
+        return out;
+    }
+    const DD_SECTIONS = [
+        ["tables", "Tables", "tables", [["name", "Name", "text", 180], ["type", "Type", "text", 130], ["hidden", "Hidden", "text", 80], ["columns", "Columns", "int", 90],
+            ["measures", "Measures", "int", 90], ["hierarchies", "Hierarchies", "int", 100], ["mode", "Storage mode", "text", 130], ["category", "Data category", "text", 120],
+            ["description", "Description", "text", 260], ["expression", "Expression", "dax", 320]]],
+        ["measures", "Measures", "measures", [["table", "Table", "text", 150], ["name", "Name", "text", 180], ["hidden", "Hidden", "text", 80], ["format", "Format string", "text", 140],
+            ["folder", "Display folder", "text", 140], ["description", "Description", "text", 260], ["expression", "Expression", "dax", 360]]],
+        ["calculationItems", "Calculation items", "calculation items", [["table", "Table", "text", 150], ["name", "Name", "text", 180], ["ordinal", "Ordinal", "int", 80],
+            ["formatExpression", "Format string expression", "dax", 220], ["description", "Description", "text", 240], ["expression", "Expression", "dax", 340]]],
+        ["columns", "Columns", "columns", [["table", "Table", "text", 150], ["name", "Name", "text", 170], ["dataType", "Data type", "text", 100], ["columnType", "Column type", "text", 110],
+            ["source", "Source column", "text", 150], ["hidden", "Hidden", "text", 80], ["key", "Key", "text", 70], ["format", "Format string", "text", 130],
+            ["folder", "Display folder", "text", 140], ["sortBy", "Sort by column", "text", 140], ["summarizeBy", "Summarize by", "text", 110],
+            ["category", "Data category", "text", 120], ["description", "Description", "text", 240], ["expression", "Expression", "dax", 300]]],
+        ["relationships", "Relationships", "relationships", [["fromTable", "From table", "text", 150], ["fromColumn", "From column", "text", 150], ["toTable", "To table", "text", 150],
+            ["toColumn", "To column", "text", 150], ["active", "Active", "text", 80], ["crossFilter", "Cross filter", "text", 130], ["cardinality", "Cardinality", "text", 130]]],
+        ["hierarchies", "Hierarchies", "hierarchies", [["table", "Table", "text", 150], ["name", "Name", "text", 170], ["hidden", "Hidden", "text", 80], ["levels", "Levels", "int", 80],
+            ["levelNames", "Level names", "text", 260], ["folder", "Display folder", "text", 140], ["description", "Description", "text", 240]]],
+        ["roles", "Roles", "roles", [["name", "Name", "text", 180], ["permission", "Model permission", "text", 140], ["members", "Members", "int", 90],
+            ["memberNames", "Member names", "text", 300], ["description", "Description", "text", 260]]],
+    ];
+    function roleSecurityDetail(row) {
+        const r = row.node;
+        const wrap = h("div", "slls-sx-dd-detail");
+        const filters = Object.entries(jsonValue(r, "RlsFilters", {})).filter(([, f]) => f !== null && String(f).trim());
+        const ols = jsonValue(r, "Ols", []);
+        const section = (title, headers, rows, empty) => {
+            const box = h("div", "");
+            box.appendChild(h("div", "slls-sx-section-title", title));
+            if (!rows.length) { box.appendChild(h("div", "slls-sx-kv-empty", empty)); return box; }
+            const tbl = h("table", "slls-sx-grid");
+            const hr = h("tr", "");
+            for (const x of headers) hr.appendChild(h("th", "", x));
+            const thd = h("thead", ""); thd.appendChild(hr);
+            const tb = h("tbody", "");
+            for (const cells of rows) {
+                const tr = h("tr", "");
+                for (const c of cells) { const td = h("td", ""); if (c instanceof Node) td.appendChild(c); else td.textContent = c; tr.appendChild(td); }
+                tb.appendChild(tr);
+            }
+            tbl.append(thd, tb);
+            box.appendChild(tbl);
+            return box;
+        };
+        const dax = (text) => { const c = h("code", "slls-sx-grid-dax"); c.innerHTML = highlight(String(text), "dax"); return c; };
+        wrap.appendChild(section(`Row-level security (${filters.length})`, ["Table", "Filter"],
+            filters.sort(([a], [b]) => cmpText(a, b)).map(([t, f]) => [tableDisplayName(t), dax(f)]), "No table filters."));
+        const byTable = ols.filter((o) => !o.column), byColumn = ols.filter((o) => o.column);
+        const olsBox = h("div", "");
+        olsBox.appendChild(h("div", "slls-sx-section-title", `Object-level security (${ols.length})`));
+        if (!ols.length) olsBox.appendChild(h("div", "slls-sx-kv-empty", "No secured objects."));
+        else {
+            olsBox.appendChild(section(`By table (${byTable.length})`, ["Table", "Permission"], byTable.map((o) => [tableDisplayName(o.table), o.permission]), "No table-level security."));
+            olsBox.appendChild(section(`By column (${byColumn.length})`, ["Table", "Column", "Permission"],
+                byColumn.map((o) => [tableDisplayName(o.table), columnDisplayName(o.table, o.column), o.permission]), "No column-level security."));
+        }
+        wrap.appendChild(olsBox);
+        return wrap;
+    }
+    function openDataDictionary() {
+        const m = toolWindow("Data dictionary", "book");
+        let tab = "tables";
+        const states = {};
+        for (const [id] of DD_SECTIONS) states[id] = gridState("", "asc");
+        function draw() {
+            toolSubtitle(m, `${model.get("dataset_name") || "Model"}${model.get("workspace_name") ? " \u00b7 " + model.get("workspace_name") : ""}`
+                + (pendingCount() ? " \u00b7 includes pending changes" : ""));
+            clear(m.actions);
+            const rows = dictionaryRows();
+            keepScroll(m.body, () => {
+                clear(m.body);
+                m.body.appendChild(toolTabs(DD_SECTIONS.map(([id, label]) => [id, label, rows[id].length]), tab, (id) => { tab = id; draw(); }));
+                const [, , noun, spec] = DD_SECTIONS.find(([id]) => id === tab);
+                const pane = h("div", "slls-sx-vpa-pane");
+                m.body.appendChild(pane);
+                dataGrid(pane, { key: "dd-" + tab, rows: rows[tab], state: states[tab], placeholder: "Filter\u2026", blank: "\u2014",
+                    cols: spec.map(([key, label, kind, width]) => ({ key, label, kind, width })),
+                    empty: `This model has no ${noun}.`,
+                    rowKey: tab === "roles" ? (r) => r.key : null, detail: tab === "roles" ? roleSecurityDetail : null });
+            });
+        }
+        registerTool(m, draw);
+        draw();
+    }
+
+    // ------------------------------------------------------------------
+    // Backup / copy / restore (.abf files in the workspaces' storage account)
+    // ------------------------------------------------------------------
+    function openBackupRestore() {
+        const m = toolWindow("Backup / Copy / Restore", "database_backup");
+        const curWs = model.get("active_workspace_id") || "", curDs = model.get("active_dataset_id") || "";
+        const curName = model.get("dataset_name") || "";
+        let tab = "backup", busy = "", notice = null;
+        let workspaces = null;
+        const models = {};
+        let account = "", accountDetected = false;
+        const b = { ws: curWs, ds: curDs, file: curName, password: "", overwrite: true, compress: true };
+        const r = { srcWs: "", file: "", tgtWs: curWs, name: curName, password: "", overwrite: true, ignore: true, force: false };
+        const files = {};
+        const loadingFiles = new Set();
+        const br = { dual: false, left: curWs, right: "", selected: { left: new Set(), right: new Set() } };
+        const wsName = (id) => ((workspaces || []).find((w) => w.id === id) || {}).name || id;
+        const say = (ok, text) => { notice = { ok, text }; };
+        const filesKey = (ws) => `${account.trim().toLowerCase()}|${ws}`;
+        function loadModels(ws) {
+            if (!ws || models[ws]) return;
+            models[ws] = "loading";
+            request("backup_models", { workspace_id: ws }, (res) => {
+                models[ws] = res.ok ? (res.data.items || []) : [];
+                if (!res.ok) say(false, res.error || "Failed to load semantic models.");
+                if (b.ws === ws && !models[ws].some((x) => x.id === b.ds)) b.ds = (models[ws][0] || {}).id || "";
+                if (m.overlay.isConnected) draw();
+            });
+        }
+        function loadFiles(ws, silent) {
+            if (!ws || !account.trim()) return;
+            const key = filesKey(ws);
+            loadingFiles.add(key);
+            if (!silent) draw();
+            request("backup_files", { storage_account: account, workspace_id: ws }, (res) => {
+                loadingFiles.delete(key);
+                if (res.ok) files[key] = res.data.files || [];
+                else { files[key] = files[key] || null; say(false, res.error || "Failed to list backup files."); }
+                if (r.srcWs === ws && files[key] && !files[key].some((f) => f.name === r.file)) r.file = (files[key][0] || {}).name || "";
+                if (m.overlay.isConnected) draw();
+            });
+        }
+        function run(action, payload, label, after) {
+            if (busy) return;
+            busy = label; notice = null;
+            draw();
+            request(action, payload, (res) => {
+                busy = "";
+                if (res.ok) after(res.data); else say(false, res.error || "The operation failed.");
+                if (m.overlay.isConnected) draw();
+            });
+        }
+        // Searchable workspace / model pickers, kept across redraws.
+        const picker = (aria, onChange) => createSearchSelect({ placeholder: "Select a workspace\u2026", searchPlaceholder: "Filter workspaces\u2026",
+            ariaLabel: aria, emptyLabel: "Loading\u2026", onChange: (o) => { onChange(o.value); notice = null; draw(); } });
+        const bWs = picker("Workspace", (v) => { b.ws = v; b.ds = ""; loadModels(v); });
+        const bDs = createSearchSelect({ placeholder: "Select a model\u2026", searchPlaceholder: "Filter semantic models\u2026", ariaLabel: "Semantic model",
+            emptyLabel: "Select a workspace first", onChange: (o) => { b.ds = o.value; draw(); } });
+        const rSrc = picker("Source workspace", (v) => { r.srcWs = v; r.file = ""; if (!files[filesKey(v)]) loadFiles(v); });
+        const rTgt = picker("Target workspace", (v) => { r.tgtWs = v; });
+        const leftWs = picker("Workspace", (v) => { br.left = v; br.selected.left.clear(); });
+        const rightWs = picker("Workspace", (v) => { br.right = v; br.selected.right.clear(); });
+        const wsOptions = () => (workspaces || []).map((w) => ({ value: w.id, label: w.name }));
+        const setWs = (sel, value) => {
+            sel.setOptions(wsOptions(), value);
+            sel.setEmptyLabel(workspaces ? "No workspaces" : "Loading\u2026");
+            sel.setDisabled(!!busy || !workspaces);
+        };
+        const pickField = (label, control) => { const f = h("div", "slls-sx-tool-field"); f.append(h("span", "", label), control); return f; };
+        const textField = (label, val, onInput, opts) => {
+            const o = opts || {};
+            const input = h("input", "slls-sx-input");
+            input.type = o.password ? "password" : "text";
+            if (o.password) input.autocomplete = "new-password";
+            input.value = val;
+            input.placeholder = o.placeholder || "";
+            input.disabled = !!busy;
+            input.setAttribute("aria-label", label);
+            input.addEventListener("input", () => onInput(input.value));
+            if (o.suffix) {
+                const row = h("div", "slls-sx-vpax-name");
+                row.append(input, h("span", "ext", o.suffix));
+                return field(label, row);
+            }
+            return field(label, input);
+        };
+        const check = (label, on, onChange) => {
+            const lab = h("label", "slls-sx-warm-deps");
+            const cb = h("input", "slls-sx-tool-check");
+            cb.type = "checkbox";
+            cb.checked = on;
+            cb.disabled = !!busy;
+            cb.addEventListener("change", () => onChange(cb.checked));
+            lab.append(cb, document.createTextNode(label));
+            return lab;
+        };
+        const actionBtn = (label, busyLabel, icon, onClick, enabled) => {
+            const btn = button("slls-sx-btn primary", busy === busyLabel ? busyLabel : label, busy === busyLabel ? "refresh" : icon, onClick);
+            if (busy === busyLabel) btn.querySelector("svg").classList.add("slls-sx-spin");
+            btn.disabled = !!busy || !enabled;
+            return btn;
+        };
+        const accountField = () => {
+            const f = textField("Storage account", account, (v) => { account = v; accountDetected = false; }, { placeholder: "mystorageaccount" });
+            if (accountDetected) f.appendChild(h("span", "slls-sx-dlm-note", "The storage account connected to this workspace."));
+            return f;
+        };
+        function drawBackup(body) {
+            body.appendChild(h("p", "slls-sx-dlm-text", "Saves the model to the power-bi-backup folder of the storage account connected to its workspace."));
+            setWs(bWs, b.ws);
+            const list = models[b.ws];
+            bDs.setOptions((Array.isArray(list) ? list : []).map((x) => ({ value: x.id, label: x.name })), b.ds);
+            bDs.setEmptyLabel(!b.ws ? "Select a workspace first" : list === "loading" || !list ? "Loading\u2026" : "No semantic models in this workspace");
+            bDs.setDisabled(!!busy || !Array.isArray(list) || !list.length);
+            const fields = h("div", "slls-sx-vpax-fields");
+            fields.append(pickField("Workspace", bWs.el), pickField("Semantic model", bDs.el),
+                textField("Backup file name", b.file, (v) => { b.file = v; go.disabled = !!busy || !ready(); }, { placeholder: "MyModel or MyFolder/MyModel", suffix: ".abf" }),
+                textField("Password (optional)", b.password, (v) => { b.password = v; }, { password: true, placeholder: "Encrypt the backup file" }));
+            body.appendChild(fields);
+            const opts = h("div", "slls-sx-vpax-opts");
+            opts.append(check("Allow overwrite of an existing backup file", b.overwrite, (v) => { b.overwrite = v; }),
+                check("Compress the backup file", b.compress, (v) => { b.compress = v; }));
+            body.appendChild(opts);
+            const ready = () => !!b.ws && !!b.ds && !!b.file.trim().replace(/\.abf$/i, "").trim();
+            const go = actionBtn("Back up", "Backing up\u2026", "hard_drive_upload", () => run("backup_model", { workspace_id: b.ws, dataset_id: b.ds, file: b.file,
+                password: b.password.trim(), allow_overwrite: b.overwrite, apply_compression: b.compress }, "Backing up\u2026", (d) => {
+                say(true, d.message);
+                delete files[filesKey(b.ws)];
+            }), ready());
+            const foot = h("div", "slls-sx-bk-actions");
+            foot.appendChild(go);
+            body.appendChild(foot);
+        }
+        function drawRestore(body) {
+            body.appendChild(h("p", "slls-sx-dlm-text", "Restores a .abf backup into a workspace. When the target workspace differs from the source, the file is copied across first."));
+            const fields = h("div", "slls-sx-vpax-fields");
+            fields.appendChild(accountField());
+            setWs(rSrc, r.srcWs);
+            fields.appendChild(pickField("Source workspace", rSrc.el));
+            const key = filesKey(r.srcWs);
+            const list = files[key];
+            const fileSel = h("select", "slls-sx-select");
+            fileSel.setAttribute("aria-label", "Backup file");
+            const placeholder = !account.trim() ? "Enter a storage account first" : !r.srcWs ? "Select a workspace first"
+                : loadingFiles.has(key) ? "Loading\u2026" : !list ? "Refresh to list backup files" : !list.length ? "No backup files found" : "";
+            if (placeholder) fileSel.appendChild(new Option(placeholder, ""));
+            for (const f of list || []) fileSel.appendChild(new Option(`${f.name} (${fmtBytes(f.size)})`, f.name));
+            fileSel.value = r.file;
+            fileSel.disabled = !!busy || !(list || []).length;
+            fileSel.addEventListener("change", () => { r.file = fileSel.value; draw(); });
+            const refresh = button("slls-sx-iconbtn", "", "refresh", () => loadFiles(r.srcWs), "Refresh backup files");
+            refresh.disabled = !!busy || !account.trim() || !r.srcWs || loadingFiles.has(key);
+            if (loadingFiles.has(key)) refresh.querySelector("svg").classList.add("slls-sx-spin");
+            const fileRow = h("div", "slls-sx-bk-filerow");
+            fileRow.append(fileSel, refresh);
+            fields.appendChild(pickField("Backup file", fileRow));
+            setWs(rTgt, r.tgtWs);
+            fields.append(pickField("Target workspace", rTgt.el),
+                textField("Restore as model", r.name, (v) => { r.name = v; go.disabled = !!busy || !ready(); }, { placeholder: "Target semantic model name" }),
+                textField("Password (optional)", r.password, (v) => { r.password = v; }, { password: true, placeholder: "Decrypt an encrypted backup file" }));
+            body.appendChild(fields);
+            const opts = h("div", "slls-sx-vpax-opts");
+            opts.append(check("Allow overwrite of an existing model", r.overwrite, (v) => { r.overwrite = v; }),
+                check("Ignore incompatibilities", r.ignore, (v) => { r.ignore = v; }),
+                check("Force restore (unload the existing model)", r.force, (v) => { r.force = v; }));
+            body.appendChild(opts);
+            const ready = () => !!account.trim() && !!r.srcWs && !!r.tgtWs && !!r.file && !!r.name.trim();
+            const go = actionBtn("Restore", "Restoring\u2026", "archive_restore", () => {
+                const target = r.name.trim();
+                const doRestore = () => run("restore_model", { storage_account: account, source_workspace_id: r.srcWs, target_workspace_id: r.tgtWs,
+                    file: r.file, dataset: target, password: r.password.trim(), allow_overwrite: r.overwrite, ignore_incompatibilities: r.ignore,
+                    force_restore: r.force }, "Restoring\u2026", (d) => {
+                    say(true, d.message);
+                    delete models[r.tgtWs];
+                    delete files[filesKey(r.tgtWs)];
+                    // Restoring over the open model: read it again (when nothing is pending).
+                    if (r.tgtWs === curWs && target.toLowerCase() === curName.toLowerCase()) {
+                        if (pendingCount()) say(true, `${d.message} Reload the model metadata to see the restored model.`);
+                        else request("reload", {}, (res) => { if (res.ok) { staging = { edits: {}, ops: [], creates: [] }; undoStack = []; redoStack = []; } renderAll(); });
+                    }
+                });
+                if (r.tgtWs === curWs && target.toLowerCase() === curName.toLowerCase()) {
+                    confirmDialog(`Restoring replaces the open semantic model \u2018${curName}\u2019 with the backup${pendingCount() ? "; your pending changes are not saved" : ""}.`, "Restore", doRestore);
+                } else doRestore();
+            }, ready());
+            const foot = h("div", "slls-sx-bk-actions");
+            foot.appendChild(go);
+            body.appendChild(foot);
+        }
+        let dragging = null;
+        function drawPanel(side) {
+            const ws = br[side];
+            const sel = side === "left" ? leftWs : rightWs;
+            setWs(sel, ws);
+            const key = filesKey(ws);
+            const list = files[key];
+            const selected = br.selected[side];
+            const panel = h("div", "slls-sx-bk-panel");
+            const head = h("div", "slls-sx-bk-panel-head");
+            const fetch = button("slls-sx-iconbtn", "", "refresh", () => { selected.clear(); loadFiles(ws); }, "Fetch files for this workspace");
+            fetch.setAttribute("aria-label", "Fetch files");
+            fetch.disabled = !!busy || !account.trim() || !ws || loadingFiles.has(key);
+            if (loadingFiles.has(key)) fetch.querySelector("svg").classList.add("slls-sx-spin");
+            head.append(sel.el, fetch);
+            panel.appendChild(head);
+            const body = h("div", "slls-sx-bk-files");
+            if (!account.trim()) body.appendChild(h("div", "slls-sx-empty", "Enter a storage account to list files."));
+            else if (loadingFiles.has(key)) body.appendChild(h("div", "slls-sx-empty", "Loading\u2026"));
+            else if (!list) body.appendChild(h("div", "slls-sx-empty", "Click Fetch files to list the workspace\u2019s backups."));
+            else if (!list.length) body.appendChild(h("div", "slls-sx-empty", "No backup files."));
+            for (const f of list || []) {
+                const row = h("label", "slls-sx-bk-file");
+                const cb = h("input");
+                cb.type = "checkbox";
+                cb.checked = selected.has(f.name);
+                cb.disabled = !!busy;
+                cb.setAttribute("aria-label", `Select ${f.name}`);
+                cb.addEventListener("change", () => { if (cb.checked) selected.add(f.name); else selected.delete(f.name); draw(); });
+                row.append(cb, iconEl("file", ""), h("span", "name", f.name), h("span", "meta", fmtBytes(f.size)));
+                row.title = `${f.name}${f.modified ? `\nModified ${fmtTime(f.modified)}` : ""}${br.dual ? "\nDrag onto the other workspace to copy it there" : ""}`;
+                if (br.dual && !busy) {
+                    row.draggable = true;
+                    row.addEventListener("dragstart", (ev) => { dragging = { side, ws, file: f.name }; ev.dataTransfer.effectAllowed = "copy"; ev.dataTransfer.setData("text/plain", f.name); });
+                    row.addEventListener("dragend", () => { dragging = null; panel.classList.remove("drop"); });
+                }
+                body.appendChild(row);
+            }
+            if (br.dual) {
+                panel.addEventListener("dragover", (ev) => {
+                    if (!dragging || dragging.ws === ws || !ws) return;
+                    ev.preventDefault();
+                    ev.dataTransfer.dropEffect = "copy";
+                    panel.classList.add("drop");
+                });
+                panel.addEventListener("dragleave", (ev) => { if (!panel.contains(ev.relatedTarget)) panel.classList.remove("drop"); });
+                panel.addEventListener("drop", (ev) => {
+                    ev.preventDefault();
+                    panel.classList.remove("drop");
+                    const from = dragging;
+                    dragging = null;
+                    if (!from || from.ws === ws || !ws) return;
+                    copyFile(from.ws, ws, from.file);
+                });
+            }
+            panel.appendChild(body);
+            const foot = h("div", "slls-sx-bk-panel-foot");
+            foot.appendChild(h("span", "", selected.size ? `${selected.size} selected` : plural((list || []).length, "file")));
+            const del = button("slls-sx-iconbtn danger", "", "trash", () => {
+                const names = [...selected];
+                confirmDialog(`Delete ${plural(names.length, "backup file")} from \u2018${wsName(ws)}\u2019? This can\u2019t be undone.`, "Delete", () => {
+                    run("backup_delete", { storage_account: account, workspace_id: ws, files: names }, "Deleting\u2026", (d) => {
+                        let text = `Deleted ${plural(d.deleted.length, "file")} from '${d.workspace}'.`;
+                        if (d.failed.length) text += ` ${d.failed.length} failed: ${d.failed.map((x) => `${x.file}: ${x.error}`).join("; ")}`;
+                        say(!d.failed.length, text);
+                        selected.clear();
+                        refetch();
+                    });
+                });
+            }, selected.size ? `Delete ${plural(selected.size, "selected file")}` : "Delete selected files");
+            del.setAttribute("aria-label", "Delete selected files");
+            del.disabled = !!busy || !selected.size;
+            foot.appendChild(del);
+            panel.appendChild(foot);
+            return panel;
+        }
+        function refetch() {
+            for (const ws of new Set([br.left, br.dual ? br.right : "", r.srcWs, r.tgtWs])) if (ws && files[filesKey(ws)]) loadFiles(ws, true);
+        }
+        function copyFile(fromWs, toWs, file) {
+            run("backup_copy", { storage_account: account, source_workspace_id: fromWs, target_workspace_id: toWs, file }, "Copying\u2026", (d) => {
+                say(true, d.message);
+                refetch();
+                if (!files[filesKey(toWs)]) loadFiles(toWs, true);
+            });
+        }
+        function drawBrowse(body) {
+            body.appendChild(h("p", "slls-sx-dlm-text", "Select a workspace and click Fetch files to list its backups. Enable a second workspace to copy files "
+                + "between them \u2014 drag a file from one panel onto the other."));
+            const top = h("div", "slls-sx-bk-top");
+            top.appendChild(accountField());
+            const dual = switchEl(br.dual, "Copy between workspaces", () => {
+                br.dual = !br.dual;
+                if (br.dual && !br.right) br.right = ((workspaces || []).find((w) => w.id !== br.left) || {}).id || "";
+                draw();
+            }, "Copy between workspaces");
+            dual.title = "Show a second workspace to copy backup files between workspaces";
+            dual.disabled = !!busy;
+            top.appendChild(dual);
+            body.appendChild(top);
+            const panels = h("div", "slls-sx-bk-panels" + (br.dual ? " dual" : ""));
+            panels.appendChild(drawPanel("left"));
+            if (br.dual) panels.appendChild(drawPanel("right"));
+            body.appendChild(panels);
+            if (busy === "Copying\u2026") body.appendChild(loadingBox("Copying the backup file\u2026"));
+        }
+        function draw() {
+            toolSubtitle(m, "Back up a semantic model to its workspace\u2019s storage account, restore a .abf backup, and copy or delete backup files across workspaces.");
+            clear(m.actions);
+            keepScroll(m.body, () => {
+                clear(m.body);
+                m.body.appendChild(toolTabs([["backup", "Backup", null, "hard_drive_upload"], ["restore", "Restore", null, "hard_drive_download"], ["browse", "Browse files", null, "folder_sync"]],
+                    tab, (id) => { if (!busy) { tab = id; notice = null; draw(); } }));
+                const scroll = h("div", "slls-sx-tool-scroll");
+                scroll.dataset.scroll = "bk-" + tab;
+                const body = h("div", "slls-sx-tool-wrap slls-sx-bk");
+                scroll.appendChild(body);
+                m.body.appendChild(scroll);
+                if (notice) body.appendChild(toolNotice(notice.ok, notice.text, () => { notice = null; draw(); }));
+                if (tab === "backup") drawBackup(body);
+                else if (tab === "restore") drawRestore(body);
+                else drawBrowse(body);
+                // The controls which depend on the storage account update once it is entered (typing keeps focus).
+                for (const input of body.querySelectorAll('input[aria-label="Storage account"]')) input.addEventListener("change", () => draw());
+                body.appendChild(h("p", "slls-sx-dlm-note", "Requires an ADLS Gen2 storage account connected to the workspace, and the "
+                    + "\u2018Storage Blob Data Contributor\u2019 role on it to list, copy or delete files."));
+            });
+        }
+        registerTool(m, draw);
+        draw();
+        request("vpax_workspaces", {}, (res) => {
+            workspaces = res.ok ? (res.data.items || []).slice().sort((x, y) => cmpText(x.name, y.name)) : [];
+            if (!b.ws) b.ws = (workspaces[0] || {}).id || "";
+            if (!br.left) br.left = (workspaces[0] || {}).id || "";
+            loadModels(b.ws);
+            if (m.overlay.isConnected) draw();
+        });
+        request("backup_storage_account", { workspace_id: curWs }, (res) => {
+            if (res.ok && res.data.account && !account) { account = res.data.account; accountDetected = true; }
+            if (m.overlay.isConnected) draw();
+        });
+    }
+
+    // ------------------------------------------------------------------
     // Create .vpax file
     // ------------------------------------------------------------------
     const VPAX_INFO_URL = "https://www.sqlbi.com/tv/inside-a-vpax-file-produced-by-vertipaq-analyzer/";
@@ -13361,7 +14360,8 @@ _EXPLORER_ICON_NAMES = (
     "download", "check_circle", "arrow_left", "network", "key_round", "focus", "lightbulb",
     "snowflake", "languages", "unlink", "arrow_left_right", "cable", "layers", "waves", "git_branch",
     "link", "reset", "user", "sparkles", "flame", "server", "file_box", "chevron_right",
-    "warehouse", "upload",
+    "warehouse", "upload", "vertipaq", "book", "database_zap", "delta_stats", "database_backup",
+    "hard_drive_upload", "hard_drive_download", "folder_sync", "archive_restore",
 )  # fmt: skip
 
 # The DAX Formatter logo mark (https://www.daxformatter.com/), as used by the
@@ -18553,7 +19553,285 @@ _DAXLIB_VERSION_ANNOTATION = "DAXLIB_PackageVersion"
 # DAX user-defined functions require this compatibility level.
 _DAXLIB_MIN_COMPAT = 1702
 _DAXLIB_CACHE_SECONDS = 600
+
+
 # Do not toggle ``busy`` (which locks Save / reload) for tool window lookups.
+# ---------------------------------------------------------------------------
+# VertiPaq Analyzer and backup / copy / restore tools
+# ---------------------------------------------------------------------------
+def _json_records(df) -> List[dict]:
+    """A dataframe's rows as JSON-safe dicts (missing values become None)."""
+
+    import datetime
+    import math
+
+    import pandas as pd
+
+    records = []
+    for row in df.to_dict(orient="records"):
+        clean = {}
+        for key, value in row.items():
+            try:
+                missing = value is None or bool(pd.isna(value))
+            except (TypeError, ValueError):
+                missing = False
+            if missing:
+                clean[key] = None
+                continue
+            if hasattr(value, "item"):
+                value = value.item()
+            if isinstance(value, (datetime.datetime, datetime.date)):
+                value = value.isoformat()
+            elif isinstance(value, float) and not math.isfinite(value):
+                value = None
+            clean[key] = value
+        records.append(clean)
+    return records
+
+
+_VERTIPAQ_SECTIONS = {
+    "model": "Model Summary",
+    "tables": "Tables",
+    "partitions": "Partitions",
+    "columns": "Columns",
+    "relationships": "Relationships",
+    "hierarchies": "Hierarchies",
+}
+
+
+def _vertipaq_state(
+    dataset_id: str, workspace_id: str, read_stats_from_data: bool = False
+) -> dict:
+    """The VertiPaq Analyzer statistics of a model, for the explorer's tool."""
+
+    from sempy_labs.semantic_model._vertipaq_analyzer import (
+        _direct_lake_delta_tables,
+        vertipaq_analyzer,
+    )
+
+    with _QuietTool():
+        dfs = vertipaq_analyzer(
+            dataset=dataset_id,
+            workspace=workspace_id,
+            read_stats_from_data=read_stats_from_data,
+            visualize=False,
+        )
+    state = {
+        key: _json_records(dfs[title]) if title in dfs else []
+        for key, title in _VERTIPAQ_SECTIONS.items()
+    }
+    state["model"] = state["model"][0] if state["model"] else {}
+    # Direct-Lake-over-Lakehouse source tables the Delta Analyzer can run on.
+    state["delta_tables"] = _direct_lake_delta_tables(state["partitions"])
+    state["read_stats_from_data"] = bool(read_stats_from_data)
+    return state
+
+
+def _vertipaq_delta_stats(info: dict, skip_cardinality: bool) -> dict:
+    """Delta Analyzer statistics of one Direct Lake source table."""
+
+    from sempy_labs.semantic_model._vertipaq_analyzer import (
+        _compute_table_delta_stats_raw,
+    )
+
+    with _QuietTool():
+        table, columns = _compute_table_delta_stats_raw(
+            dict(info or {}), skip_cardinality=skip_cardinality
+        )
+    return {"table": table, "columns": columns}
+
+
+_BACKUP_CONTAINER = "power-bi-backup"
+_STORAGE_ACCOUNT_NAME = re.compile(r"^[a-z0-9]{3,24}$")
+
+
+def _storage_account_name(text) -> str:
+    """'acct', 'acct.dfs.core.windows.net' or a URL -> 'acct' (validated)."""
+
+    name = str(text or "").strip().lower()
+    name = re.sub(r"^https?://", "", name).split("/")[0].split(".")[0]
+    if not _STORAGE_ACCOUNT_NAME.match(name):
+        raise ValueError(
+            "Enter the name of the ADLS Gen2 storage account (3-24 lowercase "
+            "letters and digits)."
+        )
+    return name
+
+
+def _backup_file_name(text) -> str:
+    """A backup file name ('MyModel', 'MyFolder/MyModel.abf') -> '... .abf'."""
+
+    name = str(text or "").strip().strip("/")
+    # Existing files keep their name as is (storage paths are case-sensitive).
+    if name.lower().endswith(".abf") and name[:-4].strip():
+        return name
+    if not name or name.lower() == ".abf":
+        raise ValueError("Enter a backup file name.")
+    return f"{name}.abf"
+
+
+def _storage_error(error: Exception, account: str) -> Exception:
+    """A friendlier error for denied storage requests."""
+
+    text = str(error)
+    status = getattr(error, "status_code", None)
+    if status == 403 or "AuthorizationPermissionMismatch" in text:
+        return ValueError(
+            f"Access to storage account '{account}' was denied (403). Your account "
+            "needs the 'Storage Blob Data Reader' role (use 'Storage Blob Data "
+            "Contributor' to copy / delete) on the storage account. Assign it in "
+            "Azure Portal > the storage account > Access control (IAM) > Add role "
+            "assignment, then retry."
+        )
+    return error
+
+
+def _backup_files(storage_account: str, workspace_id: str) -> List[dict]:
+    """The .abf files in a workspace's folder of the backup container."""
+
+    from sempy_labs._helper_functions import (
+        _get_adls_client,
+        resolve_workspace_name_and_id,
+    )
+
+    account = _storage_account_name(storage_account)
+    workspace_name, _ = resolve_workspace_name_and_id(workspace_id)
+    folder = str(workspace_name)
+    fs = _get_adls_client(account).get_file_system_client(_BACKUP_CONTAINER)
+    try:
+        paths = list(fs.get_paths(path=folder, recursive=True))
+    except Exception as e:
+        if getattr(e, "status_code", None) == 404 or "PathNotFound" in str(e):
+            return []
+        raise _storage_error(e, account) from e
+    files = []
+    for path in paths:
+        name = str(path.name)
+        if getattr(path, "is_directory", False) or not name.lower().endswith(".abf"):
+            continue
+        modified = getattr(path, "last_modified", None)
+        files.append(
+            {
+                "name": (
+                    name[len(folder) + 1 :] if name.startswith(folder + "/") else name
+                ),
+                "size": int(getattr(path, "content_length", 0) or 0),
+                "modified": (
+                    modified.isoformat() if hasattr(modified, "isoformat") else ""
+                ),
+            }
+        )
+    return sorted(files, key=lambda f: f["name"].lower())
+
+
+def _copy_backup_file(
+    storage_account: str, source_workspace_id: str, target_workspace_id: str, file: str
+) -> str:
+    """Copies a backup file to another workspace's folder; returns a message."""
+
+    from sempy_labs._clear_cache import copy_semantic_model_backup_file
+    from sempy_labs._helper_functions import resolve_workspace_name_and_id
+
+    account = _storage_account_name(storage_account)
+    file = _backup_file_name(file)
+    source, _ = resolve_workspace_name_and_id(source_workspace_id)
+    target, _ = resolve_workspace_name_and_id(target_workspace_id)
+    if source == target:
+        raise ValueError(
+            "The source and target are identical - choose a different target "
+            "workspace or file name."
+        )
+    try:
+        with _QuietTool():
+            copy_semantic_model_backup_file(
+                source_workspace=source,
+                target_workspace=target,
+                source_file_name=file,
+                target_file_name=file,
+                storage_account=account,
+            )
+    except Exception as e:
+        raise _storage_error(e, account) from e
+    return f"Copied '{file}' from '{source}' to '{target}/{file}'."
+
+
+def _delete_backup_files(storage_account: str, workspace_id: str, files) -> dict:
+    """Deletes backup files from a workspace's folder (each one on its own)."""
+
+    from sempy_labs._helper_functions import (
+        _get_adls_client,
+        resolve_workspace_name_and_id,
+    )
+
+    account = _storage_account_name(storage_account)
+    workspace_name, _ = resolve_workspace_name_and_id(workspace_id)
+    fs = _get_adls_client(account).get_file_system_client(_BACKUP_CONTAINER)
+    deleted, failed = [], []
+    for file in files or []:
+        try:
+            fs.get_file_client(
+                f"/{workspace_name}/{_backup_file_name(file)}"
+            ).delete_file()
+            deleted.append(file)
+        except Exception as e:
+            failed.append({"file": file, "error": str(_storage_error(e, account))})
+    return {"deleted": deleted, "failed": failed, "workspace": str(workspace_name)}
+
+
+def _backup_model(data: dict) -> str:
+    from sempy_labs._clear_cache import backup_semantic_model
+    from sempy_labs._helper_functions import resolve_dataset_name_and_id
+
+    workspace_id = str(data.get("workspace_id") or "")
+    dataset_id = str(data.get("dataset_id") or "")
+    if not workspace_id or not dataset_id:
+        raise ValueError("Select a workspace and a semantic model.")
+    file = _backup_file_name(data.get("file"))
+    dataset_name, _ = resolve_dataset_name_and_id(dataset_id, workspace_id)
+    with _QuietTool():
+        backup_semantic_model(
+            dataset=dataset_id,
+            file_path=file,
+            allow_overwrite=bool(data.get("allow_overwrite", True)),
+            apply_compression=bool(data.get("apply_compression", True)),
+            workspace=workspace_id,
+            password=str(data.get("password") or "") or None,
+        )
+    return f"Backed up '{dataset_name}' to '{file}'."
+
+
+def _restore_model(data: dict) -> dict:
+    """Restores a backup file as a model; copies it across workspaces first."""
+
+    from sempy_labs._clear_cache import restore_semantic_model
+
+    source_id = str(data.get("source_workspace_id") or "")
+    target_id = str(data.get("target_workspace_id") or "")
+    name = str(data.get("dataset") or "").strip()
+    if not source_id or not target_id:
+        raise ValueError("Select the source and target workspaces.")
+    if not name:
+        raise ValueError("Enter the name of the semantic model to restore.")
+    file = _backup_file_name(data.get("file"))
+    messages = []
+    if source_id != target_id:
+        messages.append(
+            _copy_backup_file(data.get("storage_account"), source_id, target_id, file)
+        )
+    with _QuietTool():
+        restore_semantic_model(
+            dataset=name,
+            file_path=file,
+            allow_overwrite=bool(data.get("allow_overwrite", True)),
+            ignore_incompatibilities=bool(data.get("ignore_incompatibilities", True)),
+            force_restore=bool(data.get("force_restore")),
+            workspace=target_id,
+            password=str(data.get("password") or "") or None,
+        )
+    messages.append(f"Restored '{name}' from '{file}'.")
+    return {"message": " ".join(messages), "dataset": name, "workspace_id": target_id}
+
+
 _BACKGROUND_ACTIONS = (
     "daxlib_catalog",
     "daxlib_package",
@@ -18576,6 +19854,15 @@ _BACKGROUND_ACTIONS = (
     "dl_source_expression",
     "dl_sync_columns",
     "check_errors",
+    "vertipaq",
+    "vertipaq_delta",
+    "backup_models",
+    "backup_storage_account",
+    "backup_files",
+    "backup_model",
+    "backup_copy",
+    "backup_delete",
+    "restore_model",
 )
 _daxlib_cache: Dict[object, Tuple[float, object]] = {}
 
@@ -18909,6 +20196,15 @@ def semantic_explorer(
     table, column or measure automatically updates the DAX expressions which
     reference it. Changes are staged locally (with undo / redo and a change
     history) and are only written to the semantic model on Save.
+
+    The Tools menu's VertiPaq Analyzer shows the model's storage statistics
+    (from :func:`sempy_labs.vertipaq_analyzer`) in sortable, filterable tabs
+    with data bars and, for Direct Lake over lakehouse models, can merge in
+    Delta Analyzer statistics. The Data dictionary lists the model's tables,
+    measures, calculation items, columns, relationships, hierarchies and roles.
+    Backup, copy, restore backs a model up to the ADLS Gen2 storage account
+    connected to its workspace, restores a .abf backup (copying it across
+    workspaces first when needed), and lists, copies and deletes backup files.
 
     The Tools menu's Refresh manager opens in a sidebar on the right (which can
     be collapsed, expanded, resized and closed) to refresh the model, or
@@ -19633,6 +20929,52 @@ def semantic_explorer(
                 ) as tom:
                     text, language = _object_tmdl(tom.model, data.get("target") or {})
                 _reply(data, True, {"text": text, "language": language})
+            elif action == "vertipaq":
+                state = _vertipaq_state(
+                    ctx["dataset_id"],
+                    ctx["workspace_id"],
+                    bool(data.get("read_stats_from_data")),
+                )
+                _reply(data, True, state)
+            elif action == "vertipaq_delta":
+                stats = _vertipaq_delta_stats(
+                    data.get("table") or {}, bool(data.get("skip_cardinality"))
+                )
+                _reply(data, True, stats)
+            elif action == "backup_models":
+                target = str(data.get("workspace_id") or "")
+                _reply(data, True, {"items": list_picker_datasets(target)})
+            elif action == "backup_storage_account":
+                from sempy_labs._clear_cache import _workspace_storage_account
+
+                account = _workspace_storage_account(
+                    str(data.get("workspace_id") or ctx["workspace_id"])
+                )
+                _reply(data, True, {"account": account})
+            elif action == "backup_files":
+                files = _backup_files(
+                    data.get("storage_account"), str(data.get("workspace_id") or "")
+                )
+                _reply(data, True, {"files": files})
+            elif action == "backup_model":
+                _reply(data, True, {"message": _backup_model(data)})
+            elif action == "backup_copy":
+                message = _copy_backup_file(
+                    data.get("storage_account"),
+                    str(data.get("source_workspace_id") or ""),
+                    str(data.get("target_workspace_id") or ""),
+                    data.get("file"),
+                )
+                _reply(data, True, {"message": message})
+            elif action == "backup_delete":
+                result = _delete_backup_files(
+                    data.get("storage_account"),
+                    str(data.get("workspace_id") or ""),
+                    list(data.get("files") or []),
+                )
+                _reply(data, True, result)
+            elif action == "restore_model":
+                _reply(data, True, _restore_model(data))
             elif action == "check_errors":
                 with connect_semantic_model(
                     dataset=ctx["dataset_id"],
