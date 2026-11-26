@@ -10162,6 +10162,13 @@ function render({ model, el }) {
                 return selectEl(OLS_PERMISSIONS, cur, (v) => setOls(r, table, column, v), label);
             };
             function paint() {
+                // Emptying the list collapses the scroll area for a moment, which
+                // resets its scroll position: keep it (e.g. expanding a table).
+                const scroller = listEl.closest("[data-scroll]");
+                const top = scroller ? scroller.scrollTop : 0;
+                try { paintList(); } finally { if (scroller) scroller.scrollTop = top; }
+            }
+            function paintList() {
                 clear(listEl);
                 const current = olsMap(ols(r));
                 const base = olsMap(JSON.parse(originalValue(r, "Ols") || "[]"));
