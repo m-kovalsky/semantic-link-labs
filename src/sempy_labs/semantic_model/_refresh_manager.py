@@ -201,6 +201,14 @@ _WIDGET_CSS = """
 .slls-rm-detail-section .slls-rm-data td { height:46px; }
 .slls-rm-detail-error { color:var(--rm-danger);max-width:300px;overflow:hidden;text-overflow:ellipsis; }
 .slls-rm-attribution { padding-top:15px; }
+.slls-rm.slls-rm-embedded { max-width:none;min-height:0;margin:0;border:0;border-radius:0;box-shadow:none;background:transparent; }
+.slls-rm-embedded .slls-rm-body { padding:12px; }
+.slls-rm-embedded .slls-rm-grid { grid-template-columns:minmax(0,1fr); }
+.slls-rm-embedded .slls-rm-wide { grid-column:auto; }
+.slls-rm-embedded .slls-rm-tree { height:260px; }
+.slls-rm-embedded .slls-rm-schedule-grid { grid-template-columns:minmax(0,1fr); }
+.slls-rm-embedded .slls-rm-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.slls-rm-embedded .slls-rm-attribution { display:none; }
 .slls-rm .slls-rm-attribution .sl-attribution { margin:0;padding:0; }
 @media (max-width:800px) { .slls-rm-grid { grid-template-columns:1fr; } .slls-rm-wide { grid-column:auto; } .slls-rm-tree { height:300px; } .slls-rm-schedule-grid { grid-template-columns:1fr; } .slls-rm-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:640px) { .slls-rm-picker-grid { align-items:stretch;flex-direction:column; } }
@@ -214,6 +222,8 @@ _WIDGET_CSS += _ui_scoped_attribution_css(".slls-rm")
 _WIDGET_JS = r"""
 function render({ model, el }) {
     const root = document.createElement("div"); root.className = "slls-rm"; el.appendChild(root);
+    // Embedded in another tool (e.g. the semantic model editor's sidebar): the host shows the header.
+    const embedded=!!model.get("embedded");if(embedded)root.classList.add("slls-rm-embedded");
     const I={refresh:`__I_REFRESH__`,sun:`__I_SUN__`,moon:`__I_MOON__`,search:`__I_SEARCH__`,caret:`__I_CARET__`,table:`__I_TABLE__`,calculatedTable:`__I_CALCULATED_TABLE__`,calculationGroup:`__I_CALCULATION_GROUP__`,fieldParameter:`__I_FIELD_PARAMETER__`,partition:`__I_PARTITION__`,history:`__I_HISTORY__`,calendar:`__I_CALENDAR__`,close:`__I_CLOSE__`,check:`__I_CHECK__`,save:`__I_SAVE__`,plus:`__I_PLUS__`,fullscreen:`__I_FULLSCREEN__`,fullscreenExit:`__I_FULLSCREEN_EXIT__`,swap:`__I_SWAP__`,expandRows:`__I_EXPAND_ROWS__`,collapseRows:`__I_COLLAPSE_ROWS__`};
     const hints={Full:"Reload and recalculate data for the selected objects.",Automatic:"Let the engine decide what needs processing.",Calculate:"Recalculate formulas, hierarchies and relationships only.",DataOnly:"Reload data without recalculating dependents.",ClearValues:"Flush data from the selected objects.",Defragment:"Defragment table data while keeping it available."};
     const weekdays=[["Monday","Mon"],["Tuesday","Tue"],["Wednesday","Wed"],["Thursday","Thu"],["Friday","Fri"],["Saturday","Sat"],["Sunday","Sun"]];
@@ -263,8 +273,8 @@ function render({ model, el }) {
     function detailError(value){if(!value)return"—";try{const parsed=typeof value==="string"?JSON.parse(value):value;return parsed.errorDescription||parsed.errorCode||parsed.message||"—";}catch(_error){return String(value);}}
     function detail(){const d=model.get("detail")||{},attempts=d.refreshAttempts||[],targets=d.objects||[],fields=[["Current type",d.currentRefreshType||d.type||d.refreshType],["Commit mode",d.commitMode],["Initiated by",d.initiatedBy],["Attempts",d.numberOfAttempts??attempts.length],["Start",date(d.startTime)],["End",d.endTime?date(d.endTime):"-"],["Duration",duration(d.startTime,d.endTime)||"-"]];const attemptRows=attempts.map((a,index)=>`<tr><td>${esc(a.attemptId??index+1)}</td><td>${esc(a.type||"-")}</td><td>${esc(date(a.startTime))}</td><td>${esc(a.endTime?date(a.endTime):"-")}</td><td>${esc(duration(a.startTime,a.endTime)||"-")}</td><td class="slls-rm-detail-error" title="${esc(detailError(a.serviceExceptionJson))}">${esc(detailError(a.serviceExceptionJson))}</td></tr>`).join("");const objectRows=targets.map(o=>`<tr><td>${esc(o.table||"-")}</td><td>${esc(o.partition||"-")}</td><td>${esc(o.status||"-")}</td></tr>`).join("");return`<div class="slls-rm-overlay ${s.detail?"show":""}"><div class="slls-rm-modal"><div class="slls-rm-modal-head"><div><h2>Refresh details</h2><code>${esc(d.requestId||"Loading...")}</code></div><button class="slls-rm-iconbtn" data-close-detail title="Close refresh details" aria-label="Close refresh details">${I.close}</button></div><div class="slls-rm-modal-body">${d.requestId?`<div class="slls-rm-summary">${fields.map(([label,value])=>`<div><span>${label}</span><b>${esc(value??"-")}</b></div>`).join("")}</div><section class="slls-rm-detail-section"><div class="slls-rm-detail-title">Attempts</div>${attemptRows?`<div class="slls-rm-tablewrap"><table class="slls-rm-data"><thead><tr><th>#</th><th>Type</th><th>Start</th><th>End</th><th>Duration</th><th>Error</th></tr></thead><tbody>${attemptRows}</tbody></table></div>`:`<div class="slls-rm-empty">No attempt details are available.</div>`}</section><section class="slls-rm-detail-section"><div class="slls-rm-detail-title">Objects</div>${objectRows?`<div class="slls-rm-tablewrap"><table class="slls-rm-data"><thead><tr><th>Table</th><th>Partition</th><th>Status</th></tr></thead><tbody>${objectRows}</tbody></table></div>`:`<div class="slls-rm-empty">No object details are available.</div>`}</section>`:`<div class="slls-rm-empty">Loading refresh details...</div>`}</div></div></div>`;}
     function picker(){if(!s.pickWs)s.pickWs=model.get("workspace_id")||"";const connected=!!model.get("connected"),loading=pickerBusy(),error=s.pickerError?model.get("picker_error"):"",note=error?`<span class="slls-rm-picker-note error" role="alert">${esc(error)}</span>`:"";return`<div class="slls-rm-picker-wrap"><div class="slls-rm-picker"><div class="slls-rm-picker-top"><div class="slls-rm-picker-head"><div class="slls-rm-picker-title">Connect to a semantic model</div><div class="slls-rm-picker-sub">Select a workspace and semantic model to begin.</div></div><button class="sl-reload-btn${loading?" sl-spinning":""}" data-picker-reload type="button" title="Reload workspaces and semantic models" aria-label="Reload workspaces and semantic models" ${loading||s.connecting?"disabled":""}>${I.refresh}</button></div><div class="slls-rm-picker-grid"><div class="slls-rm-field"><label>Workspace</label><div data-picker-ws></div></div><div class="slls-rm-field"><label>Semantic model</label><div data-picker-ds></div></div></div><div class="slls-rm-picker-actions">${note}${connected?`<button class="slls-rm-btn" data-picker-close ${s.connecting?"disabled":""}>Cancel</button>`:""}<button class="slls-rm-btn primary slls-rm-picker-connect" data-picker-connect ${!s.pickDs||loading?"disabled":""}>Connect</button></div></div></div>`;}
-    function header(){const connected=!!model.get("connected")||s.connecting,picking=!connected||s.pickerOpen,names=s.connecting&&s.pendingModel?s.pendingModel:{dataset_name:model.get("dataset_name"),workspace_name:model.get("workspace_name")},subtitle=connected?`${esc(names.dataset_name)} &middot; ${esc(names.workspace_name)}`:"Choose a workspace and semantic model",fullscreenLabel=fsMode?"Exit full screen":"Full screen";return`<header class="slls-rm-header"><span class="slls-rm-mark">${I.refresh}</span><div class="slls-rm-heading"><div class="slls-rm-title-row"><h1 class="slls-rm-title">Refresh Manager</h1>${connected&&!picking?`<button class="sl-change-btn" data-change-model title="Change semantic model / workspace" aria-label="Change semantic model / workspace" ${refreshing()||s.connecting?"disabled":""}>${I.swap}</button>`:""}</div><div class="slls-rm-subtitle">${subtitle}</div></div><button class="sl-theme-btn" data-fullscreen title="${fullscreenLabel}" aria-label="${fullscreenLabel}">${fsMode?I.fullscreenExit:I.fullscreen}</button><button class="sl-theme-btn" data-theme title="Toggle theme">${model.get("dark_mode")?I.sun:I.moon}</button></header>`;}
-    function bindHeader(){root.querySelector("[data-theme]").onclick=()=>{model.set("dark_mode",!model.get("dark_mode"));model.save_changes();draw();};root.querySelector("[data-fullscreen]").onclick=()=>setFullscreen(!fsMode);const change=root.querySelector("[data-change-model]");if(change)change.onclick=()=>{s.pickerOpen=true;s.pickerError=false;s.pickWs=model.get("workspace_id")||"";s.pickDs="";if(!model.get("workspaces_loaded")||(model.get("datasets")||{})[s.pickWs]===undefined)dispatch("open_picker",{workspace_id:s.pickWs});draw();};const expandAll=root.querySelector("[data-expand-all]");if(expandAll){const collapse=s.expanded.size>0;expandAll.innerHTML=collapse?I.collapseRows:I.expandRows;expandAll.title=collapse?"Collapse all":"Expand all";}}
+    function header(){if(embedded)return"";const connected=!!model.get("connected")||s.connecting,picking=!connected||s.pickerOpen,names=s.connecting&&s.pendingModel?s.pendingModel:{dataset_name:model.get("dataset_name"),workspace_name:model.get("workspace_name")},subtitle=connected?`${esc(names.dataset_name)} &middot; ${esc(names.workspace_name)}`:"Choose a workspace and semantic model",fullscreenLabel=fsMode?"Exit full screen":"Full screen";return`<header class="slls-rm-header"><span class="slls-rm-mark">${I.refresh}</span><div class="slls-rm-heading"><div class="slls-rm-title-row"><h1 class="slls-rm-title">Refresh Manager</h1>${connected&&!picking?`<button class="sl-change-btn" data-change-model title="Change semantic model / workspace" aria-label="Change semantic model / workspace" ${refreshing()||s.connecting?"disabled":""}>${I.swap}</button>`:""}</div><div class="slls-rm-subtitle">${subtitle}</div></div><button class="sl-theme-btn" data-fullscreen title="${fullscreenLabel}" aria-label="${fullscreenLabel}">${fsMode?I.fullscreenExit:I.fullscreen}</button><button class="sl-theme-btn" data-theme title="Toggle theme">${model.get("dark_mode")?I.sun:I.moon}</button></header>`;}
+    function bindHeader(){const themeBtn=root.querySelector("[data-theme]"),fullscreenBtn=root.querySelector("[data-fullscreen]");if(themeBtn)themeBtn.onclick=()=>{model.set("dark_mode",!model.get("dark_mode"));model.save_changes();draw();};if(fullscreenBtn)fullscreenBtn.onclick=()=>setFullscreen(!fsMode);const change=root.querySelector("[data-change-model]");if(change)change.onclick=()=>{s.pickerOpen=true;s.pickerError=false;s.pickWs=model.get("workspace_id")||"";s.pickDs="";if(!model.get("workspaces_loaded")||(model.get("datasets")||{})[s.pickWs]===undefined)dispatch("open_picker",{workspace_id:s.pickWs});draw();};const expandAll=root.querySelector("[data-expand-all]");if(expandAll){const collapse=s.expanded.size>0;expandAll.innerHTML=collapse?I.collapseRows:I.expandRows;expandAll.title=collapse?"Collapse all":"Expand all";}}
     function bindPicker(){bindHeader();const workspaces=model.get("workspaces")||[],datasets=(model.get("datasets")||{})[s.pickWs],loading=pickerBusy(),locked=loading||s.connecting;const wsPicker=createSearchSelect({placeholder:"Select a workspace\u2026",searchPlaceholder:"Filter workspaces\u2026",ariaLabel:"Workspace",emptyLabel:loading?"Loading workspaces\u2026":"No workspaces",onChange:option=>{s.pickWs=option.value;s.pickDs="";s.pickerError=false;dispatch("list_datasets",{workspace_id:option.value});draw();}});wsPicker.setOptions(workspaces.map(w=>({value:w.id,label:w.name})),s.pickWs);wsPicker.setDisabled(locked);root.querySelector("[data-picker-ws]").appendChild(wsPicker.el);const dsPicker=createSearchSelect({placeholder:"Select a semantic model\u2026",searchPlaceholder:"Filter semantic models\u2026",ariaLabel:"Semantic model",emptyLabel:!s.pickWs?"Select a workspace first\u2026":datasets===undefined?"Loading semantic models\u2026":"No semantic models",onChange:option=>{s.pickDs=option.value;s.pickerError=false;draw();}});dsPicker.setOptions((datasets||[]).map(d=>({value:d.id,label:d.name})),s.pickDs);dsPicker.setDisabled(!s.pickWs||datasets===undefined||locked);root.querySelector("[data-picker-ds]").appendChild(dsPicker.el);root.querySelector("[data-picker-reload]").onclick=()=>dispatch("reload_picker",{workspace_id:s.pickWs});const close=root.querySelector("[data-picker-close]");if(close)close.onclick=()=>{s.pickerOpen=false;s.pickerError=false;draw();};root.querySelector("[data-picker-connect]").onclick=()=>{if(!s.pickDs||s.connecting)return;const target={workspace_id:s.pickWs,dataset_id:s.pickDs,workspace_name:(workspaces.find(w=>w.id===s.pickWs)||{}).name||"",dataset_name:((datasets||[]).find(d=>d.id===s.pickDs)||{}).name||""};resetView();s.connecting=true;s.pendingModel=target;s.objectsLoading=true;s.objectsLoadedAt=null;dispatch("connect",target);draw();};}
     function draw(){if(!savedPosition)keepPosition();theme();if(!(model.get("connected")||s.connecting)||s.pickerOpen){root.innerHTML=header()+`<main class="slls-rm-body">${picker()}<div class="slls-rm-attribution">__SLLS_ATTRIBUTION__</div></main>`;bindPicker();restorePosition();return;}const busy=refreshing(),policyOff=s.commit==="PartialBatch";if(policyOff)s.policy=false;root.innerHTML=header()+`<main class="slls-rm-body"><div class="slls-rm-grid"><section class="slls-rm-card"><div class="slls-rm-card-head"><h2 class="slls-rm-card-title">Objects to refresh</h2><button class="slls-rm-iconbtn" data-expand-all title="Expand or collapse all">${I.caret}</button>${objectsBusy()?`<span class="slls-rm-updated" role="status">Loading\u2026</span>`:s.objectsLoadedAt?`<span class="slls-rm-updated" title="Tables and partitions last loaded ${esc(s.objectsLoadedAt.toLocaleString())}">Updated ${esc(s.objectsLoadedAt.toLocaleTimeString())}</span>`:""}<button class="sl-reload-btn ${objectsBusy()?"sl-spinning":""}" data-reload-objects title="Reload tables and partitions" aria-label="Reload tables and partitions" ${objectsBusy()?"disabled":""}>${I.refresh}</button></div><div class="slls-rm-search"><span>${I.search}</span><input class="slls-rm-input" data-search value="${esc(s.search)}" placeholder="Search tables and partitions..."></div><label class="slls-rm-model"><input type="checkbox" data-full ${s.full?"checked":""}>Refresh the entire model</label><div class="slls-rm-tree ${s.full?"disabled":""}">${tree()}</div></section><section><div class="slls-rm-card slls-rm-options"><div class="slls-rm-card-head"><h2 class="slls-rm-card-title">Refresh options</h2></div><div class="slls-rm-fields"><div class="slls-rm-field"><label>Refresh type</label><select class="slls-rm-select" data-option="type">${Object.keys(hints).map(v=>`<option value="${v}" ${s.type===v?"selected":""}>${v==="DataOnly"?"Data only":v==="ClearValues"?"Clear values":v}</option>`).join("")}</select><p>${hints[s.type]}</p></div><div class="slls-rm-field"><label>Commit mode</label><select class="slls-rm-select" data-option="commit"><option value="Transactional" ${s.commit==="Transactional"?"selected":""}>Transactional</option><option value="PartialBatch" ${s.commit==="PartialBatch"?"selected":""}>Partial batch</option></select></div><div class="slls-rm-two"><div class="slls-rm-field"><label>Max parallelism</label><input class="slls-rm-input" type="number" min="1" value="${s.parallel}" data-option="parallel"></div><div class="slls-rm-field"><label>Retry count</label><input class="slls-rm-input" type="number" min="0" value="${s.retry}" data-option="retry"></div></div><div class="slls-rm-toggle-row"><span>Apply refresh policy</span><button class="slls-rm-switch" type="button" role="switch" aria-checked="${s.policy}" aria-label="Toggle apply refresh policy" data-option="policy" ${policyOff||busy?"disabled":""}><span class="slls-rm-switch-knob"></span></button></div>${policyOff?`<p class="slls-rm-toggle-help">Partial batch does not support applying the refresh policy.</p>`:""}<div class="slls-rm-toggle-row" title="Run the refresh under an Analysis Services trace and chart each partition's Process and source-query durations."><span>Visualize refresh</span><button class="slls-rm-switch" type="button" role="switch" aria-checked="${s.visualize}" aria-label="Toggle visualize refresh" data-option="visualize" ${busy?"disabled":""}><span class="slls-rm-switch-knob"></span></button></div>${s.visualize?`<p class="slls-rm-toggle-help">Charts each partition's processing timeline. Cancelling is not available while visualizing.</p>`:""}</div></div><div class="slls-rm-actions"><button class="slls-rm-btn primary ${busy?"slls-rm-spin":""}" data-refresh ${!busy&&!objectsReady()?`title="Available once the tables and partitions have loaded."`:""} ${busy||!objectsReady()||(!s.full&&!objects().length)?"disabled":""}>${I.refresh}${busy?"Refreshing...":"Refresh"}</button>${busy&&!s.visualize?`<button class="slls-rm-btn danger" data-cancel>Cancel</button>`:""}</div></section><section class="slls-rm-wide" data-live-status>${status()}</section><section class="slls-rm-wide" data-live-gantt>${gantt()}</section><section class="slls-rm-wide">${history()}</section><section class="slls-rm-wide">${schedule()}</section></div><div class="slls-rm-attribution">__SLLS_ATTRIBUTION__</div></main>${detail()}`;bind();restorePosition();}
     function bind(){const one=q=>root.querySelector(q);bindHeader();one("[data-search]").oninput=e=>{s.search=e.target.value;draw();const x=one("[data-search]");x.focus();x.setSelectionRange(x.value.length,x.value.length);};one("[data-full]").onchange=e=>{s.full=e.target.checked;draw();};one("[data-expand-all]").onclick=()=>{const all=model.get("objects")||[];s.expanded.size?s.expanded.clear():all.forEach(t=>s.expanded.add(t.name));draw();};one("[data-reload-objects]").onclick=loadObjects;root.querySelectorAll("[data-expand]").forEach(b=>b.onclick=()=>{s.expanded.has(b.dataset.expand)?s.expanded.delete(b.dataset.expand):s.expanded.add(b.dataset.expand);draw();});root.querySelectorAll("[data-table]").forEach(x=>{if(x.dataset.partial)x.indeterminate=true;x.onchange=()=>{const n=x.dataset.table;x.checked?s.tables.add(n):s.tables.delete(n);[...s.parts].filter(v=>v.startsWith(`${n}\u0000`)).forEach(v=>s.parts.delete(v));draw();};});root.querySelectorAll("[data-partition]").forEach(x=>x.onchange=()=>{const k=pkey(x.dataset.owner,x.dataset.partition);x.checked?s.parts.add(k):s.parts.delete(k);s.tables.delete(x.dataset.owner);draw();});one('[data-option="type"]').onchange=e=>{s.type=e.target.value;draw();};one('[data-option="commit"]').onchange=e=>{s.commit=e.target.value;draw();};one('[data-option="parallel"]').onchange=e=>s.parallel=Math.max(1,Number(e.target.value)||1);one('[data-option="retry"]').onchange=e=>s.retry=Math.max(0,Number(e.target.value)||0);const policy=one('[data-option="policy"]');if(policy)policy.onclick=()=>{s.policy=!s.policy;draw();};const visualize=one('[data-option="visualize"]');if(visualize)visualize.onclick=()=>{s.visualize=!s.visualize;draw();};const start=one("[data-refresh]");if(start)start.onclick=()=>objectsReady()&&dispatch("start_refresh",{refresh_type:s.type,commit_mode:s.commit,max_parallelism:s.parallel,retry_count:s.retry,apply_refresh_policy:s.policy,visualize:s.visualize,objects:objects()});const cancel=one("[data-cancel]");if(cancel)cancel.onclick=()=>dispatch("cancel_refresh");root.querySelectorAll("[data-panel]").forEach(b=>b.onclick=()=>{if(b.dataset.panel==="history"){s.history=!s.history;if(s.history&&!model.get("history_loaded"))dispatch("load_history");}else{s.schedule=!s.schedule;if(s.schedule&&!model.get("schedule_loaded"))dispatch("load_schedule");}draw();});root.querySelectorAll("[data-detail]").forEach(r=>r.onclick=()=>{s.detail=true;model.set("detail",{});dispatch("load_detail",{request_id:r.dataset.detail});draw();});const close=one("[data-close-detail]");if(close)close.onclick=()=>{s.detail=false;draw();};root.querySelectorAll("[data-day]").forEach(b=>b.onclick=()=>{keepPosition();const a=s.draft.days,v=b.dataset.day;a.includes(v)?s.draft.days=a.filter(d=>d!==v):a.push(v);draw();});root.querySelectorAll("[data-time-index]").forEach(select=>select.onchange=e=>{keepPosition();s.draft.times[Number(select.dataset.timeIndex)]=e.target.value;draw();});root.querySelectorAll("[data-remove-time]").forEach(button=>button.onclick=()=>{keepPosition();s.draft.times=s.draft.times.filter((_,index)=>index!==Number(button.dataset.removeTime));draw();});const addTime=one("[data-add-time]");if(addTime)addTime.onclick=()=>{keepPosition();s.draft.times.push(timeOptions.find(option=>!s.draft.times.includes(option))||"00:00");draw();};const zone=one('[data-schedule="timezone"]');if(zone)zone.onchange=e=>s.draft.localTimeZoneId=e.target.value.trim()||"UTC";const notify=one('[data-schedule="notify"]');if(notify)notify.onchange=e=>s.draft.notifyOption=e.target.value;const save=one("[data-save-schedule]");if(save)save.onclick=()=>{keepPosition();s.draft.times=[...new Set(s.draft.times)].sort();dispatch("save_schedule",{schedule:s.draft});};const toggle=one("[data-toggle-schedule]");if(toggle)toggle.onclick=()=>{keepPosition();dispatch("toggle_schedule",{enabled:!s.draft.enabled});};}
@@ -638,116 +648,64 @@ def _get_refresh_schedule(workspace_id: str, dataset_id: str) -> dict[str, Any]:
         return {"exists": False, "message": str(exc)}
 
 
-@log
-def refresh_manager(
-    dataset: Optional[str | UUID] = None,
-    workspace: Optional[str | UUID] = None,
-    dark_mode: bool = False,
-):
-    """Display an interactive semantic model refresh manager.
+def _refresh_manager_traits(traitlets) -> dict:
+    """The synced traits of the refresh manager (shared by its embeddings)."""
 
-    The manager can refresh an entire semantic model, selected tables, or
-    selected partitions. It also displays live status, recent enhanced-refresh
-    history, execution details, and the model's scheduled-refresh settings.
+    def sync(trait):
+        return trait.tag(sync=True)
 
-    Parameters
-    ----------
-    dataset : str | uuid.UUID, default=None
-        Name or ID of the semantic model. Defaults to None which opens a
-        workspace / semantic model picker.
-    workspace : str | uuid.UUID, default=None
-        The Fabric workspace name or ID.
-        Defaults to None which resolves to the workspace of the attached
-        lakehouse or, if no lakehouse is attached, the notebook workspace.
-    dark_mode : bool, default=False
-        If True, render the interface using the dark theme.
+    return {
+        "dataset_name": sync(traitlets.Unicode("")),
+        "workspace_name": sync(traitlets.Unicode("")),
+        "workspace_id": sync(traitlets.Unicode("")),
+        "connected": sync(traitlets.Bool(False)),
+        "workspaces": sync(traitlets.List(default_value=[])),
+        "workspaces_loaded": sync(traitlets.Bool(False)),
+        "datasets": sync(traitlets.Dict(default_value={})),
+        "picker_loading": sync(traitlets.Bool(False)),
+        "picker_error": sync(traitlets.Unicode("")),
+        "dark_mode": sync(traitlets.Bool(False)),
+        "objects": sync(traitlets.List(default_value=[])),
+        "objects_loading": sync(traitlets.Bool(False)),
+        # Bumped after every load attempt so the UI can clear its loading state
+        # even when the reloaded metadata is identical (no `objects` change).
+        "objects_version": sync(traitlets.Int(0)),
+        "history": sync(traitlets.List(default_value=[])),
+        "history_loaded": sync(traitlets.Bool(False)),
+        "history_loading": sync(traitlets.Bool(False)),
+        "schedule": sync(traitlets.Dict(default_value={})),
+        "schedule_loaded": sync(traitlets.Bool(False)),
+        "schedule_loading": sync(traitlets.Bool(False)),
+        "detail": sync(traitlets.Dict(default_value={})),
+        "refresh_status": sync(traitlets.Dict(default_value={})),
+        "gantt_events": sync(traitlets.List(default_value=[])),
+        "refresh_id": sync(traitlets.Unicode("")),
+        "busy": sync(traitlets.Bool(False)),
+        "pending_action": sync(traitlets.Dict(default_value={})),
+        "run": sync(traitlets.Int(0)),
+        "connect_done": sync(traitlets.Int(0)),
+        "connect_failed": sync(traitlets.Int(0)),
+    }
+
+
+def _refresh_manager_controller(widget, ids: dict):
+    """The refresh manager's kernel-side actions.
+
+    ``widget`` is any object exposing the refresh manager traits as attributes
+    (the refresh manager widget itself, or a view of another widget's traits);
+    ``ids`` holds the connected ``workspace_id`` / ``workspace_name`` /
+    ``dataset_id`` / ``dataset_name`` and is updated on connect. Returns
+    ``handle(data)``, which runs one action, and ``connect(data, load=True)``.
     """
-    try:
-        import anywidget
-        import traitlets
-    except ImportError as exc:
-        raise ImportError(
-            "The 'refresh_manager' function requires the 'anywidget' package. "
-            "Install it with: pip install anywidget"
-        ) from exc
 
     import sempy.fabric as fabric
-    from IPython.display import display
-    from sempy_labs._helper_functions import (
-        _base_api,
-        resolve_dataset_name_and_id,
-        resolve_workspace_name_and_id,
-    )
-
-    workspace_name, workspace_id = resolve_workspace_name_and_id(workspace)
-    workspace_id = str(workspace_id)
-    connected = dataset is not None
-    if connected:
-        dataset_name, dataset_id = resolve_dataset_name_and_id(dataset, workspace_id)
-        dataset_id = str(dataset_id)
-    else:
-        dataset_name, dataset_id = "", ""
+    from sempy_labs._helper_functions import _base_api
 
     def list_workspaces() -> list[dict[str, str]]:
-        return _list_picker_workspaces(workspace_id, workspace_name)
+        return _list_picker_workspaces(ids["workspace_id"], ids["workspace_name"])
 
     def list_datasets(target_workspace_id: str) -> list[dict[str, str]]:
         return _list_picker_datasets(target_workspace_id)
-
-    # Seeded before the widget is constructed: a trait assigned straight after
-    # display() races the comm handshake and never reaches the browser.
-    initial_workspaces = (
-        [{"id": workspace_id, "name": workspace_name}]
-        if connected
-        else list_workspaces()
-    )
-    initial_datasets = {} if connected else {workspace_id: list_datasets(workspace_id)}
-
-    class _RefreshManagerWidget(anywidget.AnyWidget):
-        _esm = _WIDGET_JS
-        _css = _WIDGET_CSS
-
-        dataset_name = traitlets.Unicode("").tag(sync=True)
-        workspace_name = traitlets.Unicode("").tag(sync=True)
-        workspace_id = traitlets.Unicode("").tag(sync=True)
-        connected = traitlets.Bool(False).tag(sync=True)
-        workspaces = traitlets.List(default_value=[]).tag(sync=True)
-        workspaces_loaded = traitlets.Bool(False).tag(sync=True)
-        datasets = traitlets.Dict(default_value={}).tag(sync=True)
-        picker_loading = traitlets.Bool(False).tag(sync=True)
-        picker_error = traitlets.Unicode("").tag(sync=True)
-        dark_mode = traitlets.Bool(False).tag(sync=True)
-        objects = traitlets.List(default_value=[]).tag(sync=True)
-        objects_loading = traitlets.Bool(False).tag(sync=True)
-        # Bumped after every load attempt so the UI can clear its loading state
-        # even when the reloaded metadata is identical (no `objects` change).
-        objects_version = traitlets.Int(0).tag(sync=True)
-        history = traitlets.List(default_value=[]).tag(sync=True)
-        history_loaded = traitlets.Bool(False).tag(sync=True)
-        history_loading = traitlets.Bool(False).tag(sync=True)
-        schedule = traitlets.Dict(default_value={}).tag(sync=True)
-        schedule_loaded = traitlets.Bool(False).tag(sync=True)
-        schedule_loading = traitlets.Bool(False).tag(sync=True)
-        detail = traitlets.Dict(default_value={}).tag(sync=True)
-        refresh_status = traitlets.Dict(default_value={}).tag(sync=True)
-        gantt_events = traitlets.List(default_value=[]).tag(sync=True)
-        refresh_id = traitlets.Unicode("").tag(sync=True)
-        busy = traitlets.Bool(False).tag(sync=True)
-        pending_action = traitlets.Dict(default_value={}).tag(sync=True)
-        run = traitlets.Int(0).tag(sync=True)
-        connect_done = traitlets.Int(0).tag(sync=True)
-        connect_failed = traitlets.Int(0).tag(sync=True)
-
-    widget = _RefreshManagerWidget(
-        dataset_name=dataset_name,
-        workspace_name=workspace_name,
-        workspace_id=workspace_id,
-        connected=connected,
-        workspaces=initial_workspaces,
-        workspaces_loaded=not connected,
-        datasets=initial_datasets,
-        dark_mode=bool(dark_mode),
-    )
 
     def set_error(message: str) -> None:
         widget.refresh_status = {
@@ -759,7 +717,9 @@ def refresh_manager(
     def load_objects() -> None:
         widget.objects_loading = True
         try:
-            widget.objects = _get_refresh_objects(dataset_id, workspace_id)
+            widget.objects = _get_refresh_objects(
+                ids["dataset_id"], ids["workspace_id"]
+            )
         except Exception as exc:
             set_error(f"Unable to load tables and partitions: {exc}")
         finally:
@@ -779,8 +739,7 @@ def refresh_manager(
         finally:
             widget.picker_loading = False
 
-    def connect(data: dict[str, Any]) -> None:
-        nonlocal workspace_name, workspace_id, dataset_name, dataset_id
+    def connect(data: dict[str, Any], load: bool = True) -> None:
         target_workspace_id = str(data.get("workspace_id") or "")
         target_dataset_id = str(data.get("dataset_id") or "")
         widget.picker_error = ""
@@ -788,13 +747,13 @@ def refresh_manager(
             widget.picker_error = "Select a workspace and semantic model."
             widget.connect_failed = widget.connect_failed + 1
             return
-        workspace_id = target_workspace_id
-        dataset_id = target_dataset_id
-        workspace_name = str(data.get("workspace_name") or "")
-        dataset_name = str(data.get("dataset_name") or "")
-        widget.workspace_id = workspace_id
-        widget.workspace_name = workspace_name
-        widget.dataset_name = dataset_name
+        ids["workspace_id"] = target_workspace_id
+        ids["dataset_id"] = target_dataset_id
+        ids["workspace_name"] = str(data.get("workspace_name") or "")
+        ids["dataset_name"] = str(data.get("dataset_name") or "")
+        widget.workspace_id = ids["workspace_id"]
+        widget.workspace_name = ids["workspace_name"]
+        widget.dataset_name = ids["dataset_name"]
         widget.objects = []
         widget.history = []
         widget.history_loaded = False
@@ -808,12 +767,15 @@ def refresh_manager(
         # Signal the switch before loading so the main page shows right away
         # and the tree fills in once the metadata arrives.
         widget.connect_done = widget.connect_done + 1
-        load_objects()
+        if load:
+            load_objects()
 
     def load_history() -> None:
         widget.history_loading = True
         try:
-            widget.history = _get_refresh_history(workspace_id, dataset_id)
+            widget.history = _get_refresh_history(
+                ids["workspace_id"], ids["dataset_id"]
+            )
         except Exception as exc:
             set_error(f"Unable to load refresh history: {exc}")
         finally:
@@ -823,7 +785,9 @@ def refresh_manager(
     def load_schedule() -> None:
         widget.schedule_loading = True
         try:
-            widget.schedule = _get_refresh_schedule(workspace_id, dataset_id)
+            widget.schedule = _get_refresh_schedule(
+                ids["workspace_id"], ids["dataset_id"]
+            )
         finally:
             widget.schedule_loaded = True
             widget.schedule_loading = False
@@ -831,8 +795,8 @@ def refresh_manager(
     def submit_refresh(data: dict[str, Any]) -> tuple[str, str]:
         refresh_type = str(data.get("refresh_type", "Full"))
         request_id = fabric.refresh_dataset(
-            dataset=dataset_id,
-            workspace=workspace_id,
+            dataset=ids["dataset_id"],
+            workspace=ids["workspace_id"],
             refresh_type={
                 "Full": "full",
                 "Automatic": "automatic",
@@ -888,8 +852,8 @@ def refresh_manager(
             while True:
                 response = _base_api(
                     request=(
-                        f"/v1.0/myorg/groups/{workspace_id}/datasets/"
-                        f"{dataset_id}/refreshes/{request_id}"
+                        f"/v1.0/myorg/groups/{ids['workspace_id']}/datasets/"
+                        f"{ids['dataset_id']}/refreshes/{request_id}"
                     ),
                     status_codes=[200, 202],
                 )
@@ -911,9 +875,9 @@ def refresh_manager(
         from sempy_labs._helper_functions import _get_partition_map
 
         try:
-            partition_map = _get_partition_map(dataset_id, workspace_id)
+            partition_map = _get_partition_map(ids["dataset_id"], ids["workspace_id"])
             with fabric.create_trace_connection(
-                dataset=dataset_id, workspace=workspace_id
+                dataset=ids["dataset_id"], workspace=ids["workspace_id"]
             ) as trace_connection:
                 with trace_connection.create_trace(icons.refresh_event_schema) as trace:
                     trace.start()
@@ -923,8 +887,8 @@ def refresh_manager(
                     while True:
                         response = _base_api(
                             request=(
-                                f"/v1.0/myorg/groups/{workspace_id}/datasets/"
-                                f"{dataset_id}/refreshes/{request_id}"
+                                f"/v1.0/myorg/groups/{ids['workspace_id']}/datasets/"
+                                f"{ids['dataset_id']}/refreshes/{request_id}"
                             ),
                             status_codes=[200, 202],
                         )
@@ -984,9 +948,9 @@ def refresh_manager(
             return
         try:
             cancel_dataset_refresh(
-                dataset=dataset_id,
+                dataset=ids["dataset_id"],
                 request_id=target_request_id,
-                workspace=workspace_id,
+                workspace=ids["workspace_id"],
             )
         except Exception as exc:
             response = getattr(exc, "response", None)
@@ -1035,7 +999,7 @@ def refresh_manager(
     def save_schedule(data: dict[str, Any]) -> None:
         schedule = dict(data.get("schedule") or {})
         _base_api(
-            request=f"/v1.0/myorg/groups/{workspace_id}/datasets/{dataset_id}/refreshSchedule",
+            request=f"/v1.0/myorg/groups/{ids['workspace_id']}/datasets/{ids['dataset_id']}/refreshSchedule",
             method="patch",
             payload={
                 "value": {
@@ -1050,8 +1014,7 @@ def refresh_manager(
         )
         load_schedule()
 
-    def on_run(_change: dict[str, Any]) -> None:
-        data = dict(widget.pending_action or {})
+    def handle(data: dict[str, Any]) -> None:
         action = data.get("action")
         try:
             if action == "load_objects":
@@ -1086,7 +1049,7 @@ def refresh_manager(
                 request_id = str(data.get("request_id") or "")
                 response = _base_api(
                     request=(
-                        f"/v1.0/myorg/groups/{workspace_id}/datasets/{dataset_id}/"
+                        f"/v1.0/myorg/groups/{ids['workspace_id']}/datasets/{ids['dataset_id']}/"
                         f"refreshes/{request_id}"
                     )
                 )
@@ -1099,7 +1062,7 @@ def refresh_manager(
                 save_schedule(data)
             elif action == "toggle_schedule":
                 _base_api(
-                    request=f"/v1.0/myorg/groups/{workspace_id}/datasets/{dataset_id}/refreshSchedule",
+                    request=f"/v1.0/myorg/groups/{ids['workspace_id']}/datasets/{ids['dataset_id']}/refreshSchedule",
                     method="patch",
                     payload={"value": {"enabled": bool(data.get("enabled"))}},
                     client="fabric_sp",
@@ -1107,6 +1070,104 @@ def refresh_manager(
                 load_schedule()
         except Exception as exc:
             set_error(str(exc))
+
+    return handle, connect
+
+
+@log
+def refresh_manager(
+    dataset: Optional[str | UUID] = None,
+    workspace: Optional[str | UUID] = None,
+    dark_mode: bool = False,
+):
+    """Display an interactive semantic model refresh manager.
+
+    The manager can refresh an entire semantic model, selected tables, or
+    selected partitions. It also displays live status, recent enhanced-refresh
+    history, execution details, and the model's scheduled-refresh settings.
+
+    Parameters
+    ----------
+    dataset : str | uuid.UUID, default=None
+        Name or ID of the semantic model. Defaults to None which opens a
+        workspace / semantic model picker.
+    workspace : str | uuid.UUID, default=None
+        The Fabric workspace name or ID.
+        Defaults to None which resolves to the workspace of the attached
+        lakehouse or, if no lakehouse is attached, the notebook workspace.
+    dark_mode : bool, default=False
+        If True, render the interface using the dark theme.
+    """
+    try:
+        import anywidget
+        import traitlets
+    except ImportError as exc:
+        raise ImportError(
+            "The 'refresh_manager' function requires the 'anywidget' package. "
+            "Install it with: pip install anywidget"
+        ) from exc
+
+    from IPython.display import display
+    from sempy_labs._helper_functions import (
+        resolve_dataset_name_and_id,
+        resolve_workspace_name_and_id,
+    )
+
+    workspace_name, workspace_id = resolve_workspace_name_and_id(workspace)
+    workspace_id = str(workspace_id)
+    connected = dataset is not None
+    if connected:
+        dataset_name, dataset_id = resolve_dataset_name_and_id(dataset, workspace_id)
+        dataset_id = str(dataset_id)
+    else:
+        dataset_name, dataset_id = "", ""
+    ids = {
+        "workspace_id": workspace_id,
+        "workspace_name": workspace_name,
+        "dataset_id": dataset_id,
+        "dataset_name": dataset_name,
+    }
+
+    def list_workspaces() -> list[dict[str, str]]:
+        return _list_picker_workspaces(workspace_id, workspace_name)
+
+    def list_datasets(target_workspace_id: str) -> list[dict[str, str]]:
+        return _list_picker_datasets(target_workspace_id)
+
+    # Seeded before the widget is constructed: a trait assigned straight after
+    # display() races the comm handshake and never reaches the browser.
+    initial_workspaces = (
+        [{"id": workspace_id, "name": workspace_name}]
+        if connected
+        else list_workspaces()
+    )
+    initial_datasets = {} if connected else {workspace_id: list_datasets(workspace_id)}
+
+    _RefreshManagerWidget = type(
+        "_RefreshManagerWidget",
+        (anywidget.AnyWidget,),
+        {
+            "_esm": _WIDGET_JS,
+            "_css": _WIDGET_CSS,
+            **_refresh_manager_traits(traitlets),
+        },
+    )
+
+    widget = _RefreshManagerWidget(
+        dataset_name=dataset_name,
+        workspace_name=workspace_name,
+        workspace_id=workspace_id,
+        connected=connected,
+        workspaces=initial_workspaces,
+        workspaces_loaded=not connected,
+        datasets=initial_datasets,
+        dark_mode=bool(dark_mode),
+    )
+
+    handle, _ = _refresh_manager_controller(widget, ids)
+
+    def on_run(_change: dict[str, Any]) -> None:
+        handle(dict(widget.pending_action or {}))
 
     widget.observe(on_run, names=["run"])
     display(widget)

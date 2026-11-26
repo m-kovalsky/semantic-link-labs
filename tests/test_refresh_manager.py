@@ -214,7 +214,7 @@ def test_widget_has_independent_refresh_history_reload_button():
 
 def test_refresh_history_can_cancel_active_refreshes():
     widget_js = refresh_manager_module._WIDGET_JS
-    source = getsource(refresh_manager_module.refresh_manager)
+    source = getsource(refresh_manager_module._refresh_manager_controller)
 
     assert 'r.status==="Unknown"' in widget_js
     assert 'data-cancel-history="${esc(r.requestId)}"' in widget_js
@@ -231,7 +231,7 @@ def test_refresh_history_can_cancel_active_refreshes():
 
 
 def test_completed_refresh_cancel_conflict_is_user_friendly():
-    source = getsource(refresh_manager_module.refresh_manager)
+    source = getsource(refresh_manager_module._refresh_manager_controller)
     cancel_source = source.split("def cancel_refresh(", 1)[1].split(
         "def save_schedule(", 1
     )[0]
@@ -246,7 +246,7 @@ def test_completed_refresh_cancel_conflict_is_user_friendly():
 
 
 def test_cancel_refresh_uses_reloaded_history_status():
-    source = getsource(refresh_manager_module.refresh_manager)
+    source = getsource(refresh_manager_module._refresh_manager_controller)
     cancel_source = source.split("def cancel_refresh(", 1)[1].split(
         "def save_schedule(", 1
     )[0]
@@ -456,7 +456,7 @@ def test_visualized_refresh_updates_live_regions_without_full_redraw():
 
 
 def test_refresh_status_polling_accepts_active_202_responses():
-    source = getsource(refresh_manager_module.refresh_manager)
+    source = getsource(refresh_manager_module._refresh_manager_controller)
     assert source.count("status_codes=[200, 202]") == 2
 
 

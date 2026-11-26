@@ -14,6 +14,10 @@ import re
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 from sempy._utils._log import log
+from sempy_labs.semantic_model._refresh_manager import (
+    _WIDGET_CSS as _REFRESH_MANAGER_CSS,
+    _WIDGET_JS as _REFRESH_MANAGER_JS,
+)
 
 _WIDGET_CSS = """
 .slls-sx {
@@ -463,6 +467,18 @@ pre.slls-sx-dialect {
 .slls-sx-empty { padding: 14px; color: var(--ui-text-tertiary); font-size: 12.5px; text-align: center; }
 
 .slls-sx-drag { width: 10px; flex-shrink: 0; cursor: col-resize; position: relative; }
+/* Refresh manager sidebar */
+.slls-sx-rm-pane {
+    display: flex; flex-direction: column; flex-shrink: 0; min-width: 0; min-height: 0; overflow: hidden;
+    border: 1px solid var(--ui-border); border-radius: var(--sx-radius); background: var(--ui-bg);
+}
+.slls-sx-rm-pane.collapsed { width: 46px !important; align-items: center; padding: 8px 0; }
+.slls-sx-rm-pane.collapsed .slls-sx-rm-host { display: none; }
+.slls-sx-rm-strip { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.slls-sx-rm-label { display: inline-flex; align-items: center; gap: 6px; }
+.slls-sx-rm-label svg { width: 13px; height: 13px; }
+.slls-sx-rm-host { flex: 1 1 0; min-height: 0; overflow: auto; }
+.slls-sx-flip svg { transform: scaleX(-1); }
 .slls-sx-drag::after {
     content: ""; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; border-radius: 2px;
     background: transparent; transition: background 120ms ease;
@@ -6569,6 +6585,88 @@ function render({ model, el }) {
     dragHandle.addEventListener("dblclick", () => { paneWidth = 340; treePane.style.width = "340px"; });
 
     // ------------------------------------------------------------------
+    // Refresh manager sidebar (right side; collapsible and resizable)
+    // ------------------------------------------------------------------
+    const RM_DEFAULT_WIDTH = 460, RM_MIN = 340, RM_MAX = 960;
+    let rmOpen = false;
+    let rmCollapsed = false;
+    let rmWidth = RM_DEFAULT_WIDTH;
+    let rmHost = null;
+    const rmDrag = h("div", "slls-sx-drag slls-sx-rm-drag");
+    const rmPane = h("div", "slls-sx-rm-pane");
+    // The refresh manager runs on the explorer's "rm_"-prefixed traits and
+    // follows its theme; "embedded" drops its own header.
+    function refreshManagerModel() {
+        const trait = (k) => (k === "dark_mode" ? k : "rm_" + k);
+        const event = (ev) => { const i = ev.indexOf(":"); return i < 0 ? ev : ev.slice(0, i + 1) + trait(ev.slice(i + 1)); };
+        return {
+            get: (k) => (k === "embedded" ? true : model.get(trait(k))),
+            set: (k, v) => { if (k !== "embedded") model.set(trait(k), v); },
+            on: (ev, f) => model.on(event(ev), f),
+            off: (ev, f) => model.off(event(ev), f),
+            save_changes: () => model.save_changes(),
+        };
+    }
+    function openRefreshManagerSidebar() {
+        rmOpen = true;
+        rmCollapsed = false;
+        renderBody();
+    }
+    function rmMaxWidth() {
+        const room = (body.clientWidth || 0) - (paneCollapsed ? 46 : paneWidth) - 360;
+        return Math.max(RM_MIN, Math.min(RM_MAX, room > 0 ? room : RM_MAX));
+    }
+    function renderRefreshPane() {
+        rmPane.classList.toggle("collapsed", rmCollapsed);
+        rmPane.style.width = rmCollapsed ? "" : rmWidth + "px";
+        rmDrag.style.display = rmCollapsed ? "none" : "";
+        // The refresh manager is rendered once and kept, so its selections,
+        // options and running refresh survive collapsing and closing.
+        if (!rmHost) {
+            rmHost = h("div", "slls-sx-rm-host");
+            sllsRefreshManager.render({ model: refreshManagerModel(), el: rmHost });
+        }
+        for (const old of [...rmPane.children]) if (old !== rmHost) old.remove();
+        const close = () => { rmOpen = false; renderBody(); };
+        if (rmCollapsed) {
+            const strip = h("div", "slls-sx-rm-strip");
+            const icon = iconEl("refresh");
+            icon.title = "Refresh manager";
+            strip.append(icon,
+                button("slls-sx-iconbtn slls-sx-flip", "", "panel_expand", () => { rmCollapsed = false; renderRefreshPane(); }, "Expand refresh manager"),
+                button("slls-sx-iconbtn", "", "close", close, "Close refresh manager"));
+            rmPane.insertBefore(strip, rmPane.firstChild);
+        } else {
+            const head = h("div", "slls-sx-pane-head");
+            const label = h("span", "slls-sx-pane-label slls-sx-rm-label");
+            label.append(iconEl("refresh", ""), document.createTextNode("Refresh manager"));
+            const tools = h("div", "slls-sx-pane-tools");
+            tools.append(button("slls-sx-iconbtn slls-sx-flip", "", "panel_collapse", () => { rmCollapsed = true; renderRefreshPane(); }, "Collapse refresh manager"),
+                button("slls-sx-iconbtn", "", "close", close, "Close refresh manager"));
+            head.append(label, tools);
+            rmPane.insertBefore(head, rmPane.firstChild);
+        }
+        if (rmHost.parentNode !== rmPane) rmPane.appendChild(rmHost);
+    }
+    rmDrag.addEventListener("mousedown", (ev) => {
+        ev.preventDefault();
+        const startX = ev.clientX, startW = rmWidth, max = rmMaxWidth();
+        rmDrag.classList.add("active");
+        const move = (e) => {
+            rmWidth = Math.max(RM_MIN, Math.min(max, startW - (e.clientX - startX)));
+            rmPane.style.width = rmWidth + "px";
+        };
+        const up = () => {
+            rmDrag.classList.remove("active");
+            document.removeEventListener("mousemove", move);
+            document.removeEventListener("mouseup", up);
+        };
+        document.addEventListener("mousemove", move);
+        document.addEventListener("mouseup", up);
+    });
+    rmDrag.addEventListener("dblclick", () => { rmWidth = RM_DEFAULT_WIDTH; rmPane.style.width = rmWidth + "px"; });
+
+    // ------------------------------------------------------------------
     // Context menu
     // ------------------------------------------------------------------
     let ctxMenu = null;
@@ -8159,6 +8257,7 @@ function render({ model, el }) {
         { label: "Field parameter manager", icon: "field_parameter", open: () => openFieldParameterManager() },
         { label: "Perspective editor", icon: "perspective", open: () => openPerspectiveEditor() },
         { label: "Query scale-out manager", icon: "server", open: () => openQueryScaleOutManager() },
+        { label: "Refresh manager", icon: "refresh", open: () => openRefreshManagerSidebar() },
         { label: "Relationship diagram", icon: "network", open: () => openRelationshipDiagram() },
         { label: "Relationship manager", icon: "git_branch", open: () => openRelationshipManager() },
         { label: "Security manager", icon: "shield_check", open: () => openSecurityManager() },
@@ -12940,6 +13039,10 @@ function render({ model, el }) {
         }
         if (!loaded()) return;
         body.append(treePane, dragHandle, detailPane);
+        if (rmOpen) {
+            body.append(rmDrag, rmPane);
+            renderRefreshPane();
+        }
         dragHandle.style.display = paneCollapsed ? "none" : "";
         renderTreePane();
         renderDetail();
@@ -13091,6 +13194,8 @@ _WIDGET_CSS = (
     + "\n"
     + _ui_scoped_table_column_resize_css(".slls-sx")
     + _ui_fullscreen_css(".slls-sx", "slls-sx-fs", bg_var="var(--ui-bg-solid)")
+    + "\n"
+    + _REFRESH_MANAGER_CSS
 )
 
 _WIDGET_JS = (
@@ -13109,6 +13214,10 @@ _WIDGET_JS = (
             }
         ),
     ).replace("__SLLS_ATTRIBUTION__", _ui_render_attribution_html())
+    # The refresh manager (shown in the sidebar) in a scope of its own.
+    + "\nconst sllsRefreshManager = (() => {\n"
+    + _REFRESH_MANAGER_JS.replace("export default { render };", "return { render };")
+    + "\n})();\n"
 )
 
 
@@ -18502,6 +18611,29 @@ def _install_daxlib_package(model, package_id: str, props: dict) -> None:
             legacy.Value = version
 
 
+class _PrefixedTraits:
+    """A widget's ``prefix``-ed traits, read and set by their unprefixed names.
+
+    Lets an embedded tool's kernel code (written against its own widget) run
+    against the traits it was given on the host widget; ``shared`` traits
+    (e.g. ``dark_mode``) map to the host's own trait of the same name.
+    """
+
+    def __init__(self, widget, prefix: str, shared: Tuple[str, ...] = ()):
+        object.__setattr__(self, "_widget", widget)
+        object.__setattr__(self, "_prefix", prefix)
+        object.__setattr__(self, "_shared", tuple(shared))
+
+    def _name(self, name: str) -> str:
+        return name if name in self._shared else self._prefix + name
+
+    def __getattr__(self, name: str):
+        return getattr(self._widget, self._name(name))
+
+    def __setattr__(self, name: str, value) -> None:
+        setattr(self._widget, self._name(name), value)
+
+
 @log
 def semantic_explorer(
     dataset: Optional[str | UUID] = None,
@@ -18534,6 +18666,11 @@ def semantic_explorer(
     table, column or measure automatically updates the DAX expressions which
     reference it. Changes are staged locally (with undo / redo and a change
     history) and are only written to the semantic model on Save.
+
+    The Tools menu's Refresh manager opens in a sidebar on the right (which can
+    be collapsed, expanded, resized and closed) to refresh the model, or
+    selected tables and partitions, and to view its refresh history and
+    schedule while editing; see :func:`sempy_labs.semantic_model.refresh_manager`.
 
     The semantic model picker can also create a new, empty semantic model
     (compatibility level 1706) in a workspace and open it in the explorer.
@@ -18609,6 +18746,10 @@ def semantic_explorer(
         run_widget_task,
     )
     from sempy_labs.tom import connect_semantic_model
+    from sempy_labs.semantic_model._refresh_manager import (
+        _refresh_manager_controller,
+        _refresh_manager_traits,
+    )
 
     if dataset is not None:
         state = _collect_explorer_state(dataset, workspace)
@@ -18677,6 +18818,18 @@ def semantic_explorer(
         view_data = traitlets.Dict().tag(sync=True)
         view_version = traitlets.Int(0).tag(sync=True)
 
+    # The refresh manager sidebar runs on its own traits, prefixed "rm_"; it
+    # follows the explorer's theme.
+    SemanticExplorerWidget = type(
+        "SemanticExplorerWidget",
+        (SemanticExplorerWidget,),
+        {
+            f"rm_{name}": trait
+            for name, trait in _refresh_manager_traits(traitlets).items()
+            if name != "dark_mode"
+        },
+    )
+
     widget = SemanticExplorerWidget(
         explorer_kind="model" if dataset_chosen else "",
         model_data=state["payload"],
@@ -18700,7 +18853,55 @@ def semantic_explorer(
         available_datasets=initial_datasets,
         picker_loading=False,
         dark_mode=bool(dark_mode),
+        rm_connected=dataset_chosen,
+        rm_dataset_name=state["dataset_name"] if dataset_chosen else "",
+        rm_workspace_name=state["workspace_name"],
+        rm_workspace_id=state["workspace_id"],
+        rm_workspaces=initial_workspaces if dataset_chosen else [],
     )
+
+    rm_ids = {
+        "workspace_id": state["workspace_id"],
+        "workspace_name": state["workspace_name"],
+        "dataset_id": state["dataset_id"],
+        "dataset_name": state["dataset_name"],
+    }
+    rm_handle, rm_connect = _refresh_manager_controller(
+        _PrefixedTraits(widget, "rm_", ("dark_mode",)), rm_ids
+    )
+    # True once the sidebar has been opened (it then loads its own data).
+    rm_used = {"on": False}
+
+    def _on_refresh_manager_run(_change):
+        rm_used["on"] = True
+        run_widget_task(rm_handle, (dict(widget.rm_pending_action or {}),))
+
+    widget.observe(_on_refresh_manager_run, names=["rm_run"])
+
+    def _follow_model_in_refresh_manager() -> None:
+        """Points the refresh manager sidebar at the explorer's model."""
+
+        target = (ctx["dataset_id"], ctx["workspace_id"])
+        try:
+            if target != (rm_ids["dataset_id"], rm_ids["workspace_id"]):
+                rm_connect(
+                    {
+                        "workspace_id": ctx["workspace_id"],
+                        "dataset_id": ctx["dataset_id"],
+                        "workspace_name": widget.workspace_name,
+                        "dataset_name": widget.dataset_name,
+                    },
+                    load=rm_used["on"],
+                )
+            elif rm_used["on"]:
+                # Saved changes may have added or removed tables / partitions.
+                rm_handle({"action": "load_objects"})
+        except Exception as e:
+            widget.rm_refresh_status = {
+                "status": "Failed",
+                "kind": "error",
+                "message": str(e),
+            }
 
     def _load(dataset_id: str, workspace_id: str) -> None:
         new_state = _collect_explorer_state(dataset_id, workspace_id)
@@ -18714,6 +18915,7 @@ def semantic_explorer(
         widget.dataset_chosen = True
         widget.explorer_kind = "model"
         widget.model_version += 1
+        _follow_model_in_refresh_manager()
 
     def _load_view(workspace_id: str, lakehouse_id: str, view_name: str) -> None:
         payload = _semantic_view_payload(workspace_id, lakehouse_id, view_name)

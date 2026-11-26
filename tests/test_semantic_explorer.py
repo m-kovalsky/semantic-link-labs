@@ -2977,3 +2977,49 @@ def test_dax_layout_differences_are_not_unpublished_changes():
     assert sx._same_dax("SUM('sales'[net_amount])", "SUM(\n\t'sales'[net_amount]\n)")
     assert sx._same_dax("[A] + [B]", "[A]+[B]")
     assert not sx._same_dax("SUM('sales'[net_amount])", "SUM('sales'[amount])")
+
+
+def test_refresh_manager_sidebar_runs_on_the_explorers_prefixed_traits(monkeypatch):
+    import traitlets
+    from sempy_labs.semantic_model import _refresh_manager as rm
+
+    traits = {
+        f"rm_{name}": trait
+        for name, trait in rm._refresh_manager_traits(traitlets).items()
+        if name != "dark_mode"
+    }
+    host = type(
+        "Host", (traitlets.HasTraits,), {"dark_mode": traitlets.Bool(True), **traits}
+    )()
+    view = sx._PrefixedTraits(host, "rm_", ("dark_mode",))
+    ids = dict.fromkeys(
+        ("workspace_id", "workspace_name", "dataset_id", "dataset_name"), ""
+    )
+    handle, connect = rm._refresh_manager_controller(view, ids)
+    loaded = []
+    monkeypatch.setattr(
+        rm,
+        "_get_refresh_objects",
+        lambda ds, ws: loaded.append((ds, ws)) or [{"name": "Sales"}],
+    )
+    model = {
+        "workspace_id": "ws1",
+        "dataset_id": "ds1",
+        "workspace_name": "WS",
+        "dataset_name": "Sales",
+    }
+
+    # Following the explorer's model before the sidebar is opened loads nothing.
+    connect(model, load=False)
+    assert (host.rm_connected, host.rm_dataset_name, host.rm_workspace_id) == (
+        True,
+        "Sales",
+        "ws1",
+    )
+    assert loaded == []
+
+    handle({"action": "load_objects"})
+    assert loaded == [("ds1", "ws1")]
+    assert (host.rm_objects, host.rm_objects_version) == ([{"name": "Sales"}], 1)
+    # The sidebar follows the explorer's theme.
+    assert view.dark_mode is True
