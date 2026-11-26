@@ -3023,3 +3023,39 @@ def test_refresh_manager_sidebar_runs_on_the_explorers_prefixed_traits(monkeypat
     assert (host.rm_objects, host.rm_objects_version) == ([{"name": "Sales"}], 1)
     # The sidebar follows the explorer's theme.
     assert view.dark_mode is True
+
+
+def test_new_cultures_are_validated_and_functions_need_level_1702(
+    fake_clr, monkeypatch
+):
+    known = {"de-de": "de-DE", "fr-fr": "fr-FR"}
+
+    def culture_info(name):
+        if name.lower() not in known:
+            raise ValueError(name)
+        return types.SimpleNamespace(Name=known[name.lower()])
+
+    monkeypatch.setattr(
+        sys.modules["System"],
+        "Globalization",
+        types.SimpleNamespace(
+            CultureInfo=types.SimpleNamespace(GetCultureInfo=culture_info)
+        ),
+        raising=False,
+    )
+    fake_clr.Culture = lambda: _Obj("Culture", ObjectTranslations=_Coll())
+    model = _build_model()
+
+    sx._apply_changes(_tom(model), [{"type": "culture", "name": "de-de"}], [], [])
+    assert [c.Name for c in model.Cultures] == ["fr-FR", "de-DE"]
+    for name, error in (("xx_YY", "not a valid culture"), ("FR-fr", "already has")):
+        with pytest.raises(ValueError, match=error):
+            sx._apply_changes(_tom(model), [{"type": "culture", "name": name}], [], [])
+
+    function = {"type": "function", "name": "AddOne"}
+    with pytest.raises(ValueError, match="compatibility level 1702"):
+        sx._apply_changes(_tom(model), [function], [], [])
+    upgrade = dict(function, props={"upgradeCompatibility": True})
+    sx._apply_changes(_tom(model), [upgrade], [], [])
+    assert model.Database.CompatibilityLevel == 1702
+    assert model.Functions["AddOne"].Expression == "() => BLANK()"

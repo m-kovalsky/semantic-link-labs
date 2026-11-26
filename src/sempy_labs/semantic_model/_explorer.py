@@ -1025,6 +1025,11 @@ pre.slls-sx-dialect {
 .slls-sx-sm-general { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .slls-sx-sm-add { display: flex; gap: 8px; }
 .slls-sx-sm-add .slls-sx-input { flex: 1; }
+.slls-sx-member-add { display: flex; flex-direction: column; gap: 4px; }
+.slls-sx-member-hint { font-size: 11.5px; color: var(--ui-text-tertiary); }
+.slls-sx-member-hint.error { color: var(--ui-danger-text); }
+.slls-sx-member-add .slls-sx-input[aria-invalid="true"] { border-color: var(--ui-danger-border); }
+.slls-sx-member-add + .slls-sx-member-list, .slls-sx-member-add + .slls-sx-kv-empty { margin-top: 8px; }
 .slls-sx-sm-members { display: flex; flex-direction: column; border: 1px solid var(--ui-border); border-radius: 8px; overflow: hidden; }
 .slls-sx-sm-member { display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 12px; font-size: 12.5px; border-bottom: 1px solid var(--ui-border); }
 .slls-sx-sm-member:last-child { border-bottom: none; }
@@ -1706,6 +1711,7 @@ function render({ model, el }) {
     const NEW_MODEL_COMPATIBILITY_LEVEL = 1706;
     const NEW_EXPRESSION = "let\n    Source = \"\"\nin\n    Source";
     const NEW_M_PARTITION = "let\n    Source = #table({}, {})\nin\n    Source";
+    const NEW_FUNCTION = "() => BLANK()";
 
     // ------------------------------------------------------------------
     // State
@@ -1980,6 +1986,13 @@ function render({ model, el }) {
             node.props.push(P("IsHidden", "Hidden", "General", "bool", { value: false }));
             node.columns = []; node.measures = []; node.hierarchies = []; node.calculation_items = []; node.partitions = [];
             node.expressions = [{ prop: "Expression", label: "Expression", lang: "dax", value: "" }];
+        } else if (c.type === "culture") {
+            // The culture code is chosen when it is added.
+            node.props = [P("Name", "Name", "General", "text", { editable: false })];
+            node.translated_count = 0;
+        } else if (c.type === "function") {
+            node.props.push(P("IsHidden", "Hidden", "General", "bool", { value: false }));
+            node.expressions = [{ prop: "Expression", label: "Expression", lang: "dax", value: NEW_FUNCTION }];
         } else if (c.type === "role") {
             node.props.push(P("ModelPermission", "Model permission", "General", "enum", { enum: enumOf("ModelPermission"), value: "Read" }));
         } else if (c.type === "expression") {
@@ -2283,10 +2296,24 @@ function render({ model, el }) {
         while (lower.has(`${base} ${i}`.toLowerCase())) i += 1;
         return `${base} ${i}`;
     }
+    const FOLDER_OF_TYPE = { role: "roles", perspective: "perspectives", expression: "expressions", culture: "cultures", function: "functions" };
     function addObject(type, parent, opts) {
-        if (saving) return;
+        // Objects are only added in Edit mode (the menus disable it otherwise).
+        if (saving || mode !== "write") return;
         const kindOpt = (opts && opts.kind) || "";
-        if (mode !== "write") setMode("write");
+        if (type === "culture" && !(opts && opts.name)) { openAddCulture(); return; }
+        // DAX functions need compatibility level 1702: offer to upgrade the model on save.
+        let upgrade = false;
+        if (type === "function" && Number(data.compatibility_level || 0) < DAXLIB_MIN_COMPAT
+            && !staging.creates.some((c) => c.props && c.props.upgradeCompatibility)) {
+            if (!(opts && opts.upgrade)) {
+                confirmDialog(`DAX functions require compatibility level ${DAXLIB_MIN_COMPAT} or higher; this model is at `
+                    + `${data.compatibility_level || "an unknown level"}. Add the function and upgrade the model to ${DAXLIB_MIN_COMPAT} when you save?`,
+                    "Add and upgrade", () => addObject(type, parent, Object.assign({}, opts, { upgrade: true })));
+                return;
+            }
+            upgrade = true;
+        }
         let base = "New object";
         let taken = [];
         const tables = [...(data.tables || []), ...newNodes("table", ""), ...newNodes("fieldParameter", "")];
@@ -2309,14 +2336,23 @@ function render({ model, el }) {
             base = "Calculation group";
             taken = tables.map(effName);
         } else {
-            const folder = { role: "roles", perspective: "perspectives", expression: "expressions" }[type];
-            base = { role: "New role", perspective: "New perspective", expression: "New expression" }[type];
+            const folder = FOLDER_OF_TYPE[type];
+            base = { role: "New role", perspective: "New perspective", expression: "New expression", function: "NewFunction" }[type] || "New object";
             taken = [...(data[folder] || []), ...newNodes(type, "")].map(effName);
+        }
+        let name = (opts && opts.name) || uniqueName(base, taken);
+        if (type === "function" && !(opts && opts.name)) {
+            // Function names can't contain spaces: NewFunction, NewFunction2, ...
+            const lower = new Set(taken.map((n) => n.toLowerCase()));
+            let i = 1;
+            name = base;
+            while (lower.has(name.toLowerCase())) name = base + (++i);
         }
         pushUndo("");
         const id = ++createSeq + "-" + Date.now().toString(36);
-        const created = { id, type, parentKey: parent ? parent.key : "", name: uniqueName(base, taken), props: {} };
+        const created = { id, type, parentKey: parent ? parent.key : "", name, props: {} };
         if (kindOpt) created.kind = kindOpt;
+        if (upgrade) created.props.upgradeCompatibility = true;
         staging.creates.push(created);
         if (type === "partition") expanded.add(parent.key + "#partitions");
         if (type === "table") {
@@ -2326,7 +2362,7 @@ function render({ model, el }) {
         if (parent) expanded.add(parent.key);
         expanded.add("model");
         if (type === "table") expanded.add("folder:tables");
-        else if (!parent) expanded.add("folder:" + { role: "roles", perspective: "perspectives", expression: "expressions" }[type]);
+        else if (!parent) expanded.add("folder:" + FOLDER_OF_TYPE[type]);
         selectedKey = "new:" + id;
         afterChange();
         scrollToSelected();
@@ -2359,7 +2395,8 @@ function render({ model, el }) {
             const node = syntheticNode(c);
             const title = c.type === "table" ? `Add calculation group '${c.name}'`
                 : c.type === "fieldParameter" ? `Add field parameter '${c.name}'`
-                : `Add ${TYPE_LABEL[c.type].toLowerCase()} ${objectLabel(node)}`;
+                : `Add ${TYPE_LABEL[c.type].toLowerCase()} ${objectLabel(node)}`
+                    + (c.type === "function" && c.props.upgradeCompatibility ? ` and upgrade to compatibility level ${DAXLIB_MIN_COMPAT}` : "");
             items.push({ kind: "create", id: c.id, title, detail: "" });
         }
         for (const [id, e] of Object.entries(staging.edits)) {
@@ -2394,7 +2431,7 @@ function render({ model, el }) {
             const parent = c.parentKey ? getNode(c.parentKey) : null;
             const table = parent ? (parent.isNew ? effName(parent) : parent.name) : "";
             const props = Object.assign({}, c.props);
-            if (renames.length && ["measure", "column", "calculationItem", "fieldParameter"].includes(c.type)) {
+            if (renames.length && ["measure", "column", "calculationItem", "fieldParameter", "function"].includes(c.type)) {
                 for (const prop of DAX_PROPS) {
                     if (props[prop]) props[prop] = rewriteDax(String(props[prop]), renames, parent ? parent.name : "", c.type === "column");
                 }
@@ -6240,7 +6277,8 @@ function render({ model, el }) {
 
         for (const [folder, label, icon] of FOLDERS) {
             if (typeOn && !typeFilter.has(folder)) continue;
-            const createType = { roles: "role", perspectives: "perspective", expressions: "expression", relationships: "relationship" }[folder];
+            const createType = { roles: "role", perspectives: "perspective", expressions: "expression", relationships: "relationship",
+                cultures: "culture", functions: "function" }[folder];
             const items = [...(data[folder] || []), ...(createType ? newNodes(createType, "") : [])]
                 .filter((n) => hit(n)).sort(byLabel);
             // Roles and functions are always listed (like the Tools explorer);
@@ -6704,6 +6742,7 @@ function render({ model, el }) {
     // The "Add" flyout entries for a table, a calculation group, the model or
     // the Tables folder (null when nothing can be added there).
     function addMenu(node, folder) {
+        const readOnly = mode !== "write" || saving;
         const sub = [];
         if (node && node.type === "table") {
             if (isDeleted(node)) return null;
@@ -6725,9 +6764,11 @@ function render({ model, el }) {
                 sub.push(["Role", "shield_check", () => addObject("role", null)]);
                 sub.push(["Perspective", "perspective", () => addObject("perspective", null)]);
                 sub.push(["Expression", "code", () => addObject("expression", null)]);
+                sub.push(["Function", "zap", () => addObject("function", null)]);
+                sub.push(["Culture\u2026", "globe", () => addObject("culture", null)]);
             }
         }
-        return sub.length ? { label: "Add", icon: "plus", submenu: sub } : null;
+        return sub.length ? { label: "Add", icon: "plus", submenu: sub, disabled: readOnly } : null;
     }
     function menuItems(node, folder) {
         const items = [];
@@ -6735,10 +6776,12 @@ function render({ model, el }) {
         if (folder) {
             const add = addMenu(null, folder);
             if (add) items.push(add);
-            if (folder === "roles") items.push(["Add role", "shield_check", () => addObject("role", null)]);
-            if (folder === "perspectives") items.push(["Add perspective", "perspective", () => addObject("perspective", null)]);
-            if (folder === "expressions") items.push(["Add expression", "code", () => addObject("expression", null)]);
-            if (folder === "relationships") items.push(["Add relationship\u2026", "relationship", () => openRelationshipManager()]);
+            if (folder === "roles") items.push(["Add role", "shield_check", () => addObject("role", null), !write]);
+            if (folder === "perspectives") items.push(["Add perspective", "perspective", () => addObject("perspective", null), !write]);
+            if (folder === "expressions") items.push(["Add expression", "code", () => addObject("expression", null), !write]);
+            if (folder === "functions") items.push(["Add function", "zap", () => addObject("function", null), !write]);
+            if (folder === "cultures") items.push(["Add culture\u2026", "globe", () => addObject("culture", null), !write]);
+            if (folder === "relationships") items.push(["Add relationship\u2026", "relationship", () => openRelationshipManager(), !write]);
             return items;
         }
         if (!node) return items;
@@ -6746,7 +6789,7 @@ function render({ model, el }) {
         if (add) items.push(add, null);
         const hideable = ["table", "column", "measure", "hierarchy", "function"].includes(node.type);
         const dupable = !node.isNew && ["table", "column", "measure", "hierarchy", "calculationItem", "role", "perspective", "expression", "function"].includes(node.type);
-        const deletable = !["model", "culture"].includes(node.type);
+        const deletable = node.type !== "model" && (node.type !== "culture" || node.isNew);
         if (dupable) items.push([isDuplicated(node) ? "Undo duplicate" : "Duplicate", "plus", () => toggleOp(node, "duplicate"), !write]);
         if (hideable) {
             const hidden = isHidden(node);
@@ -6829,6 +6872,13 @@ function render({ model, el }) {
                 b.type = "button";
                 b.setAttribute("aria-haspopup", "menu");
                 b.append(iconEl(item.icon, ""), document.createTextNode(item.label), iconEl("chevron_right", "slls-sx-menu-chev"));
+                if (item.disabled) {
+                    b.disabled = true;
+                    b.title = "Switch to edit mode to make changes";
+                    b.addEventListener("mouseenter", closeFlyout);
+                    ctxMenu.appendChild(b);
+                    continue;
+                }
                 const show = () => { if (!ctxFlyout || !b.classList.contains("on")) openFlyout(b, item.submenu); };
                 b.addEventListener("mouseenter", show);
                 b.addEventListener("click", show);
@@ -7213,26 +7263,92 @@ function render({ model, el }) {
         c.body.appendChild(list);
         return c.el;
     }
+    // Role members are user principal names (user@contoso.com) or Azure AD
+    // object ids (obj:<object id>@<tenant id>), entered separated by ";".
+    const MEMBER_HINT = "Separate members with \u201c;\u201d, e.g. user1@contoso.com; user2@contoso.com";
+    const MEMBER_PATTERN = /^(obj:[0-9a-f-]{36}@[0-9a-f-]{36}|[^\s@;,<>()"']+@[^\s@;,<>()"'.]+(\.[^\s@;,<>()"'.]+)+)$/i;
+    function parseMembers(text, existing) {
+        const entries = String(text || "").split(";").map((x) => x.trim()).filter(Boolean);
+        const seen = new Set(existing.map((x) => x.toLowerCase()));
+        const valid = [], invalid = [], duplicate = [];
+        for (const e of entries) {
+            if (!MEMBER_PATTERN.test(e)) invalid.push(e);
+            else if (seen.has(e.toLowerCase())) duplicate.push(e);
+            else { valid.push(e); seen.add(e.toLowerCase()); }
+        }
+        let error = "";
+        if (invalid.length) {
+            error = `Not a valid member: ${invalid.map((x) => `\u201c${x}\u201d`).join(", ")}. Enter user principal names `
+                + "(e.g. user@contoso.com) separated by \u201c;\u201d.";
+        } else if (entries.length && !valid.length) {
+            error = `Already ${duplicate.length === 1 ? "a member" : "members"}: ${duplicate.join(", ")}.`;
+        }
+        return { valid, invalid, duplicate, error };
+    }
+    // The input which adds members to a role; draft = { text, message, error, focus }
+    // keeps what was typed across re-renders.
+    function memberAdder(role, list, draft) {
+        const wrap = h("div", "slls-sx-member-add");
+        const row = h("div", "slls-sx-sm-add");
+        const input = h("input", "slls-sx-input");
+        input.placeholder = "user1@contoso.com; user2@contoso.com";
+        input.setAttribute("aria-label", "Members to add, separated by ;");
+        input.value = draft.text;
+        const hint = h("div", "slls-sx-member-hint");
+        const show = () => {
+            hint.classList.toggle("error", !!draft.error);
+            hint.textContent = draft.message || MEMBER_HINT;
+            input.setAttribute("aria-invalid", String(!!draft.error));
+        };
+        const addBtn = button("slls-sx-btn primary", "Add", "plus", () => {
+            const res = parseMembers(input.value, list);
+            if (res.error) { draft.message = res.error; draft.error = true; show(); input.focus(); return; }
+            if (!res.valid.length) return;
+            draft.text = "";
+            draft.error = false;
+            draft.message = res.duplicate.length ? `Added ${plural(res.valid.length, "member")}; already members: ${res.duplicate.join(", ")}.` : "";
+            draft.focus = true;
+            setValue(role, "Members", JSON.stringify([...list, ...res.valid]), { label: "Members" });
+        }, "Add members");
+        input.addEventListener("input", () => {
+            draft.text = input.value;
+            // Entries are checked once complete, i.e. followed by ";".
+            const done = input.value.split(";").slice(0, -1).join(";");
+            const res = parseMembers(done, []);
+            draft.error = !!res.invalid.length;
+            draft.message = draft.error ? res.error : "";
+            addBtn.disabled = !input.value.trim();
+            show();
+        });
+        input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); addBtn.click(); } });
+        addBtn.disabled = !draft.text.trim();
+        row.append(input, addBtn);
+        wrap.append(row, hint);
+        show();
+        if (draft.focus) { draft.focus = false; setTimeout(() => input.focus(), 0); }
+        return wrap;
+    }
+    let roleMemberDraft = { key: "", text: "", message: "", error: false, focus: false };
     function roleCards(node, container, write) {
         // Members
         const members = jsonValue(node, "Members", []);
         const mc = card("Members", { count: members.length, dirty: !!staging.edits[editKey(node.key, "Members")] });
         if (mc.open) {
             if (write) {
-                const ta = h("textarea", "slls-sx-textarea");
-                ta.rows = Math.min(8, Math.max(3, members.length + 1));
-                ta.placeholder = "One user or group per line (e.g. user@contoso.com)";
-                ta.value = members.join("\n");
-                ta.setAttribute("aria-label", "Role members");
-                ta.addEventListener("change", () => {
-                    const list = ta.value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-                    setValue(node, "Members", JSON.stringify(list), { label: "Members" });
-                });
-                mc.body.appendChild(ta);
-            } else if (!members.length) mc.body.appendChild(h("div", "slls-sx-kv-empty", "No members."));
+                if (roleMemberDraft.key !== node.key) roleMemberDraft = { key: node.key, text: "", message: "", error: false, focus: false };
+                mc.body.appendChild(memberAdder(node, members, roleMemberDraft));
+            }
+            if (!members.length) mc.body.appendChild(h("div", "slls-sx-kv-empty", "No members."));
             else {
-                const list = h("div", "slls-sx-sublist");
-                for (const m of members) { const it = h("div", "slls-sx-subitem"); it.append(iconEl("user", ""), h("span", "", m)); list.appendChild(it); }
+                const list = h("div", "slls-sx-sm-members slls-sx-member-list");
+                for (const m of members) {
+                    const it = h("div", "slls-sx-sm-member");
+                    it.append(iconEl("user", ""), h("span", "name", m));
+                    it.title = m;
+                    if (write) it.appendChild(button("slls-sx-iconbtn", "", "close",
+                        () => setValue(node, "Members", JSON.stringify(members.filter((x) => x !== m)), { label: "Members" }), `Remove ${m}`));
+                    list.appendChild(it);
+                }
                 mc.body.appendChild(list);
             }
         }
@@ -7379,7 +7495,7 @@ function render({ model, el }) {
             if (!node.isNew && ["table", "column", "measure", "hierarchy", "calculationItem", "role", "perspective", "expression", "function"].includes(node.type) && !isDeleted(node)) {
                 actions.appendChild(button("slls-sx-btn small", isDuplicated(node) ? "Undo duplicate" : "Duplicate", "plus", () => toggleOp(node, "duplicate")));
             }
-            if (!["model", "culture"].includes(node.type)) {
+            if (node.type !== "model" && (node.type !== "culture" || node.isNew)) {
                 const del = staging.ops.some((o) => o.op === "delete" && o.key === node.key);
                 if (del || !isDeleted(node)) {
                     actions.appendChild(button("slls-sx-btn small" + (del ? "" : " danger"), del ? "Restore" : "Delete", del ? "undo" : "trash", () => toggleOp(node, "delete")));
@@ -7563,6 +7679,67 @@ function render({ model, el }) {
         foot.append(button("slls-sx-btn", "Cancel", "", () => m.close()), ok);
         m.box.appendChild(foot);
         setTimeout(() => ok.focus(), 0);
+    }
+    // Cultures offered in the Add culture dialog (any valid culture name works).
+    const COMMON_CULTURES = ["ar-SA", "cs-CZ", "da-DK", "de-AT", "de-CH", "de-DE", "el-GR", "en-AU", "en-CA", "en-GB", "en-IE",
+        "en-IN", "en-NZ", "en-US", "en-ZA", "es-AR", "es-ES", "es-MX", "fi-FI", "fr-BE", "fr-CA", "fr-CH", "fr-FR", "he-IL",
+        "hi-IN", "hu-HU", "id-ID", "it-IT", "ja-JP", "ko-KR", "nb-NO", "nl-BE", "nl-NL", "pl-PL", "pt-BR", "pt-PT", "ro-RO",
+        "ru-RU", "sk-SK", "sv-SE", "th-TH", "tr-TR", "uk-UA", "vi-VN", "zh-CN", "zh-HK", "zh-TW"];
+    function cultureDisplayName(code) {
+        try { return new Intl.DisplayNames([navigator.language || "en"], { type: "language" }).of(code) || ""; } catch (e) { return ""; }
+    }
+    // A culture code: its canonical form, or an error message.
+    function checkCulture(text) {
+        const v = String(text || "").trim();
+        if (!v) return { error: "Enter a culture name, e.g. fr-FR." };
+        let code = "";
+        try { code = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(v) ? Intl.getCanonicalLocales(v)[0] : ""; } catch (e) { code = ""; }
+        if (!code) return { error: `\u201c${v}\u201d isn\u2019t a valid culture name. Use a language and region, e.g. fr-FR.` };
+        const taken = [...(data.cultures || []), ...newNodes("culture", "")].map((c) => effName(c).toLowerCase());
+        if (taken.includes(code.toLowerCase())) return { error: `The model already has the ${code} culture.` };
+        return { code };
+    }
+    function openAddCulture() {
+        const m = modal("Add culture", "globe");
+        const listId = "slls-sx-cultures-" + Math.random().toString(36).slice(2);
+        const row = h("div", "slls-sx-prompt-row");
+        const input = h("input", "slls-sx-input");
+        input.setAttribute("aria-label", "Culture name");
+        input.placeholder = "Culture name, e.g. fr-FR";
+        input.setAttribute("list", listId);
+        const list = h("datalist");
+        list.id = listId;
+        const taken = new Set([...(data.cultures || []), ...newNodes("culture", "")].map((c) => effName(c).toLowerCase()));
+        for (const code of COMMON_CULTURES) {
+            if (taken.has(code.toLowerCase())) continue;
+            const o = h("option");
+            o.value = code;
+            o.label = cultureDisplayName(code);
+            list.appendChild(o);
+        }
+        row.append(input, list);
+        const note = h("div", "slls-sx-picker-note");
+        note.style.marginTop = "8px";
+        m.body.append(h("div", "slls-sx-dlm-text", "Translations of the model\u2019s captions, descriptions and display folders are kept per culture."), row, note);
+        const foot = h("div", "slls-sx-modal-foot");
+        const ok = button("slls-sx-btn primary", "Add", "", () => {
+            const res = checkCulture(input.value);
+            if (res.error) { paint(true); input.focus(); return; }
+            m.close();
+            addObject("culture", null, { name: res.code });
+        });
+        const paint = (showError) => {
+            const res = checkCulture(input.value);
+            ok.disabled = !!res.error;
+            note.classList.toggle("error", !!res.error && (showError || !!input.value.trim()));
+            note.textContent = res.error ? (showError || input.value.trim() ? res.error : "") : `${res.code}${cultureDisplayName(res.code) ? " \u2014 " + cultureDisplayName(res.code) : ""}`;
+        };
+        input.addEventListener("input", () => paint(false));
+        input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") ok.click(); });
+        foot.append(button("slls-sx-btn", "Cancel", "", () => m.close()), ok);
+        m.box.appendChild(foot);
+        paint(false);
+        setTimeout(() => input.focus(), 0);
     }
     function promptDialog(title, label, onOk) {
         const m = modal(title, "plus");
@@ -8442,7 +8619,6 @@ function render({ model, el }) {
 
     function openFieldParameterManager(opts) {
         const startDraft = !!(opts && opts.startNew);
-        if (startDraft && mode !== "write" && !saving) setMode("write");
         let active = null;
         let draftName = "";
         let fields = [];
@@ -9824,7 +10000,7 @@ function render({ model, el }) {
     function openSecurityManager() {
         const m = toolWindow("Security manager", "shield_check");
         let active = null;
-        let memberDraft = "";
+        let memberDraft = { text: "", message: "", error: false, focus: false };
         let view = "rls";
         let rlsSearch = "";
         let olsSearch = "";
@@ -9873,7 +10049,7 @@ function render({ model, el }) {
                 head.appendChild(button("slls-sx-iconbtn", "", "plus", () => {
                     addObject("role", null);
                     active = selectedKey;
-                    memberDraft = ""; rlsSearch = ""; olsSearch = ""; openTables.clear();
+                    memberDraft = { text: "", message: "", error: false, focus: false }; rlsSearch = ""; olsSearch = ""; openTables.clear();
                     draw();
                 }, "Create a new role"));
             }
@@ -9897,7 +10073,7 @@ function render({ model, el }) {
                 const [l1, l2] = roleSummary(r);
                 body.append(top, h("span", "meta", l1), h("span", "meta", l2));
                 b.append(iconEl("shield_check", ""), body);
-                b.addEventListener("click", () => { active = r.key; memberDraft = ""; draw(); });
+                b.addEventListener("click", () => { active = r.key; memberDraft = { text: "", message: "", error: false, focus: false }; draw(); });
                 if (write()) {
                     const del = h("span", "slls-sx-sm-del");
                     del.setAttribute("role", "button");
@@ -10072,24 +10248,7 @@ function render({ model, el }) {
             const mt = h("div", "slls-sx-section-title", `Members (${list.length})`);
             mt.appendChild(dirtyDot(!!staging.edits[editKey(r.key, "Members")]));
             wrap.appendChild(mt);
-            if (editable) {
-                const add = h("div", "slls-sx-sm-add");
-                const input = h("input", "slls-sx-input");
-                input.placeholder = "user@contoso.com or group name";
-                input.setAttribute("aria-label", "New member");
-                input.value = memberDraft;
-                const addBtn = button("slls-sx-btn primary", "Add", "plus", () => {
-                    const v = input.value.trim();
-                    if (!v || list.includes(v)) return;
-                    memberDraft = "";
-                    setValue(r, "Members", JSON.stringify([...list, v]), { label: "Members" });
-                });
-                addBtn.disabled = !memberDraft.trim();
-                input.addEventListener("input", () => { memberDraft = input.value; addBtn.disabled = !input.value.trim(); });
-                input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); addBtn.click(); } });
-                add.append(input, addBtn);
-                wrap.appendChild(add);
-            }
+            if (editable) wrap.appendChild(memberAdder(r, list, memberDraft));
             if (!list.length) wrap.appendChild(h("div", "slls-sx-kv-empty", "No members."));
             else {
                 const ul = h("div", "slls-sx-sm-members");
@@ -14616,6 +14775,40 @@ def _new_calculation_group(model, name: str):
     return table
 
 
+def _require_function_compatibility(model, upgrade: bool) -> None:
+    """DAX functions need compatibility level 1702; upgrades the model if allowed."""
+
+    database = model.Database
+    if int(database.CompatibilityLevel) < _DAXLIB_MIN_COMPAT:
+        if not upgrade:
+            raise ValueError(
+                "DAX user-defined functions require compatibility level "
+                f"{_DAXLIB_MIN_COMPAT} or higher."
+            )
+        database.CompatibilityLevel = _DAXLIB_MIN_COMPAT
+
+
+# Starting definition of a new DAX user-defined function (matches the frontend).
+_NEW_FUNCTION = "() => BLANK()"
+
+
+def _culture_name(name: str) -> str:
+    """The canonical name of a culture (e.g. 'fr-fr' -> 'fr-FR'); raises if unknown."""
+
+    try:
+        import System
+
+        info = System.Globalization.CultureInfo.GetCultureInfo(name)
+        canonical = str(info.Name)
+    except Exception as e:
+        raise ValueError(f"'{name}' is not a valid culture name (e.g. fr-FR).") from e
+    if not canonical:
+        raise ValueError(
+            "The invariant culture can't be added; use a culture name such as fr-FR."
+        )
+    return canonical
+
+
 def _create_object(tom, spec: dict):
     """Creates a staged new object, applies its staged properties, returns it."""
 
@@ -14705,6 +14898,24 @@ def _create_object(tom, spec: dict):
         obj = TOM.Perspective()
         obj.Name = name
         model.Perspectives.Add(obj)
+    elif obj_type == "culture":
+        name = _culture_name(name)
+        if any(str(c.Name).lower() == name.lower() for c in model.Cultures):
+            raise ValueError(f"The model already has the '{name}' culture.")
+        obj = TOM.Culture()
+        obj.Name = name
+        model.Cultures.Add(obj)
+    elif obj_type == "function":
+        _require_function_compatibility(
+            model, bool(props.pop("upgradeCompatibility", False))
+        )
+        if model.Functions.ContainsName(name):
+            raise ValueError(f"A function named '{name}' already exists.")
+        obj = TOM.Function()
+        obj.Name = name
+        obj.Expression = _NEW_FUNCTION
+        _new_lineage_tag(obj)
+        model.Functions.Add(obj)
     elif obj_type == "expression":
         obj = TOM.NamedExpression()
         obj.Name = name
@@ -18607,14 +18818,7 @@ def _install_daxlib_package(model, package_id: str, props: dict) -> None:
     functions = [f for f in props.get("functions") or [] if f.get("name")]
     if not version or not functions:
         raise ValueError(f"The '{package_id}' package has no functions to add.")
-    database = model.Database
-    if int(database.CompatibilityLevel) < _DAXLIB_MIN_COMPAT:
-        if not props.get("upgradeCompatibility"):
-            raise ValueError(
-                "DAX user-defined functions require compatibility level "
-                f"{_DAXLIB_MIN_COMPAT} or higher."
-            )
-        database.CompatibilityLevel = _DAXLIB_MIN_COMPAT
+    _require_function_compatibility(model, bool(props.get("upgradeCompatibility")))
 
     wanted = {str(f["name"]) for f in functions}
     for function in list(model.Functions):
@@ -18686,7 +18890,11 @@ def semantic_explorer(
     otherwise edited, expressions can be edited and formatted with DAX
     Formatter, and objects can be added (right-click > Add: measures, data and
     calculated columns, hierarchies, M partitions, calculation items,
-    calculation groups and field parameters), duplicated and deleted. In
+    calculation groups, field parameters, roles, perspectives, expressions,
+    DAX functions and cultures), duplicated and deleted. Adding a DAX function
+    to a model below compatibility level 1702 upgrades it on Save, once
+    confirmed. Role members are entered as user principal names (e.g.
+    user@contoso.com) separated by ";", and are validated as they are added. In
     Direct Lake models, the source of a shared expression can be changed
     (Edit Direct Lake source), a Direct Lake table's columns can be synced
     with its source table, and a Direct Lake table can be converted to import
