@@ -310,6 +310,14 @@ _WIDGET_CSS = """
 .slls-sx-tablepick [data-kind="shortcut"] svg { color: var(--ui-accent); }
 .slls-sx-tablepick-note { padding: 6px 8px; font-size: 12px; color: var(--ui-text-tertiary); font-style: italic; }
 .slls-sx-tablepick .slls-sx-pill { margin-left: auto; flex-shrink: 0; }
+.slls-sx-pill.inview { gap: 3px; background: var(--ui-accent); border-color: transparent; color: #fff; }
+.slls-sx-pill.inview svg { width: 11px; height: 11px; color: inherit; }
+.slls-sx-pill.inview.warn { background: var(--sx-warn); color: #fff; }
+.slls-sx-addds .slls-sx-subitem.inview { box-shadow: inset 3px 0 0 var(--ui-accent); }
+.slls-sx-addds .slls-sx-subitem.inview:not(.on) .slls-sx-mono { color: var(--ui-text-tertiary); }
+.slls-sx-addds .slls-sx-subitem.inview.on { box-shadow: inset 3px 0 0 var(--sx-warn); background: var(--sx-warn-soft); }
+.slls-sx-addds .slls-sx-subitem.inview:not(.on) .meta { color: var(--ui-accent); }
+.slls-sx-addds .slls-sx-vdupes { margin: 8px 0 0; }
 .slls-sx-addds .slls-sx-search { margin: 10px 0 6px; }
 .slls-sx-addds .slls-sx-subitem .slls-sx-pill { margin-left: 0; flex-shrink: 0; }
 .slls-sx-addds .slls-sx-subitem .meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; }
@@ -3891,7 +3899,8 @@ function render({ model, el }) {
         return users;
     }
     function inViewPill(names) {
-        const pill = h("span", "slls-sx-pill", "In view");
+        const pill = h("span", "slls-sx-pill inview");
+        pill.append(iconEl("check_circle", ""), document.createTextNode("In view"));
         pill.title = `Already in the view as ${names.map((n) => `\u201c${n}\u201d`).join(", ")}`;
         return pill;
     }
@@ -3899,15 +3908,28 @@ function render({ model, el }) {
     // without its schema and technical prefixes (fact_, dim_, ...), split into
     // title-cased words, e.g. dbo.dim_customer -> Customer and
     // FactInternetSales -> Internet Sales.
-    const NAME_PREFIXES = new Set(["fact", "fct", "dim", "tbl", "vw", "stg", "f", "d", "t", "v"]);
+    const NAME_PREFIXES = new Set(["fact", "fct", "dim", "dimension", "lkp", "tbl", "vw", "stg", "f", "d", "t", "v"]);
+    // Prefixes glued to the name (dimcustomer, factsales) and words which
+    // merely start with one.
+    const NAME_GLUED_PREFIXES = ["dimension", "dim", "fact", "fct"];
+    const NAME_PREFIX_WORDS = new Set(["dimension", "dimensions", "dimmer", "dimple", "factor", "factors", "factory", "factories", "facts", "factual"]);
+    function stripTablePrefixes(words) {
+        const ws = words.slice();
+        while (ws.length > 1 && NAME_PREFIXES.has(ws[0].toLowerCase())) ws.shift();
+        if (ws.length === 1) {
+            const lw = ws[0].toLowerCase();
+            const p = NAME_PREFIX_WORDS.has(lw) ? null : NAME_GLUED_PREFIXES.find((x) => lw.startsWith(x) && lw.length - x.length >= 3);
+            if (p) ws[0] = ws[0].slice(p.length);
+        }
+        return ws;
+    }
     const NAME_ACRONYMS = new Set(["id", "sku", "kpi", "url", "ytd", "mtd", "qtd", "usd", "eur", "gbp", "uom", "vat", "gl", "iso", "utc", "ip", "crm", "erp"]);
     const NAME_MINOR = new Set(["a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "per", "the", "to", "vs"]);
     function friendlyDatasetName(source) {
         const table = String(source || "").replace(/[\[\]"`]/g, "").trim().split(".").pop();
         const shouty = table === table.toUpperCase();
-        const words = table.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z](?!s(?:[^a-z]|$))[a-z])/g, "$1 $2")
-            .split(/[^A-Za-z0-9]+/).filter(Boolean);
-        while (words.length > 1 && NAME_PREFIXES.has(words[0].toLowerCase())) words.shift();
+        const words = stripTablePrefixes(table.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z](?!s(?:[^a-z]|$))[a-z])/g, "$1 $2")
+            .split(/[^A-Za-z0-9]+/).filter(Boolean));
         const name = words.map((w, i) => {
             const lw = w.toLowerCase();
             if (NAME_ACRONYMS.has(lw)) return lw.toUpperCase();
@@ -3955,8 +3977,7 @@ function render({ model, el }) {
     function relDatasetStems(d) {
         const out = new Set();
         for (const text of [d.name, String(d.source || "").replace(/[\[\]"`]/g, "").split(".").pop()]) {
-            const ws = relWords(text);
-            while (ws.length > 1 && NAME_PREFIXES.has(ws[0])) ws.shift();
+            const ws = stripTablePrefixes(relWords(text));
             if (ws.length) out.add(relStem(ws));
         }
         return out;
@@ -3985,21 +4006,33 @@ function render({ model, el }) {
         return { d, stems: relDatasetStems(d), keys, byName, bare };
     }
     // The best column match for `many` -> `one` ({from_column, to_column,
-    // score, reason}). Skipped: columns which are `many`'s own key
-    // (customers.customer_id) and columns already on the many side of a
-    // relationship (`used`).
+    // score, reason}): a key column of `many` naming `one` (customer_id ->
+    // Customer), or ending with its name (role-playing, invoice_date_key ->
+    // Date), matched to `one`'s column of the same name, its own key
+    // (CustomerKey, DateKey), its bare id / key, or the column named after it
+    // (Date). Skipped: columns which are `many`'s own key and columns already
+    // on the many side of a relationship (`used`).
     function relMatch(many, one, used) {
         let best = null;
+        const typed = (a) => (c) => !!c && relTypesMatch(a.data_type, c.data_type);
         for (const { c: a, stem } of many.keys) {
-            if (!one.stems.has(stem) || many.stems.has(stem) || used.has(`${relLc(many.d.name)}\u0001${relLc(a.name)}`)) continue;
-            const same = one.byName.get(relLc(a.name));
-            const b = same && relTypesMatch(a.data_type, same.data_type) ? same : one.bare.find((x) => relTypesMatch(a.data_type, x.data_type));
+            if (many.stems.has(stem) || used.has(`${relLc(many.d.name)}\u0001${relLc(a.name)}`)) continue;
+            let target = one.stems.has(stem) ? stem : null;
+            const role = !target;
+            if (role) target = [...one.stems].find((t) => t.length >= 3 && stem.length > t.length && stem.endsWith(t)) || null;
+            if (!target) continue;
+            const ok = typed(a);
+            const same = role ? null : one.byName.get(relLc(a.name));
+            const own = one.keys.find((k) => k.stem === target && ok(k.c));
+            const b = ok(same) ? same : own ? own.c : one.bare.find(ok) || (ok(one.byName.get(target)) ? one.byName.get(target) : null);
             if (!b) continue;
-            const score = b === same ? 3 : 2;
+            const exact = b === same || (own && b === own.c);
+            const score = role ? 1 : exact ? 3 : 2;
             if (best && best.score >= score) continue;
             best = { from_column: a.name, to_column: b.name, score,
-                reason: b === same ? `Both have the key column \u201c${a.name}\u201d, which refers to \u201c${one.d.name}\u201d`
-                    : `\u201c${a.name}\u201d refers to \u201c${one.d.name}\u201d, whose key is \u201c${b.name}\u201d` };
+                reason: role ? `\u201c${a.name}\u201d refers to \u201c${one.d.name}\u201d (a role-playing key) through \u201c${b.name}\u201d`
+                    : b === same ? `Both have the key column \u201c${a.name}\u201d, which refers to \u201c${one.d.name}\u201d`
+                        : `\u201c${a.name}\u201d refers to \u201c${one.d.name}\u201d, whose key is \u201c${b.name}\u201d` };
         }
         return best;
     }
@@ -4146,11 +4179,13 @@ function render({ model, el }) {
             return { name, shortcut: !!(t && t.shortcut), key: vSourceKey(name) };
         }).filter((t) => t.key);
         const shown = () => tables().filter((t) => !query || t.name.toLowerCase().includes(query));
-        // The names the selected tables get, in list order.
-        const plan = () => {
+        // The names the selected tables (or `only` of them) get, in list order.
+        const plan = (only) => {
             const taken = vTakenDatasetNames();
             const out = new Map();
-            for (const t of tables()) if (picked.has(t.key)) out.set(t.key, vClaimName(friendlyDatasetName(t.name), taken));
+            for (const t of tables()) {
+                if (picked.has(t.key) && (!only || only.has(t.key))) out.set(t.key, vClaimName(friendlyDatasetName(t.name), taken));
+            }
             return out;
         };
         // "All tables" selects the shown tables which aren't in the view yet
@@ -4168,7 +4203,10 @@ function render({ model, el }) {
         head.append(all, h("span", "", "All tables not in the view"), h("span", "meta", ""));
         head.addEventListener("click", (ev) => { if (!ev.target.closest(".slls-sx-switch")) flipAll(); });
         const list = h("div", "slls-sx-sublist slls-sx-linklist");
-        m.body.append(searchBox("Filter tables\u2026", "", (v) => { query = v.trim().toLowerCase(); paint(); }), head, list);
+        // Selected tables which are already in the view.
+        const dupWarn = h("div", "slls-sx-vdupes");
+        dupWarn.style.display = "none";
+        m.body.append(searchBox("Filter tables\u2026", "", (v) => { query = v.trim().toLowerCase(); paint(); }), head, list, dupWarn);
         m.body.appendChild(h("div", "slls-sx-picker-note", "Each dataset\u2019s source is set to its table and its columns are read from the lakehouse; relationships to the new "
             + "datasets are then suggested. The names can be changed afterwards; nothing is saved until you click Save."));
         const foot = h("div", "slls-sx-modal-foot");
@@ -4177,15 +4215,15 @@ function render({ model, el }) {
         m.box.appendChild(foot);
         const setToggle = (sw, on) => { sw.classList.toggle("on", on); sw.setAttribute("aria-checked", String(on)); };
         // The rows are built when the shown tables change (filter, tables
-        // loaded) and otherwise updated in place: rebuilding them on a toggle
-        // removes the clicked element, and the notebook then scrolls back to
-        // the widget's top when the focus leaves it.
+        // loaded) and otherwise updated in place, so a toggle doesn't replace
+        // the element which was clicked.
         const rowEls = new Map();
         let built = null;
-        // A click on a row (outside its toggle) doesn't move the focus: it
-        // would go to the notebook cell, which the notebook scrolls into view.
-        const keepFocus = (el) => el.addEventListener("mousedown", (ev) => { if (!ev.target.closest(".slls-sx-switch")) ev.preventDefault(); });
+        // A mouse click on a row or its toggle doesn't move the focus (the
+        // notebook scrolls the cell into view when the focus changes in it).
+        const keepFocus = (el) => el.addEventListener("mousedown", (ev) => ev.preventDefault());
         keepFocus(head);
+        const quoted = (names) => names.map((n) => `\u201c${n}\u201d`).join(", ");
         function buildRows(rows, users) {
             const top = list.scrollTop;
             clear(list);
@@ -4193,19 +4231,20 @@ function render({ model, el }) {
             if (vTablesLoading) list.appendChild(h("div", "slls-sx-tablepick-note", "Loading the lakehouse tables\u2026"));
             else if (!rows.length) list.appendChild(h("div", "slls-sx-tablepick-note", tables().length ? "No matching tables" : "No tables found in the lakehouse"));
             for (const t of rows) {
-                const it = h("div", "slls-sx-subitem");
+                const inView = users.get(t.key) || null;
+                const it = h("div", "slls-sx-subitem" + (inView ? " inview" : ""));
                 const flip = () => { if (picked.has(t.key)) picked.delete(t.key); else picked.add(t.key); paint(); };
                 const sw = switchEl(false, `Add a dataset for ${t.name}`, flip, "");
                 it.append(sw, iconEl(t.shortcut ? "link" : "table", ""), h("span", "slls-sx-mono", t.name));
-                const pill = users.has(t.key) ? inViewPill(users.get(t.key)) : null;
+                const pill = inView ? inViewPill(inView) : null;
                 if (pill) it.appendChild(pill);
                 const meta = h("span", "meta", "");
                 it.appendChild(meta);
-                it.title = `${t.name} (${t.shortcut ? "shortcut" : "table"})`;
+                it.title = inView ? `${t.name} is already in the view as ${quoted(inView)}` : `${t.name} (${t.shortcut ? "shortcut" : "table"})`;
                 it.addEventListener("click", (ev) => { if (!ev.target.closest(".slls-sx-switch")) flip(); });
                 keepFocus(it);
                 list.appendChild(it);
-                rowEls.set(t.key, { it, sw, pill, meta });
+                rowEls.set(t.key, { it, sw, pill, meta, inView });
             }
             list.scrollTop = top;
         }
@@ -4223,19 +4262,29 @@ function render({ model, el }) {
                 setToggle(el.sw, on);
                 // Selecting a table already in the view adds it a second time.
                 if (el.pill) el.pill.classList.toggle("warn", on);
-                el.meta.textContent = on ? `\u2192 ${names.get(t.key)}` : "";
+                el.meta.textContent = on ? `\u2192 ${names.get(t.key)}${el.inView ? " (second dataset for this table)" : ""}`
+                    : el.inView ? `in view as ${quoted(el.inView)}` : "";
                 el.meta.title = on ? `The dataset\u2019s name: ${names.get(t.key)}` : "";
             }
             const free = rows.filter((t) => !users.has(t.key));
             setToggle(all, !!free.length && free.every((t) => picked.has(t.key)));
             all.disabled = !free.length;
-            head.querySelector(".meta").textContent = `${names.size} selected`;
+            const inViewCount = tables().filter((t) => users.has(t.key)).length;
+            head.querySelector(".meta").textContent = `${names.size} selected${inViewCount ? ` \u00b7 ${inViewCount} already in the view` : ""}`;
+            const dupes = tables().filter((t) => picked.has(t.key) && users.has(t.key));
+            clear(dupWarn);
+            dupWarn.style.display = dupes.length ? "" : "none";
+            if (dupes.length) {
+                dupWarn.append(iconEl("alert", ""), h("span", "", `${plural(dupes.length, "selected table")} ${dupes.length === 1 ? "is" : "are"} already in the view: `
+                    + dupes.map((t) => `${t.name} (as ${quoted(users.get(t.key))})`).join(", ")
+                    + `. Adding ${dupes.length === 1 ? "it" : "them"} again creates a second dataset for the same table.`));
+            }
             ok.innerHTML = ICON.plus || "";
             ok.appendChild(document.createTextNode(names.size ? `Add ${plural(names.size, "dataset")}` : "Select tables"));
             ok.disabled = !names.size;
         }
-        function add() {
-            const names = plan();
+        function commit(only) {
+            const names = plan(only);
             if (!names.size || vMode !== "write" || vSaving || !vWork) return;
             vBeginStep("");
             let first = "";
@@ -4251,6 +4300,36 @@ function render({ model, el }) {
             vSelected = first;
             m.close();
             vAfterChange(false);
+        }
+        // Tables already in the view are only added again after a warning.
+        function add() {
+            const users = vTableUsers();
+            const chosen = tables().filter((t) => picked.has(t.key));
+            const dupes = chosen.filter((t) => users.has(t.key));
+            if (!chosen.length) return;
+            if (!dupes.length) { commit(null); return; }
+            const fresh = chosen.filter((t) => !users.has(t.key));
+            const d = modal("Tables already in the view", "alert");
+            d.body.appendChild(h("div", "", `${plural(dupes.length, "selected table")} ${dupes.length === 1 ? "is" : "are"} already used by a dataset of the view. `
+                + `Adding ${dupes.length === 1 ? "it" : "them"} again creates a second dataset for the same table, which is rarely what you want.`));
+            const ul = h("div", "slls-sx-sublist");
+            ul.style.margin = "10px 0";
+            for (const t of dupes) {
+                const li = h("div", "slls-sx-subitem");
+                li.append(iconEl("alert", ""), h("span", "slls-sx-mono", t.name), h("span", "meta", `in view as ${quoted(users.get(t.key))}`));
+                ul.appendChild(li);
+            }
+            d.body.appendChild(ul);
+            const dfoot = h("div", "slls-sx-modal-foot");
+            dfoot.appendChild(button("slls-sx-btn", "Cancel", "", () => d.close()));
+            if (fresh.length) {
+                dfoot.appendChild(button("slls-sx-btn primary", `Add only the ${plural(fresh.length, "new table")}`, "plus",
+                    () => { d.close(); commit(new Set(fresh.map((t) => t.key))); }));
+            }
+            dfoot.appendChild(button("slls-sx-btn" + (fresh.length ? "" : " primary"), `Add all ${plural(chosen.length, "dataset")} anyway`, "",
+                () => { d.close(); commit(null); }));
+            d.box.appendChild(dfoot);
+            setTimeout(() => { const b = dfoot.querySelector(".primary"); if (b) b.focus(); }, 0);
         }
         vAddDatasetsRefresh = paint;
         m.onClose = () => { if (vAddDatasetsRefresh === paint) vAddDatasetsRefresh = null; };
@@ -4696,25 +4775,25 @@ function render({ model, el }) {
         const node = r.node;
         const off = vMode !== "write" || vSaving;
         const noAdd = off || !vCanAdd();
+        // Datasets are added from the lakehouse's tables (several at once).
         const add = {
-            dataset: ["Add dataset", "table", () => vAdd("dataset"), noAdd],
+            dataset: ["Add datasets from tables\u2026", "table", openAddViewDatasets, noAdd],
             relationship: ["Add relationship", "relationship", () => vAdd("relationship"), noAdd],
             metric: ["Add metric", "measure", () => vAdd("metric"), noAdd],
         };
-        const addDatasets = ["Add datasets from tables\u2026", "table", openAddViewDatasets, noAdd];
         if (r.folder) {
             const type = { "v:datasets": "dataset", "v:relationships": "relationship", "v:metrics": "metric" }[r.id];
-            return type === "dataset" ? [add.dataset, addDatasets] : type ? [add[type]] : [];
+            return type ? [add[type]] : [];
         }
         if (!node) return [];
         if (node.type === "view") {
-            const items = [add.dataset, addDatasets, add.relationship, add.metric, null,
+            const items = [add.dataset, add.relationship, add.metric, null,
                 ["Add YAML file", "file", openAddViewFile, off || !!model.get("busy") || !!viewData.view.shortcut]];
             if (vRemovableFiles().length) items.push(["Remove YAML file\u2026", "unlink", () => openRemoveViewFile(vFileFilter), off || !!model.get("busy")]);
             return items;
         }
         if (!add[node.type]) return [];
-        const items = node.type === "dataset" ? [add.dataset, addDatasets] : [add[node.type]];
+        const items = [add[node.type]];
         if (vEditable(node)) {
             items.push(null, [node.deleted ? "Restore" : "Delete", node.deleted ? "undo" : "trash", () => vToggleDelete(node), off, !node.deleted]);
         }
@@ -5359,16 +5438,14 @@ function render({ model, el }) {
         if (vMode === "write" && !vSaving) {
             if (node.type === "view") {
                 const readOnlyAll = "All of the view\u2019s YAML files are shortcuts, which are read-only";
-                for (const [type, label] of [["dataset", "Dataset"], ["relationship", "Relationship"], ["metric", "Metric"]]) {
+                const many = button("slls-sx-btn small", "Datasets from tables", "plus", openAddViewDatasets,
+                    vCanAdd() ? "Add datasets from the lakehouse\u2019s tables and shortcuts" : readOnlyAll);
+                many.disabled = !vCanAdd();
+                actions.appendChild(many);
+                for (const [type, label] of [["relationship", "Relationship"], ["metric", "Metric"]]) {
                     const ab = button("slls-sx-btn small", label, "plus", () => vAdd(type), vCanAdd() ? `Add a ${type}` : readOnlyAll);
                     ab.disabled = !vCanAdd();
                     actions.appendChild(ab);
-                    if (type === "dataset") {
-                        const many = button("slls-sx-btn small", "Datasets from tables", "plus", openAddViewDatasets,
-                            vCanAdd() ? "Add several datasets at once from the lakehouse\u2019s tables and shortcuts" : readOnlyAll);
-                        many.disabled = !vCanAdd();
-                        actions.appendChild(many);
-                    }
                 }
                 const yf = button("slls-sx-btn small", "YAML file", "plus", openAddViewFile,
                     viewData.view.shortcut ? "This view is a shortcut, which is read-only"
@@ -6944,6 +7021,11 @@ function render({ model, el }) {
         box.appendChild(bodyEl);
         overlay.appendChild(box);
         overlay.addEventListener("mousedown", (ev) => { if (ev.target === overlay) close(); });
+        // Clicks and focus changes in a dialog stay in the widget: notebooks
+        // (e.g. Fabric) otherwise activate the output's cell and scroll it
+        // into view, jumping to the top of the widget. The widget's own
+        // document listeners use the capture phase, so they still see them.
+        for (const type of ["focusin", "mousedown", "pointerdown", "click"]) overlay.addEventListener(type, (ev) => ev.stopPropagation());
         root.appendChild(overlay);
         document.addEventListener("keydown", onKey, true);
         result.body = bodyEl;
