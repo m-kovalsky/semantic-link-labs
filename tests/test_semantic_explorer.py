@@ -1873,10 +1873,12 @@ def test_adding_an_existing_view_to_a_single_file_view_combines_it(monkeypatch):
     assert not result["ok"] and "name for the combined view" in result["error"]
     result = send(request_id=2, combined_name="all", **args)
 
+    # Each YAML file of a combined view is in its own folder: the view's own
+    # file moves into a folder named after the view.
     assert result["ok"] and result["data"]["view"] == "all"
     assert sorted(p for p in lake.files if p.startswith(root)) == [
-        f"{root}/all/a.yaml",
         f"{root}/all/finance/f.yaml",
+        f"{root}/all/sales/a.yaml",
     ]
 
 
@@ -2294,10 +2296,12 @@ def test_adding_a_yaml_file_makes_a_single_file_view_a_combined_view(monkeypatch
         "view": "all",
         "file": "finance/finance_semantic_view.yaml",
     }
+    # Each YAML file of a combined view is in its own folder: the view's own
+    # file moves into a folder named after the view.
     folder = "Context/Semantic Views/all"
     assert sorted(p for p in lake.files if p.startswith("Context/Semantic Views/")) == [
         f"{folder}/finance/finance_semantic_view.yaml",
-        f"{folder}/sales_semantic_view.yaml",
+        f"{folder}/sales/sales_semantic_view.yaml",
         "Context/Semantic Views/other/other.yaml",
     ]
     new = yaml.safe_load(lake.files[f"{folder}/finance/finance_semantic_view.yaml"])
@@ -2306,6 +2310,22 @@ def test_adding_a_yaml_file_makes_a_single_file_view_a_combined_view(monkeypatch
     result = send(action="add_view_file", name="hr", request_id=4)
     assert result["ok"] and result["data"]["view"] == "all"
     assert f"{folder}/hr/hr_semantic_view.yaml" in lake.files
+
+
+def test_a_new_view_cant_take_the_folder_of_the_views_own_yaml_file(monkeypatch):
+    root = "Context/Semantic Views"
+    core = _VIEW_SCHEMA.replace("name: sales\n", "name: core\n", 1)
+    lake = _FakeOneLake(files={f"{root}/sales/s.yaml": core})
+    widget, send = _view_explorer_widget(monkeypatch)
+    monkeypatch.setattr(sx, "_onelake_request", lake)
+    before = dict(lake.files)
+
+    result = send(
+        action="add_view_file", name="Sales", combined_name="all", request_id=1
+    )
+
+    assert not result["ok"] and "moves into a 'sales' folder" in result["error"]
+    assert lake.files == before  # Nothing was moved or renamed.
 
 
 def test_adding_a_yaml_file_to_a_combined_view_keeps_its_name(monkeypatch):

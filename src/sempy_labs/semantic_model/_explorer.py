@@ -3536,8 +3536,10 @@ function render({ model, el }) {
     // or an existing semantic view's folder (moved here from this lakehouse,
     // a OneLake shortcut to it from another one). A view with one YAML file
     // becomes a combined view: its folder is renamed to the combined view's
-    // name. The lakehouse is changed right away, so staged changes are
-    // discarded first; adding a view is followed by a check of the sources.
+    // name and its YAML file moves into a subfolder named after the view, so
+    // each YAML file is in its own folder. The lakehouse is changed right
+    // away, so staged changes are discarded first; adding a view is followed
+    // by a check of the sources.
     function openAddViewFile() {
         if (vSaving || model.get("busy") || viewData.view.shortcut) return;
         if (viewPendingCount()) {
@@ -3686,6 +3688,13 @@ function render({ model, el }) {
             const renameText = renamed ? ` The view\u2019s folder is renamed from \u201c${view.name}\u201d to \u201c${combo}\u201d.` : "";
             const publishedText = renamed && view.published ? ` The \u201c${view.name}\u201d semantic model published from it is kept; `
                 + `publishing the combined view creates a \u201c${combo}\u201d semantic model.` : "";
+            // The view's own YAML file moves into a folder named after the
+            // view (a OneLake shortcut can't be moved and stays).
+            const nestFile = !combined && !vFileReadOnly(files[0]) ? files[0] : "";
+            const nestText = nestFile && combo ? ` The view\u2019s ${nestFile} moves to Context/Semantic Views/${combo}/${view.name}/${nestFile}, `
+                + "so that each YAML file is in its own folder." : "";
+            const nestClash = (added) => !!nestFile && !!added && added.toLowerCase() === view.name.toLowerCase();
+            const clashText = `\u201c${view.name}\u201d is the folder the view\u2019s own YAML file moves to; choose another name.`;
             if (!existing) {
                 const name = nameInput.value.trim();
                 const nameBad = !!name && invalid(name);
@@ -3695,8 +3704,9 @@ function render({ model, el }) {
                 // Each added file goes in a subfolder named after its semantic
                 // view. Whether the file already exists is checked when adding:
                 // the file list read with the view may be out of date.
-                text = name && combo ? `Creates Context/Semantic Views/${combo}/${name}/${name}_semantic_view.yaml.` + renameText + publishedText
+                text = name && combo ? `Creates Context/Semantic Views/${combo}/${name}/${name}_semantic_view.yaml.` + renameText + nestText + publishedText
                     : combined ? "The new file defines a semantic view with this name." : "Enter the new semantic view\u2019s name and the combined view\u2019s name.";
+                if (nestClash(name)) { ready = false; text = clashText; }
             } else {
                 loadLakehouses();
                 loadViews();
@@ -3715,10 +3725,11 @@ function render({ model, el }) {
                 text = !srcView ? "Choose the semantic view (its folder in Context/Semantic Views) to add to this view."
                     : sameLakehouse()
                         ? `Moves Context/Semantic Views/${srcView} to Context/Semantic Views/${combo || view.name}/${srcView}: it becomes part of this view `
-                            + "and is no longer a semantic view of its own." + renameText + publishedText
+                            + "and is no longer a semantic view of its own." + renameText + nestText + publishedText
                         : `Creates a OneLake shortcut Context/Semantic Views/${combo || view.name}/${srcView} to the \u201c${srcView}\u201d semantic view in ${where}. `
-                            + "Its YAML files are read-only here; source tables missing from this lakehouse can be linked afterwards." + renameText + publishedText;
+                            + "Its YAML files are read-only here; source tables missing from this lakehouse can be linked afterwards." + renameText + nestText + publishedText;
                 if (!combo) text = "Enter the combined view\u2019s name.";
+                else if (nestClash(srcView)) { ready = false; text = clashText; }
             }
             note.classList.toggle("error", bad);
             note.textContent = bad ? "A name can\u2019t contain \\ / : * ? \" < > | # % or end with a period." : text;
@@ -14892,9 +14903,11 @@ def _plan_view_yaml_file(
     view_name: str,
     name: str,
     combined_name: str = "",
-) -> Tuple[str, str]:
+) -> Tuple[str, str, Optional[str]]:
     """Checks that a YAML file defining the ``name`` semantic view can be added
-    to a view; returns the view's folder name afterwards and the file's path.
+    to a view; returns the view's folder name afterwards, the file's path and
+    the view's current YAML file which moves into its own folder (see
+    :func:`_yaml_to_nest`).
 
     A view with fewer than two YAML files isn't a combined view yet:
     ``combined_name`` names the combined view, and the view's folder is renamed
@@ -14942,7 +14955,9 @@ def _plan_view_yaml_file(
     target = _combined_view_name(
         workspace_id, lakehouse_id, view_name, listing, combined_name
     )
-    return target, path
+    nest = _yaml_to_nest(listing, folder)
+    _check_nest_folder(nest, view_name, name)
+    return target, path, nest
 
 
 def _combined_view_name(
@@ -15002,6 +15017,49 @@ def _needs_combined_name(yaml_files: List[str]) -> bool:
     return len(yaml_files) == 1 and "/" not in yaml_files[0]
 
 
+def _yaml_to_nest(listing: List[dict], folder: str) -> Optional[str]:
+    """The YAML file directly in a single-file view's folder (``listing``),
+    which moves into a subfolder named after the view when the view becomes a
+    combined view: each YAML file of a combined view is in its own folder.
+    None when there is none, or when it is a OneLake shortcut (which can't be
+    moved)."""
+
+    entries = [p for p in listing if not p["is_dir"] and p["path"].endswith(".yaml")]
+    rel = [_relative_path(p["path"], folder) for p in entries]
+    if not _needs_combined_name(rel) or entries[0].get("shortcut"):
+        return None
+    return rel[0]
+
+
+def _check_nest_folder(nest: Optional[str], view_name: str, added: str) -> None:
+    """The view's own YAML file goes to the ``view_name`` subfolder, which the
+    added view (its own subfolder ``added``) can't also use."""
+
+    if nest and added.lower() == view_name.lower():
+        raise ValueError(
+            f"The '{view_name}' view's YAML file moves into a '{view_name}' folder "
+            f"of the combined view; choose another name than '{added}'."
+        )
+
+
+def _nest_view_yaml(
+    workspace_id: str, lakehouse_id: str, view_folder: str, file: str, subfolder: str
+) -> None:
+    """Moves a YAML file of a combined view into its own subfolder."""
+
+    base = f"{_VIEWS_FOLDER}/{view_folder}"
+    try:
+        _onelake_create_directory(workspace_id, lakehouse_id, f"{base}/{subfolder}")
+    except ValueError:
+        pass  # The folder already exists.
+    _onelake_rename(
+        workspace_id,
+        lakehouse_id,
+        f"{base}/{file}",
+        f"{base}/{subfolder}/{file}",
+    )
+
+
 def _plan_view_import(
     workspace_id: str,
     lakehouse_id: str,
@@ -15010,12 +15068,13 @@ def _plan_view_import(
     source_lakehouse_id: str,
     source_view: str,
     combined_name: str = "",
-) -> Tuple[str, bool]:
+) -> Tuple[str, bool, Optional[str]]:
     """Checks that an existing semantic view (``source_view`` in the source
     lakehouse) can be added to a view, as a subfolder named after it: moved
     there when it is in the same lakehouse, a OneLake shortcut to it otherwise.
-    Returns the view's folder name afterwards (see :func:`_combined_view_name`)
-    and whether the source view is moved."""
+    Returns the view's folder name afterwards (see :func:`_combined_view_name`),
+    whether the source view is moved and the view's current YAML file which
+    moves into its own folder (see :func:`_yaml_to_nest`)."""
 
     source_view = str(source_view or "").strip()
     if not source_workspace_id or not source_lakehouse_id or not source_view:
@@ -15073,7 +15132,9 @@ def _plan_view_import(
     target = _combined_view_name(
         workspace_id, lakehouse_id, view_name, listing, combined_name
     )
-    return target, same
+    nest = _yaml_to_nest(listing, folder)
+    _check_nest_folder(nest, view_name, source_view)
+    return target, same, nest
 
 
 def _create_folder_shortcut(
@@ -17903,7 +17964,7 @@ def semantic_explorer(
                     raise ValueError("Select a semantic view first.")
                 workspace_id, lakehouse_id, view_name = ctx["view"]
                 name = str(data.get("name") or "").strip()
-                target, path = _plan_view_yaml_file(
+                target, path, nest = _plan_view_yaml_file(
                     workspace_id,
                     lakehouse_id,
                     view_name,
@@ -17919,6 +17980,10 @@ def semantic_explorer(
                     )
                     ctx["view"] = (workspace_id, lakehouse_id, target)
                 try:
+                    if nest:
+                        _nest_view_yaml(
+                            workspace_id, lakehouse_id, target, nest, view_name
+                        )
                     _onelake_create_file(
                         workspace_id,
                         lakehouse_id,
@@ -17945,7 +18010,7 @@ def semantic_explorer(
                 source_ws = str(data.get("workspace_id") or "")
                 source_lh = str(data.get("lakehouse_id") or "")
                 source_view = str(data.get("view") or "").strip()
-                target, move = _plan_view_import(
+                target, move, nest = _plan_view_import(
                     workspace_id,
                     lakehouse_id,
                     view_name,
@@ -17963,6 +18028,10 @@ def semantic_explorer(
                     )
                     ctx["view"] = (workspace_id, lakehouse_id, target)
                 try:
+                    if nest:
+                        _nest_view_yaml(
+                            workspace_id, lakehouse_id, target, nest, view_name
+                        )
                     if move:
                         _onelake_rename(
                             workspace_id,
