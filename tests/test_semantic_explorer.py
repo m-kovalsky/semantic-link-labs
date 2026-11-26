@@ -474,6 +474,21 @@ def test_payload_maps_translations_perspectives_errors_and_expressions(fake_clr)
     assert _find(dates["partitions"], "Dates")["e"] == {"Expression": "CALENDARAUTO()"}
 
 
+def test_checking_errors_again_reads_the_current_error_states(fake_clr):
+    model = _build_model()
+    payload = sx._model_payload(types.SimpleNamespace(model=model))
+    assert sx._model_errors(model) == payload["errors"]
+
+    sales = model.Tables["Sales"]
+    sales.Measures["Broken"].State = "Ready"
+    sales.Measures["Broken"].ErrorMessage = ""
+    sales.Partitions["Sales"].State = "DataSourceError"
+
+    assert [(e["type"], e["name"], e["state"]) for e in sx._model_errors(model)] == [
+        ("partition", "Sales", "DataSourceError")
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Saving
 # ---------------------------------------------------------------------------

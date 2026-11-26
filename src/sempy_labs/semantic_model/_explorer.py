@@ -12862,22 +12862,67 @@ function render({ model, el }) {
             saved: () => history.map((b) => ({ savedAt: b.savedAt, titles: b.changes.map((c) => c.title) })),
         });
     }
+    // Re-reads the error states of the saved model (pending changes are kept;
+    // they are only validated by the engine once saved).
+    let errorsChecking = false;
+    let errorsCheck = null;
+    function runErrorsCheck() {
+        if (errorsChecking || saving || !loaded()) return;
+        errorsChecking = true;
+        redrawTools();
+        request("check_errors", {}, (res) => {
+            errorsChecking = false;
+            if (res.ok) {
+                data.errors = res.data.errors || [];
+                errorsCheck = { at: new Date(), version: model.get("model_version"), pending: pendingCount() };
+                renderHeader();
+                renderTree();
+                renderDetail();
+            } else {
+                model.set("status", { message: `Error: ${res.error}`, kind: "error" });
+                model.save_changes();
+            }
+            redrawTools();
+        });
+    }
     function openErrors() {
-        const errors = data.errors || [];
-        const m = modal(`Model errors (${errors.length})`, "alert");
-        if (!errors.length) { m.body.appendChild(h("div", "slls-sx-empty", "No objects are in an error state.")); return; }
-        for (const e of errors) {
-            const row = h("div", "slls-sx-change");
-            const node = getNode(e.key);
-            row.appendChild(iconEl(node ? nodeIcon(node) : "alert"));
-            const bodyEl = h("div", "slls-sx-change-body");
-            const title = h("a", "slls-sx-link slls-sx-change-title", node ? objectLabel(node) : e.name);
-            title.addEventListener("click", () => { m.close(); reveal(e.key); });
-            bodyEl.appendChild(title);
-            bodyEl.appendChild(h("div", "slls-sx-change-detail", `${TYPE_LABEL[e.type] || e.type} \u00b7 ${e.state}${e.message ? "\n" + e.message : ""}`));
-            row.appendChild(bodyEl);
-            m.body.appendChild(row);
-        }
+        const m = modal("Model errors", "alert");
+        const titleEl = m.box.querySelector(".slls-sx-modal-title");
+        const again = button("slls-sx-btn small", "Check again", "check_circle", () => runErrorsCheck(),
+            "Read the error states of the semantic model again");
+        m.actions.appendChild(again);
+        const paint = () => {
+            const errors = data.errors || [];
+            titleEl.textContent = `Model errors (${errors.length})`;
+            clear(m.body);
+            again.disabled = errorsChecking || saving;
+            again.innerHTML = ICON[errorsChecking ? "refresh" : "check_circle"] || "";
+            again.appendChild(document.createTextNode(errorsChecking ? "Checking\u2026" : "Check again"));
+            if (errorsChecking) again.querySelector("svg").classList.add("slls-sx-spin");
+            const note = h("div", "slls-sx-picker-note");
+            note.style.margin = "0 0 8px";
+            const checked = errorsCheck && errorsCheck.version === model.get("model_version") ? errorsCheck : null;
+            const at = checked ? checked.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+            note.textContent = errorsChecking ? "Checking the semantic model\u2026"
+                : checked ? `Checked at ${at}.${checked.pending ? ` ${plural(checked.pending, "pending change")} not included: changes are validated once saved.` : ""}`
+                : "Checked when the model was read. Use Check again to read the objects\u2019 error states again (e.g. after a refresh).";
+            m.body.appendChild(note);
+            if (!errors.length) { m.body.appendChild(h("div", "slls-sx-empty", "No objects are in an error state.")); return; }
+            for (const e of errors) {
+                const row = h("div", "slls-sx-change");
+                const node = getNode(e.key);
+                row.appendChild(iconEl(node ? nodeIcon(node) : "alert"));
+                const bodyEl = h("div", "slls-sx-change-body");
+                const title = h("a", "slls-sx-link slls-sx-change-title", node ? objectLabel(node) : e.name);
+                title.addEventListener("click", () => { m.close(); reveal(e.key); });
+                bodyEl.appendChild(title);
+                bodyEl.appendChild(h("div", "slls-sx-change-detail", `${TYPE_LABEL[e.type] || e.type} \u00b7 ${e.state}${e.message ? "\n" + e.message : ""}`));
+                row.appendChild(bodyEl);
+                m.body.appendChild(row);
+            }
+        };
+        registerTool(m, paint);
+        paint();
     }
 
     // ------------------------------------------------------------------
@@ -13562,6 +13607,40 @@ def _record_error(errors: list, node: dict, obj) -> None:
                 "message": message,
             }
         )
+
+
+def _model_errors(model) -> list:
+    """The model's objects in an error state (as listed by the payload)."""
+
+    errors: list = []
+    for table in model.Tables:
+        t_name = str(table.Name)
+        for column in table.Columns:
+            if str(column.Type) == "RowNumber":
+                continue
+            node = {"type": "column", "table": t_name, "name": str(column.Name)}
+            _record_error(errors, node, column)
+        for measure in table.Measures:
+            node = {"type": "measure", "table": t_name, "name": str(measure.Name)}
+            _record_error(errors, node, measure)
+        if table.CalculationGroup is not None:
+            for item in table.CalculationGroup.CalculationItems:
+                node = {
+                    "type": "calculationItem",
+                    "table": t_name,
+                    "name": str(item.Name),
+                }
+                _record_error(errors, node, item)
+        for partition in table.Partitions:
+            node = {"type": "partition", "table": t_name, "name": str(partition.Name)}
+            _record_error(errors, node, partition)
+    try:
+        functions = list(model.Functions)
+    except Exception:
+        functions = []
+    for f in functions:
+        _record_error(errors, {"type": "function", "name": str(f.Name)}, f)
+    return errors
 
 
 def _base_node(
@@ -18141,6 +18220,7 @@ _BACKGROUND_ACTIONS = (
     "dl_source_items",
     "dl_source_expression",
     "dl_sync_columns",
+    "check_errors",
 )
 _daxlib_cache: Dict[object, Tuple[float, object]] = {}
 
@@ -19108,6 +19188,14 @@ def semantic_explorer(
                 ) as tom:
                     text, language = _object_tmdl(tom.model, data.get("target") or {})
                 _reply(data, True, {"text": text, "language": language})
+            elif action == "check_errors":
+                with connect_semantic_model(
+                    dataset=ctx["dataset_id"],
+                    workspace=ctx["workspace_id"],
+                    readonly=True,
+                ) as tom:
+                    errors = _model_errors(tom.model)
+                _reply(data, True, {"errors": errors})
             elif action == "dependencies":
                 _reply(
                     data,
