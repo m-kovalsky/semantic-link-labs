@@ -564,6 +564,120 @@ def test_apply_changes_applies_duplicates_before_deletes(fake_clr):
     assert names == ["Broken", "Total copy"]
 
 
+def _direct_lake_table(model):
+    table = _table(model, "Customers")
+    _column(table, "Name", SourceColumn="name")
+    _column(table, "Old", SourceColumn="old_col")
+    expression = _Obj("Expression", Name="DatabaseQuery", Kind="M", Expression="")
+    model.Expressions.Add(expression)
+    table.Partitions.Add(
+        _Obj(
+            "Partition",
+            Name="Customers",
+            Table=table,
+            Mode=_Enum(MODE, "DirectLake"),
+            SourceType=_Enum(SOURCE_TYPE, "Entity"),
+            Source=types.SimpleNamespace(
+                EntityName="customers", SchemaName="sales", ExpressionSource=expression
+            ),
+        )
+    )
+    return table
+
+
+def test_direct_lake_columns_sync_and_table_converts_to_import(fake_clr):
+    fake_clr.DataColumn = lambda: _Obj(
+        "Column", DataType=_Enum(DATA_TYPE, "String"), SortByColumn=None
+    )
+    fake_clr.MPartitionSource = lambda: types.SimpleNamespace(Expression="", kind="M")
+    model = _build_model()
+    table = _direct_lake_table(model)
+    payload = sx._model_payload(types.SimpleNamespace(model=model))
+    partition = _find(_find(payload["tables"], "Customers")["partitions"], "Customers")
+    assert partition["expression_source"] == "DatabaseQuery"
+
+    tom = _tom(model)
+    tom.get_direct_lake_sources = lambda: [
+        {
+            "expressionName": "DatabaseQuery",
+            "itemType": "Lakehouse",
+            "workspaceId": "ws1",
+            "itemId": "lh1",
+        }
+    ]
+    target = {"type": "table", "name": "Customers"}
+    add = [{"name": "age", "dataType": "int"}, {"name": "pic", "dataType": "binary"}]
+    ops = [
+        {"op": "sync_columns", "target": target, "add": add, "remove": ["Old"]},
+        {"op": "convert_to_import", "target": target},
+    ]
+
+    sx._apply_changes(tom, [], [], ops)
+
+    # Binary columns are skipped: Direct Lake does not support them.
+    assert [c.Name for c in table.Columns] == ["Name", "age"]
+    age = table.Columns["age"]
+    assert (age.SourceColumn, str(age.DataType)) == ("age", "Int64")
+    [imported] = table.Partitions
+    assert (imported.Name, imported.Mode, str(imported.SourceType)) == (
+        "Customers",
+        "Import",
+        "M",
+    )
+    assert 'Workspace{[lakehouseId="lh1"]}' in imported.Source.Expression
+    assert 'Name="customers", ItemKind="Table", Schema="sales"' in (
+        imported.Source.Expression
+    )
+
+
+@pytest.mark.parametrize(
+    "source, shared, expected",
+    [
+        (
+            {"itemType": "Lakehouse", "workspaceId": "ws1", "itemId": "lh1"},
+            'let\n\tdatabase = Sql.Database("srv.fabric.microsoft.com", "ep1")\nin\n\tdatabase',
+            'Sql.Database("srv.fabric.microsoft.com","ep1"),\n'
+            '    Data = Source{[Schema="dbo",Item="a""b"]}[Data]',
+        ),
+        (
+            {"itemType": "Warehouse", "workspaceId": "ws1", "itemId": "wh1"},
+            "",
+            'Warehouse = Workspace{[warehouseId="wh1"]}[Data],\n'
+            '    Table = Warehouse{[Schema="dbo", Item="a""b"]}[Data]',
+        ),
+    ],
+)
+def test_import_partition_expression_follows_the_direct_lake_source(
+    source, shared, expected
+):
+    assert expected in sx._import_partition_expression(source, shared, "", 'a"b')
+
+
+def test_new_data_column_hierarchy_and_m_partition(fake_clr):
+    fake_clr.DataColumn = lambda: _Obj("Column", DataType=None, SortByColumn=None)
+    fake_clr.Hierarchy = lambda: _Obj("Hierarchy", Levels=_Coll())
+    fake_clr.Level = lambda: _Obj("Level")
+    fake_clr.MPartitionSource = lambda: types.SimpleNamespace(Expression="", kind="M")
+    model = _build_model()
+    creates = [
+        {"type": "column", "kind": "data", "name": "Code", "table": "Sales"},
+        {"type": "hierarchy", "name": "Geo", "table": "Sales"},
+        {"type": "partition", "name": "Extra", "table": "Sales"},
+    ]
+
+    sx._apply_changes(_tom(model), creates, [], [])
+
+    sales = model.Tables["Sales"]
+    code = sales.Columns["Code"]
+    assert (code.ObjectType, code.SourceColumn) == ("Column", "Code")
+    [level] = sales.Hierarchies["Geo"].Levels
+    # A hierarchy needs a level: it starts with the table's first column.
+    assert (level.Name, level.Ordinal, level.Column) == ("Amount", 0, sales.Columns[0])
+    extra = sales.Partitions["Extra"]
+    assert extra.Mode == "Import"
+    assert "#table({}, {})" in extra.Source.Expression
+
+
 def test_perspective_membership_is_idempotent_and_expands_include_all(fake_clr):
     model = _build_model()
     sales = model.Tables["Sales"]

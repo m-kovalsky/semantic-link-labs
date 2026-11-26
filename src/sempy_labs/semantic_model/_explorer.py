@@ -688,6 +688,18 @@ pre.slls-sx-dialect {
 }
 .slls-sx-section-title:not(:first-child) { margin-top: 18px; }
 .slls-sx-ctx { position: fixed; z-index: 2147483600; }
+.slls-sx-flyout { min-width: 190px; z-index: 2147483601; }
+.slls-sx-menu-parent.on { background: var(--ui-surface-2); }
+.slls-sx-menu-chev { margin-left: auto; display: inline-flex; }
+.slls-sx-dls-fields { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 12px 0; }
+.slls-sx-sync-sec { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: var(--sx-radius-sm); }
+.slls-sx-sync-title { font-size: 12.5px; font-weight: 600; }
+.slls-sx-sync-hint { margin: 2px 0 6px; font-size: 11.5px; color: var(--ui-text-tertiary); }
+.slls-sx-sync-row { display: flex; align-items: center; gap: 8px; padding: 4px 2px; font-size: 12.5px; cursor: pointer; }
+.slls-sx-sync-row input { margin: 0; accent-color: var(--ui-accent); }
+.slls-sx-sync-row svg { width: 14px; height: 14px; color: var(--ui-text-secondary); }
+.slls-sx-sync-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-sync-row .meta { font-family: var(--sx-mono); font-size: 11px; color: var(--ui-text-secondary); }
 .slls-sx-counts .sep { margin: 0 3px; opacity: 0.6; }
 
 /* Field parameter manager */
@@ -1648,6 +1660,8 @@ function render({ model, el }) {
         ["roles", "Roles", "shield_check"],
         ["tables", "Tables", "table"],
     ];
+    const FOLDER_NOUN = { relationships: "relationship", expressions: "shared expression", functions: "function",
+        perspectives: "perspective", roles: "role", cultures: "culture" };
     const TABLE_FILTERS = ["tables", "calculatedTables", "calculationGroups"];
     const FIELD_FILTERS = ["columns", "calculatedColumns", "measures", "hierarchies", "calculationItems", "partitions"];
     const FOLDERS = [
@@ -1664,12 +1678,14 @@ function render({ model, el }) {
         ModelPermission: ["None", "Read", "ReadRefresh", "Refresh", "Administrator"],
         RelationshipEndCardinality: ["One", "Many", "None"],
         CrossFilteringBehavior: ["OneDirection", "BothDirections", "Automatic"],
+        ModeType: ["Import", "DirectQuery", "Dual", "Default", "Push", "DirectLake"],
     };
     const JSON_PROPS = new Set(["Annotations", "Translations", "Perspectives", "Members", "RlsFilters", "Ols"]);
     const PANE_MIN = 240, PANE_MAX = 640;
     // Starting definition of a new named expression (matches the kernel side).
     const NEW_MODEL_COMPATIBILITY_LEVEL = 1706;
     const NEW_EXPRESSION = "let\n    Source = \"\"\nin\n    Source";
+    const NEW_M_PARTITION = "let\n    Source = #table({}, {})\nin\n    Source";
 
     // ------------------------------------------------------------------
     // State
@@ -1910,12 +1926,24 @@ function render({ model, el }) {
             node.expressions = [{ prop: "Expression", label: "Expression", lang: "dax", value: "" },
                 { prop: "FormatStringExpression", label: "Format string expression", lang: "dax", value: "" }];
         } else if (c.type === "column") {
-            node.column_type = "Calculated";
+            const dataColumn = c.kind === "data";
+            node.column_type = dataColumn ? "Data" : "Calculated";
             node.props.push(P("IsHidden", "Hidden", "General", "bool", { value: false }),
                 P("DataType", "Data type", "General", "enum", { enum: enumOf("DataType"), value: "String" }),
                 P("DisplayFolder", "Display folder", "Formatting", "text"), P("FormatString", "Format string", "Formatting", "text"),
                 P("SummarizeBy", "Summarize by", "Formatting", "enum", { enum: enumOf("AggregateFunction"), value: "Default" }));
-            node.expressions = [{ prop: "Expression", label: "Expression", lang: "dax", value: "" }];
+            if (dataColumn) node.props.push(P("SourceColumn", "Source column", "Source", "text"));
+            else node.expressions = [{ prop: "Expression", label: "Expression", lang: "dax", value: "" }];
+        } else if (c.type === "hierarchy") {
+            node.props.push(P("IsHidden", "Hidden", "General", "bool", { value: false }),
+                P("DisplayFolder", "Display folder", "Formatting", "text"));
+            // Saved with the table's first column as its level.
+            node.levels = [];
+        } else if (c.type === "partition") {
+            node.mode = "Import";
+            node.source_type = "M";
+            node.props.push(P("Mode", "Mode", "General", "enum", { enum: enumOf("ModeType"), value: "Import" }));
+            node.expressions = [{ prop: "Expression", label: "Expression", lang: "m", value: NEW_M_PARTITION }];
         } else if (c.type === "calculationItem") {
             node.props.push(P("Ordinal", "Ordinal", "General", "number"));
             node.expressions = [{ prop: "Expression", label: "Expression", lang: "dax", value: "SELECTEDMEASURE()" },
@@ -2235,8 +2263,9 @@ function render({ model, el }) {
         while (lower.has(`${base} ${i}`.toLowerCase())) i += 1;
         return `${base} ${i}`;
     }
-    function addObject(type, parent) {
+    function addObject(type, parent, opts) {
         if (saving) return;
+        const kindOpt = (opts && opts.kind) || "";
         if (mode !== "write") setMode("write");
         let base = "New object";
         let taken = [];
@@ -2246,7 +2275,13 @@ function render({ model, el }) {
             for (const t of tables) for (const m of [...(t.measures || []), ...newNodes("measure", t.key)]) taken.push(effName(m));
         } else if (type === "column") {
             base = "New column";
-            taken = [...(parent.columns || []), ...newNodes("column", parent.key)].map(effName);
+            taken = [...(parent.columns || []), ...(parent.measures || []), ...newNodes("column", parent.key)].map(effName);
+        } else if (type === "hierarchy") {
+            base = "New hierarchy";
+            taken = [...(parent.hierarchies || []), ...newNodes("hierarchy", parent.key)].map(effName);
+        } else if (type === "partition") {
+            base = "New partition";
+            taken = [...(parent.partitions || []), ...newNodes("partition", parent.key)].map(effName);
         } else if (type === "calculationItem") {
             base = "New item";
             taken = [...(parent.calculation_items || []), ...newNodes("calculationItem", parent.key)].map(effName);
@@ -2260,7 +2295,10 @@ function render({ model, el }) {
         }
         pushUndo("");
         const id = ++createSeq + "-" + Date.now().toString(36);
-        staging.creates.push({ id, type, parentKey: parent ? parent.key : "", name: uniqueName(base, taken), props: {} });
+        const created = { id, type, parentKey: parent ? parent.key : "", name: uniqueName(base, taken), props: {} };
+        if (kindOpt) created.kind = kindOpt;
+        staging.creates.push(created);
+        if (type === "partition") expanded.add(parent.key + "#partitions");
         if (type === "table") {
             staging.creates.push({ id: id + "-item", type: "calculationItem", parentKey: "new:" + id, name: "Item", props: {} });
             expanded.add("new:" + id);
@@ -2318,7 +2356,15 @@ function render({ model, el }) {
             });
         }
         for (const o of staging.ops) {
-            items.push({ kind: "op", op: o.op, key: o.key, title: `${o.op === "delete" ? "Delete" : "Duplicate"} ${(TYPE_LABEL[o.objectType] || "").toLowerCase()} ${o.label}`, detail: "" });
+            let title = `${o.op === "delete" ? "Delete" : "Duplicate"} ${(TYPE_LABEL[o.objectType] || "").toLowerCase()} ${o.label}`;
+            let detail = "";
+            if (o.op === "sync_columns") {
+                title = `Sync columns of table ${o.label} (+${(o.add || []).length}, \u2212${(o.remove || []).length})`;
+                detail = [...(o.add || []).map((c) => "+ " + c.name), ...(o.remove || []).map((n) => "\u2212 " + n)].join(", ");
+            } else if (o.op === "convert_to_import") {
+                title = `Convert table ${o.label} from Direct Lake to import`;
+            }
+            items.push({ kind: "op", op: o.op, key: o.key, title, detail });
         }
         return items;
     }
@@ -2333,13 +2379,20 @@ function render({ model, el }) {
                     if (props[prop]) props[prop] = rewriteDax(String(props[prop]), renames, parent ? parent.name : "", c.type === "column");
                 }
             }
-            return { type: c.type, name: c.name, table, props };
+            const spec = { type: c.type, name: c.name, table, props };
+            if (c.kind) spec.kind = c.kind;
+            return spec;
         });
         const deleted = new Set(staging.ops.filter((o) => o.op === "delete").map((o) => o.key));
         const edits = Object.values(staging.edits)
             .filter((e) => !deleted.has(e.key))
             .map((e) => ({ target: e.target, property: e.property, value: e.newValue, label: e.label }));
-        const ops = staging.ops.map((o) => ({ op: o.op, target: o.target }));
+        // Syncing or converting a table which is being deleted is moot.
+        const ops = staging.ops.filter((o) => !["sync_columns", "convert_to_import"].includes(o.op) || !deleted.has(o.key)).map((o) => {
+            const op = { op: o.op, target: o.target };
+            if (o.op === "sync_columns") { op.add = o.add || []; op.remove = o.remove || []; }
+            return op;
+        });
         return { creates, edits, ops };
     }
     function save() {
@@ -6027,8 +6080,75 @@ function render({ model, el }) {
             ...sortAll([...(t.measures || []), ...newNodes("measure", t.key)]),
             ...sortAll([...(t.calculation_items || []), ...newNodes("calculationItem", t.key)]),
             ...sortAll([...(t.columns || []), ...newNodes("column", t.key)]),
-            ...sortAll(t.hierarchies || []),
+            ...sortAll([...(t.hierarchies || []), ...newNodes("hierarchy", t.key)]),
         ];
+    }
+    // A field's display folder: its translation when viewing as a culture.
+    const FOLDER_TYPES = new Set(["column", "measure", "hierarchy"]);
+    function displayFolderOf(node) {
+        if (!FOLDER_TYPES.has(node.type)) return "";
+        if (viewCulture && !node.isNew) {
+            const tr = jsonValue(node, "Translations", {})[viewCulture];
+            if (tr && tr.displayFolder) return String(tr.displayFolder);
+        }
+        return String(value(node, "DisplayFolder") || "");
+    }
+    function isFolderTranslated(node) {
+        if (!viewCulture || node.isNew || !FOLDER_TYPES.has(node.type)) return false;
+        const tr = jsonValue(node, "Translations", {})[viewCulture];
+        return !!(tr && tr.displayFolder);
+    }
+    // Nested display folders are separated by a backslash (or slash).
+    function folderParts(folder) {
+        return String(folder || "").split(/[\\/]/).map((x) => x.trim()).filter(Boolean);
+    }
+    function displayFolderId(tableKey, parts) { return "dispfolder:" + tableKey + KEY_SEP + parts.join("\\"); }
+    // The ids of the display folders holding a field (outermost first).
+    function displayFolderChain(node) {
+        const parent = node.type === "level" ? node.parent && node.parent.parent : node.parent;
+        const field = node.type === "level" ? node.parent : node;
+        if (!parent || !field) return [];
+        const parts = folderParts(displayFolderOf(field));
+        return parts.map((_, i) => displayFolderId(parent.key, parts.slice(0, i + 1)));
+    }
+    function fieldTrailing(f) {
+        if (f.type === "column") return { trailing: String(value(f, "DataType") || ""), trailTitle: "Data type" };
+        if (f.type === "hierarchy" && (f.levels || []).length) return { trailing: String(f.levels.length), trailTitle: plural(f.levels.length, "level") };
+        return {};
+    }
+    // Pushes a table's field rows, grouped by display folder: folders (sorted)
+    // come before the fields outside any folder.
+    function pushFieldRows(rows, t, fields, open) {
+        const top = { fields: [], children: new Map(), translated: false };
+        for (const entry of fields) {
+            let at = top;
+            const translated = isFolderTranslated(entry.node);
+            for (const part of folderParts(displayFolderOf(entry.node))) {
+                let child = at.children.get(part);
+                if (!child) { child = { fields: [], children: new Map(), translated: false }; at.children.set(part, child); }
+                if (translated) child.translated = true;
+                at = child;
+            }
+            at.fields.push(entry);
+        }
+        const walk = (at, depth, parts) => {
+            const names = [...at.children.keys()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+            for (const name of names) {
+                const child = at.children.get(name);
+                const path = [...parts, name];
+                const id = displayFolderId(t.key, path);
+                rows.push({ id, depth, group: true, displayFolder: true, label: name, icon: "folder", hasChildren: true,
+                    open: open(id), translated: child.translated, trailTitle: "Display folder" });
+                if (open(id)) walk(child, depth + 1, path);
+            }
+            for (const { node: f, levels } of at.fields) {
+                rows.push(Object.assign({ id: f.key, depth, node: f, hasChildren: levels.length > 0, open: open(f.key) }, fieldTrailing(f)));
+                if (levels.length && open(f.key)) {
+                    for (const lv of levels) rows.push({ id: lv.key, depth: depth + 1, node: lv, trailing: columnDisplayName(f.table, lv.column), trailTitle: "Column" });
+                }
+            }
+        };
+        walk(top, 3, []);
     }
 
     function buildRows() {
@@ -6055,7 +6175,8 @@ function render({ model, el }) {
             const tableTypeOk = !typeOn || (tableTypes ? typeFilter.has(tableFilterId(t)) : true);
             if (!tableTypeOk && !fieldTypes) continue;
             const tableHit = hit(t);
-            const partitions = (t.partitions || []).filter((p) => !viewPerspective && allowField(p) && (!typeOn || typeFilter.has("partitions")) && (tableHit || hit(p)));
+            const partitions = [...(t.partitions || []), ...newNodes("partition", t.key)]
+                .filter((p) => !viewPerspective && allowField(p) && (!typeOn || typeFilter.has("partitions")) && (tableHit || hit(p)));
             const fields = [];
             for (const f of tableFields(t)) {
                 if (!inPerspective(f) || !allowField(f)) continue;
@@ -6083,12 +6204,15 @@ function render({ model, el }) {
                         const pid = t.key + "#partitions";
                         rows.push({ id: pid, depth: 3, group: true, label: "Partitions", icon: "partition", hasChildren: true,
                             open: open(pid), trailing: String(partitions.length) });
-                        if (open(pid)) for (const p of partitions) rows.push({ id: p.key, depth: 4, node: p });
+                        if (open(pid)) {
+                            for (const p of partitions) {
+                                const pending = hasOp(t, "convert_to_import") && p.source_type === "Entity";
+                                rows.push({ id: p.key, depth: 4, node: p, trailing: pending ? "Import (pending)" : String(value(p, "Mode") || p.mode || ""),
+                                    trailTitle: "Mode" });
+                            }
+                        }
                     }
-                    for (const { node: f, levels } of fields) {
-                        rows.push({ id: f.key, depth: 3, node: f, hasChildren: levels.length > 0, open: open(f.key) });
-                        if (levels.length && open(f.key)) for (const lv of levels) rows.push({ id: lv.key, depth: 4, node: lv });
-                    }
+                    pushFieldRows(rows, t, fields, open);
                 }
             }
         }
@@ -6098,10 +6222,23 @@ function render({ model, el }) {
             const createType = { roles: "role", perspectives: "perspective", expressions: "expression", relationships: "relationship" }[folder];
             const items = [...(data[folder] || []), ...(createType ? newNodes(createType, "") : [])]
                 .filter((n) => hit(n)).sort(byLabel);
-            if (!items.length && (q || !(data[folder] || []).length) && !(mode === "write" && createType && !q && !typeOn)) continue;
+            // Roles and functions are always listed (like the Tools explorer);
+            // other empty folders only when something can be added to them.
+            const alwaysShown = folder === "roles" || folder === "functions";
+            if (!items.length && (q || (!alwaysShown && !(mode === "write" && createType && !typeOn)))) continue;
             const id = "folder:" + folder;
-            rows.push({ id, depth: 1, folder, label, icon, hasChildren: items.length > 0, open: open(id), trailing: String(items.length) });
-            if (open(id)) for (const n of items) rows.push({ id: n.key, depth: 2, node: n });
+            rows.push({ id, depth: 1, folder, label, icon, hasChildren: items.length > 0, open: open(id), trailing: String(items.length),
+                trailTitle: `${plural(items.length, FOLDER_NOUN[folder] || "object")} in this model` });
+            if (open(id)) {
+                for (const n of items) {
+                    const row = { id: n.key, depth: 2, node: n };
+                    if (n.type === "role") {
+                        const count = jsonValue(n, "Members", []).length;
+                        Object.assign(row, { trailing: String(count), trailTitle: `${plural(count, "member")} in this role` });
+                    }
+                    rows.push(row);
+                }
+            }
         }
         return rows;
     }
@@ -6191,14 +6328,18 @@ function render({ model, el }) {
             const description = value(node, "Description");
             label.title = objectLabel(node) + (description ? `\n${description}` : "");
         }
-        if (r.trailing) row.appendChild(h("span", "slls-sx-trail", r.trailing));
-        else if (node && node.type === "table") {
+        if (r.translated) row.classList.add("translated");
+        if (r.trailing) {
+            const trail = h("span", "slls-sx-trail", r.trailing);
+            if (r.trailTitle) trail.title = r.trailTitle;
+            row.appendChild(trail);
+        } else if (node && node.type === "table") {
             // Column / measure / hierarchy counts, e.g. "12c \u00b7 3m \u00b7 1h".
             const trail = h("span", "slls-sx-trail slls-sx-counts");
             const counts = [
                 [(node.columns || []).length + newNodes("column", node.key).length, "c", "column", "columns"],
                 [(node.measures || []).length + newNodes("measure", node.key).length, "m", "measure", "measures"],
-                [(node.hierarchies || []).length, "h", "hierarchy", "hierarchies"],
+                [(node.hierarchies || []).length + newNodes("hierarchy", node.key).length, "h", "hierarchy", "hierarchies"],
             ];
             counts.forEach(([n, suffix, one, many], i) => {
                 if (i) trail.appendChild(h("span", "sep", "\u00b7"));
@@ -6237,6 +6378,7 @@ function render({ model, el }) {
         const node = getNode(key);
         if (!node) return;
         expanded.add("model");
+        for (const id of displayFolderChain(node)) expanded.add(id);
         let p = node;
         while (p) {
             if (p.type === "table") expanded.add("folder:tables");
@@ -6402,6 +6544,7 @@ function render({ model, el }) {
         for (const t of data.tables || []) {
             expanded.add(t.key);
             for (const hi of t.hierarchies || []) expanded.add(hi.key);
+            for (const f of tableFields(t)) for (const id of displayFolderChain(f)) expanded.add(id);
         }
         renderTree();
     }
@@ -6429,16 +6572,62 @@ function render({ model, el }) {
     // Context menu
     // ------------------------------------------------------------------
     let ctxMenu = null;
+    let ctxFlyout = null;
+    function closeFlyout() { if (ctxFlyout) { ctxFlyout.remove(); ctxFlyout = null; } }
     function closeContextMenu() {
+        closeFlyout();
         if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; }
         document.removeEventListener("mousedown", ctxOutside, true);
     }
-    function ctxOutside(ev) { if (ctxMenu && !ctxMenu.contains(ev.target)) closeContextMenu(); }
+    function ctxOutside(ev) {
+        if (ctxMenu && !ctxMenu.contains(ev.target) && !(ctxFlyout && ctxFlyout.contains(ev.target))) closeContextMenu();
+    }
+    function isDirectLakeTable(node) {
+        return !!node && node.type === "table" && !node.isNew && (node.partitions || []).some((p) => p.source_type === "Entity");
+    }
+    // Shared expressions which are the source of Direct Lake partitions.
+    function directLakeExpressionNames() {
+        const names = new Set();
+        for (const t of data.tables || []) for (const p of t.partitions || []) {
+            if (p.source_type === "Entity" && p.expression_source) names.add(p.expression_source);
+        }
+        return names;
+    }
+    function hasOp(node, op) { return staging.ops.some((o) => o.op === op && o.key === node.key); }
+    // The "Add" flyout entries for a table, a calculation group, the model or
+    // the Tables folder (null when nothing can be added there).
+    function addMenu(node, folder) {
+        const sub = [];
+        if (node && node.type === "table") {
+            if (isDeleted(node)) return null;
+            const calcGroup = node.kind === "calculation_group";
+            const calculated = node.kind === "calculated_table" || node.kind === "field_parameter";
+            const directLake = isDirectLakeTable(node);
+            if (!calcGroup) sub.push(["Measure", "measure", () => addObject("measure", node)]);
+            if (!calcGroup && !calculated && !node.isNew) sub.push(["Column", "column", () => addObject("column", node, { kind: "data" })]);
+            // Calculated columns aren't supported on Direct Lake tables.
+            if (!calcGroup && !directLake) sub.push(["Calculated column", "calculated_column", () => addObject("column", node)]);
+            if (!calcGroup && !node.isNew && liveColumns(node).length) sub.push(["Hierarchy", "hierarchy", () => addObject("hierarchy", node)]);
+            if (!calcGroup && !calculated && !directLake && !node.isNew) sub.push(["M partition", "partition", () => addObject("partition", node)]);
+            if (calcGroup) sub.push(["Calculation item", "calculation_item", () => addObject("calculationItem", node)]);
+        } else if ((node && node.type === "model") || folder === "tables") {
+            sub.push(["Calculation group", "calculation_group", () => addObject("table", null)]);
+            sub.push(["Field parameter", "field_parameter", () => openFieldParameterManager({ startNew: true })]);
+            if (node && node.type === "model") {
+                sub.push(null);
+                sub.push(["Role", "shield_check", () => addObject("role", null)]);
+                sub.push(["Perspective", "perspective", () => addObject("perspective", null)]);
+                sub.push(["Expression", "code", () => addObject("expression", null)]);
+            }
+        }
+        return sub.length ? { label: "Add", icon: "plus", submenu: sub } : null;
+    }
     function menuItems(node, folder) {
         const items = [];
         const write = mode === "write" && !saving;
         if (folder) {
-            if (folder === "tables") items.push(["Add calculation group", "calculation_group", () => addObject("table", null)]);
+            const add = addMenu(null, folder);
+            if (add) items.push(add);
             if (folder === "roles") items.push(["Add role", "shield_check", () => addObject("role", null)]);
             if (folder === "perspectives") items.push(["Add perspective", "perspective", () => addObject("perspective", null)]);
             if (folder === "expressions") items.push(["Add expression", "code", () => addObject("expression", null)]);
@@ -6446,58 +6635,107 @@ function render({ model, el }) {
             return items;
         }
         if (!node) return items;
-        if (!node.isNew) {
-            items.push(["View TMDL", "file", () => openTmdl(node)]);
-            if (["table", "column", "measure", "calculationItem", "hierarchy", "partition", "expression", "function", "relationship"].includes(node.type)) {
-                items.push(["Show dependencies", "workflow", () => openDependencies(node)]);
-            }
-        }
-        if (node.type === "table") {
-            if (items.length) items.push(null);
-            items.push(["Add measure", "measure", () => addObject("measure", node)]);
-            if (node.kind !== "calculation_group") items.push(["Add calculated column", "calculated_column", () => addObject("column", node)]);
-            if (node.kind === "calculation_group") items.push(["Add calculation item", "calculation_item", () => addObject("calculationItem", node)]);
-        }
-        if (node.type === "model") {
-            items.push(null);
-            items.push(["Add calculation group", "calculation_group", () => addObject("table", null)]);
-            items.push(["Add role", "shield_check", () => addObject("role", null)]);
-            items.push(["Add perspective", "perspective", () => addObject("perspective", null)]);
-            items.push(["Add expression", "code", () => addObject("expression", null)]);
-        }
+        const add = addMenu(node, "");
+        if (add) items.push(add, null);
         const hideable = ["table", "column", "measure", "hierarchy", "function"].includes(node.type);
-        const dupable = !node.isNew && ["table", "column", "measure", "hierarchy", "calculationItem", "role", "perspective", "expression"].includes(node.type);
+        const dupable = !node.isNew && ["table", "column", "measure", "hierarchy", "calculationItem", "role", "perspective", "expression", "function"].includes(node.type);
         const deletable = !["model", "culture"].includes(node.type);
-        if (hideable || dupable || deletable) items.push(null);
+        if (dupable) items.push([isDuplicated(node) ? "Undo duplicate" : "Duplicate", "plus", () => toggleOp(node, "duplicate"), !write]);
         if (hideable) {
             const hidden = isHidden(node);
             items.push([hidden ? "Unhide" : "Hide", hidden ? "eye" : "eye_off", () => setValue(node, "IsHidden", !hidden, { label: "Hidden" }), !write]);
         }
-        if (dupable) items.push([isDuplicated(node) ? "Undo duplicate" : "Duplicate", "plus", () => toggleOp(node, "duplicate"), !write]);
         if (deletable) {
-            const del = staging.ops.some((o) => o.op === "delete" && o.key === node.key);
+            const del = hasOp(node, "delete");
             items.push([del ? "Restore" : "Delete", del ? "undo" : "trash", () => toggleOp(node, "delete"), !write, !del]);
         }
-        while (items.length && items[items.length - 1] === null) items.pop();
-        while (items.length && items[0] === null) items.shift();
-        return items;
+        items.push(null);
+        if (node.type === "expression" && !node.isNew && directLakeExpressionNames().has(node.name)) {
+            items.push(["Edit Direct Lake source", "database", () => openEditDirectLakeSource(node), !write || isDeleted(node)]);
+        }
+        if (isDirectLakeTable(node)) {
+            const converting = hasOp(node, "convert_to_import");
+            items.push([hasOp(node, "sync_columns") ? "Sync columns (staged)" : "Sync columns", "refresh", () => openSyncColumns(node),
+                !write || isDeleted(node) || converting]);
+            items.push([converting ? "Undo convert to import" : "Convert to import", "arrow_left_right", () => toggleConvertToImport(node),
+                !write || isDeleted(node)]);
+        }
+        items.push(null);
+        if (!node.isNew) {
+            if (["table", "column", "measure", "calculationItem", "hierarchy", "partition", "expression", "function", "relationship"].includes(node.type)) {
+                items.push(["Show dependencies", "workflow", () => openDependencies(node)]);
+            }
+            items.push(["View TMDL", "file", () => openTmdl(node)]);
+        }
+        return tidyMenu(items);
+    }
+    // Drops leading, trailing and repeated separators.
+    function tidyMenu(items) {
+        const out = [];
+        for (const item of items) {
+            if (item === null && (!out.length || out[out.length - 1] === null)) continue;
+            out.push(item);
+        }
+        while (out.length && out[out.length - 1] === null) out.pop();
+        return out;
     }
     function openContextMenu(x, y, node, folder) {
         showMenu(x, y, menuItems(node, folder));
     }
-    // Items are [label, icon, onClick, disabled, danger] or null (separator).
+    function menuButton(item, onPick) {
+        const [label, icon, fn, disabled, danger] = item;
+        const b = h("button", "slls-sx-menu-item" + (danger ? " danger" : ""));
+        b.type = "button";
+        b.append(iconEl(icon, ""), document.createTextNode(label));
+        if (disabled) { b.disabled = true; b.title = "Switch to edit mode to make changes"; }
+        b.addEventListener("click", () => { onPick(); fn(); });
+        return b;
+    }
+    // A flyout is its own fixed menu next to its parent item (the menu
+    // scrolls, so a nested one would be clipped).
+    function openFlyout(anchor, entries) {
+        closeFlyout();
+        ctxFlyout = h("div", "slls-sx-menu slls-sx-ctx slls-sx-flyout");
+        for (const item of tidyMenu(entries)) {
+            if (item === null) { ctxFlyout.appendChild(h("div", "slls-sx-menu-sep")); continue; }
+            ctxFlyout.appendChild(menuButton(item, closeContextMenu));
+        }
+        ctxFlyout.addEventListener("mouseleave", (ev) => { if (!anchor.contains(ev.relatedTarget)) closeFlyout(); });
+        root.appendChild(ctxFlyout);
+        const a = anchor.getBoundingClientRect();
+        const f = ctxFlyout.getBoundingClientRect();
+        const right = a.right + f.width + 8 <= window.innerWidth;
+        ctxFlyout.style.left = Math.max(4, right ? a.right - 2 : a.left - f.width + 2) + "px";
+        ctxFlyout.style.top = Math.max(4, Math.min(a.top - 5, window.innerHeight - f.height - 8)) + "px";
+        anchor.classList.add("on");
+    }
+    // Items are [label, icon, onClick, disabled, danger], null (separator) or
+    // { label, icon, submenu: [items] } (a flyout).
     function showMenu(x, y, items) {
         closeContextMenu();
         if (!items.length) return;
         ctxMenu = h("div", "slls-sx-menu slls-sx-ctx");
         for (const item of items) {
             if (item === null) { ctxMenu.appendChild(h("div", "slls-sx-menu-sep")); continue; }
-            const [label, icon, fn, disabled, danger] = item;
-            const b = h("button", "slls-sx-menu-item" + (danger ? " danger" : ""));
-            b.type = "button";
-            b.append(iconEl(icon, ""), document.createTextNode(label));
-            if (disabled) { b.disabled = true; b.title = "Switch to edit mode to make changes"; }
-            b.addEventListener("click", () => { closeContextMenu(); fn(); });
+            if (!Array.isArray(item)) {
+                const b = h("button", "slls-sx-menu-item slls-sx-menu-parent");
+                b.type = "button";
+                b.setAttribute("aria-haspopup", "menu");
+                b.append(iconEl(item.icon, ""), document.createTextNode(item.label), iconEl("chevron_right", "slls-sx-menu-chev"));
+                const show = () => { if (!ctxFlyout || !b.classList.contains("on")) openFlyout(b, item.submenu); };
+                b.addEventListener("mouseenter", show);
+                b.addEventListener("click", show);
+                b.addEventListener("mouseleave", (ev) => {
+                    if (!(ctxFlyout && ctxFlyout.contains(ev.relatedTarget))) { closeFlyout(); b.classList.remove("on"); }
+                });
+                ctxMenu.appendChild(b);
+                continue;
+            }
+            const b = menuButton(item, closeContextMenu);
+            b.addEventListener("mouseenter", () => {
+                closeFlyout();
+                for (const p of ctxMenu.querySelectorAll(".slls-sx-menu-parent.on")) p.classList.remove("on");
+            });
             ctxMenu.appendChild(b);
         }
         root.appendChild(ctxMenu);
@@ -6985,6 +7223,8 @@ function render({ model, el }) {
         if (node.type !== "model" && node.type !== "level" && node.type !== "relationship" && isHidden(node)) typeEl.appendChild(h("span", "slls-sx-pill", "Hidden"));
         if (node.type === "relationship" && !value(node, "IsActive")) typeEl.appendChild(h("span", "slls-sx-pill", "Inactive"));
         if (node.type === "table" && node.mode) typeEl.appendChild(h("span", "slls-sx-pill", node.mode === "DirectLake" ? "Direct Lake" : node.mode));
+        if (hasOp(node, "sync_columns")) typeEl.appendChild(h("span", "slls-sx-pill warn", "Pending column sync"));
+        if (hasOp(node, "convert_to_import")) typeEl.appendChild(h("span", "slls-sx-pill warn", "Pending convert to import"));
         titles.appendChild(typeEl);
         head.appendChild(titles);
         const stats = h("div", "slls-sx-stats");
@@ -7000,6 +7240,12 @@ function render({ model, el }) {
             stat((node.measures || []).length, "measures");
             stat((node.hierarchies || []).length, "hierarchies");
             stat((node.partitions || []).length, "partitions");
+        } else if (node.type === "role") {
+            stat(jsonValue(node, "Members", []).length, "members");
+            stat(Object.values(jsonValue(node, "RlsFilters", {})).filter((f) => f !== null && String(f).trim()).length, "table filters");
+            stat(jsonValue(node, "Ols", []).length, "secured objects");
+        } else if (node.type === "perspective" && node.counts) {
+            stat(node.counts.tables || 0, "tables");
         }
         head.appendChild(stats);
         detailPane.appendChild(head);
@@ -7022,7 +7268,7 @@ function render({ model, el }) {
                 actions.appendChild(button("slls-sx-btn small", hidden ? "Unhide" : "Hide", hidden ? "eye" : "eye_off",
                     () => setValue(node, "IsHidden", !hidden, { label: "Hidden" })));
             }
-            if (!node.isNew && ["table", "column", "measure", "hierarchy", "calculationItem", "role", "perspective", "expression"].includes(node.type) && !isDeleted(node)) {
+            if (!node.isNew && ["table", "column", "measure", "hierarchy", "calculationItem", "role", "perspective", "expression", "function"].includes(node.type) && !isDeleted(node)) {
                 actions.appendChild(button("slls-sx-btn small", isDuplicated(node) ? "Undo duplicate" : "Duplicate", "plus", () => toggleOp(node, "duplicate")));
             }
             if (!["model", "culture"].includes(node.type)) {
@@ -7333,6 +7579,214 @@ function render({ model, el }) {
         return out + esc(src.slice(cursor));
     }
 
+    // ------------------------------------------------------------------
+    // Direct Lake: edit a source, sync a table's columns, convert to import
+    // ------------------------------------------------------------------
+    function openEditDirectLakeSource(node) {
+        const m = modal(`Edit Direct Lake source \u00b7 ${effName(node)}`, "database");
+        m.box.classList.add("slls-sx-dls");
+        let state = null, error = null, busy = false, workspaces = null;
+        let sourceType = "", wsId = "", itemId = "", useSql = false;
+        const items = {};
+        const itemsKey = () => `${wsId}\u0000${sourceType}`;
+        const wsSel = createSearchSelect({ placeholder: "Select a workspace\u2026", searchPlaceholder: "Filter workspaces\u2026",
+            ariaLabel: "Source workspace", emptyLabel: "Loading workspaces\u2026", onChange: (o) => { wsId = o.value; itemId = ""; loadItems(); paint(); } });
+        const itemSel = createSearchSelect({ placeholder: "Select an item\u2026", searchPlaceholder: "Filter items\u2026",
+            ariaLabel: "Source item", emptyLabel: "Select a workspace first", onChange: (o) => { itemId = o.value; paint(); } });
+        function loadItems() {
+            const key = itemsKey();
+            if (!wsId || !sourceType || items[key] !== undefined) return;
+            items[key] = null;
+            request("dl_source_items", { workspace_id: wsId, source_type: sourceType }, (res) => {
+                items[key] = res.ok ? res.data.items || [] : [];
+                if (!res.ok) error = res.error || "Failed to list the source items.";
+                if (m.overlay.isConnected) paint();
+            });
+        }
+        function stage() {
+            if (busy || !itemId) return;
+            busy = true; error = null;
+            paint();
+            request("dl_source_expression", { source_type: sourceType, source_workspace_id: wsId, item_id: itemId, use_sql_endpoint: useSql }, (res) => {
+                busy = false;
+                if (!res.ok) { error = res.error || "Failed to build the source expression."; if (m.overlay.isConnected) paint(); return; }
+                m.close();
+                setValue(node, "Expression", res.data.expression, { label: "Expression" });
+                select(node.key);
+            });
+        }
+        function paint() {
+            const foot = m.box.querySelector(".slls-sx-modal-foot") || h("div", "slls-sx-modal-foot");
+            clear(foot);
+            foot.appendChild(button("slls-sx-btn", "Cancel", "", () => m.close()));
+            if (!state) {
+                if (error) errorInto(m.body, error); else loadingInto(m.body, "Reading the model\u2019s Direct Lake sources\u2026");
+                m.box.appendChild(foot);
+                return;
+            }
+            clear(m.body);
+            const intro = h("p", "slls-sx-dlm-text");
+            intro.textContent = `Points the ${effName(node)} shared expression at another source. The expression name stays the same, `
+                + "so the Direct Lake tables which use it keep resolving. The change is staged until you save.";
+            m.body.appendChild(intro);
+            const fields = h("div", "slls-sx-dls-fields");
+            const typeSel = h("select", "slls-sx-select");
+            typeSel.setAttribute("aria-label", "Source type");
+            for (const t of state.source_types || []) typeSel.appendChild(new Option(t, t));
+            typeSel.value = sourceType;
+            typeSel.disabled = busy;
+            typeSel.addEventListener("change", () => { sourceType = typeSel.value; itemId = ""; loadItems(); paint(); });
+            const wsList = (workspaces || []).slice();
+            const current = state.source || {};
+            if (current.workspaceId && !wsList.some((w) => w.id === current.workspaceId)) {
+                wsList.unshift({ id: current.workspaceId, name: current.workspaceName || current.workspaceId });
+            }
+            wsSel.setOptions(wsList.map((w) => ({ value: w.id, label: w.name })), wsId);
+            wsSel.setEmptyLabel(workspaces ? "No workspaces" : "Loading workspaces\u2026");
+            wsSel.setDisabled(busy || !wsList.length);
+            const list = items[itemsKey()];
+            itemSel.setOptions((list || []).map((x) => ({ value: x.id, label: x.name })), itemId);
+            itemSel.setEmptyLabel(!wsId ? "Select a workspace first" : list ? `No ${sourceType} items in this workspace` : "Loading items\u2026");
+            itemSel.setDisabled(busy || !list || !list.length);
+            // Search selects sit in a div: a <label> would forward clicks to them.
+            const pickField = (label, control) => { const f = h("div", "slls-sx-tool-field"); f.append(h("span", "", label), control); return f; };
+            fields.append(field("Source type", typeSel), pickField("Source workspace", wsSel.el), pickField("Source item", itemSel.el));
+            m.body.appendChild(fields);
+            const sql = switchEl(useSql, "Use SQL endpoint", () => { useSql = !useSql; paint(); }, "Use SQL endpoint");
+            sql.disabled = busy;
+            m.body.appendChild(sql);
+            if (error) m.body.appendChild(toolNotice(false, error, () => { error = null; paint(); }));
+            const changed = !current.itemId || current.itemId !== itemId || current.itemType !== sourceType
+                || current.workspaceId !== wsId || !!current.usesSqlEndpoint !== useSql;
+            const go = button("slls-sx-btn primary", busy ? "Staging\u2026" : "Stage change", "", stage);
+            go.disabled = busy || !itemId || !changed || mode !== "write";
+            foot.appendChild(go);
+            m.box.appendChild(foot);
+        }
+        paint();
+        request("dl_source", { expression: node.name }, (res) => {
+            if (!res.ok) error = res.error || "Failed to read the model\u2019s Direct Lake sources.";
+            else {
+                state = res.data;
+                const src = state.source || {};
+                sourceType = src.itemType || (state.source_types || [])[0] || "Lakehouse";
+                wsId = src.workspaceId || model.get("active_workspace_id") || "";
+                itemId = src.itemId || "";
+                useSql = !!src.usesSqlEndpoint;
+                loadItems();
+            }
+            if (m.overlay.isConnected) paint();
+        });
+        request("vpax_workspaces", {}, (res) => {
+            workspaces = res.ok ? res.data.items || [] : [];
+            if (m.overlay.isConnected) paint();
+        });
+    }
+    function openSyncColumns(node) {
+        const m = modal(`Sync columns \u00b7 ${effName(node)}`, "refresh");
+        m.box.classList.add("slls-sx-dls");
+        const staged = staging.ops.find((o) => o.op === "sync_columns" && o.key === node.key) || null;
+        let state = null, error = null;
+        const addChecks = new Map(), removeChecks = new Map();
+        // Columns staged for deletion no longer count as model columns.
+        const deletedColumn = (name) => {
+            const c = index.get(keyOf("column", node.name, "", name));
+            return !!c && isDeleted(c);
+        };
+        function diff() {
+            const sourceNames = new Set(state.source_columns.map((c) => c.name));
+            const live = state.columns.filter((c) => !deletedColumn(c.name));
+            const mapped = new Set(live.map((c) => c.sourceColumn).filter(Boolean));
+            const missing = state.source_columns.filter((c) => !mapped.has(c.name));
+            const stale = live.filter((c) => c.sourceColumn && c.columnType === "Data"
+                && (!sourceNames.has(c.sourceColumn) || (staged && staged.remove.includes(c.name))));
+            return { missing, stale };
+        }
+        function stage() {
+            const add = [...addChecks].filter(([, on]) => on).map(([name]) => {
+                const c = state.source_columns.find((x) => x.name === name);
+                return { name, dataType: c ? c.dataType : "", modelType: c ? c.modelType : "" };
+            });
+            const remove = [...removeChecks].filter(([, on]) => on).map(([name]) => name);
+            pushUndo("");
+            staging.ops = staging.ops.filter((o) => !(o.op === "sync_columns" && o.key === node.key));
+            if (add.length || remove.length) {
+                staging.ops.push({ op: "sync_columns", key: node.key, target: targetOf(node), label: objectLabel(node), objectType: "table", add, remove });
+            }
+            m.close();
+            afterChange();
+        }
+        function section(title, hint, entries, checks, meta) {
+            const sec = h("div", "slls-sx-sync-sec");
+            sec.append(h("div", "slls-sx-sync-title", `${title} (${entries.length})`), h("div", "slls-sx-sync-hint", hint));
+            for (const e of entries) {
+                const row = h("label", "slls-sx-sync-row");
+                const cb = h("input");
+                cb.type = "checkbox";
+                cb.checked = !!checks.get(e.name);
+                cb.disabled = mode !== "write";
+                cb.addEventListener("change", () => { checks.set(e.name, cb.checked); paint(); });
+                row.append(cb, iconEl("column", ""), h("span", "name", e.label || e.name));
+                if (meta(e)) row.appendChild(h("span", "meta", meta(e)));
+                sec.appendChild(row);
+            }
+            return sec;
+        }
+        function paint() {
+            const foot = m.box.querySelector(".slls-sx-modal-foot") || h("div", "slls-sx-modal-foot");
+            clear(foot);
+            foot.appendChild(button("slls-sx-btn", "Cancel", "", () => m.close()));
+            if (!state) {
+                if (error) errorInto(m.body, error); else loadingInto(m.body, "Reading the table\u2019s source columns\u2026");
+                m.box.appendChild(foot);
+                return;
+            }
+            clear(m.body);
+            const src = state.source || {};
+            const entity = state.schema ? `${state.schema}.${state.entity}` : state.entity;
+            m.body.appendChild(h("p", "slls-sx-dlm-text",
+                `Compares the columns of ${effName(node)} with its source table ${entity} in the ${src.itemName} ${String(src.itemType || "").toLowerCase()}.`));
+            const { missing, stale } = diff();
+            if (!missing.length && !stale.length) {
+                m.body.appendChild(toolNotice(true, "The table\u2019s columns are in sync with its source."));
+            }
+            if (missing.length) {
+                m.body.appendChild(section("Add to model", "Source columns which are not in the table. Checked columns are added.",
+                    missing, addChecks, (c) => (c.modelType === "Binary" ? "Binary (not supported)" : c.modelType)));
+            }
+            if (stale.length) {
+                m.body.appendChild(section("Remove from model", "Columns whose source column no longer exists. Checked columns are removed.",
+                    stale.map((c) => Object.assign({ label: c.name === c.sourceColumn ? c.name : `${c.name} (source: ${c.sourceColumn})` }, c)),
+                    removeChecks, (c) => c.dataType));
+            }
+            if (staged) {
+                foot.appendChild(button("slls-sx-btn danger", "Revert", "", () => {
+                    pushUndo("");
+                    staging.ops = staging.ops.filter((o) => o !== staged);
+                    m.close();
+                    afterChange();
+                }, "Discard the staged column sync"));
+            }
+            const count = [...addChecks.values(), ...removeChecks.values()].filter(Boolean).length;
+            const go = button("slls-sx-btn primary", "Stage changes", "", stage);
+            go.disabled = mode !== "write" || (!count && !staged);
+            foot.appendChild(go);
+            m.box.appendChild(foot);
+        }
+        paint();
+        request("dl_sync_columns", { table: node.name }, (res) => {
+            if (!res.ok) error = res.error || "Failed to read the table\u2019s source columns.";
+            else {
+                state = res.data;
+                const { missing, stale } = diff();
+                const addNames = staged ? new Set(staged.add.map((c) => c.name)) : null;
+                for (const c of missing) addChecks.set(c.name, addNames ? addNames.has(c.name) : c.modelType !== "Binary");
+                for (const c of stale) removeChecks.set(c.name, staged ? staged.remove.includes(c.name) : true);
+            }
+            if (m.overlay.isConnected) paint();
+        });
+    }
+    function toggleConvertToImport(node) { toggleOp(node, "convert_to_import"); }
     function openTmdl(node) {
         const m = modal(`TMDL \u2014 ${objectLabel(node)}`, "file", { wide: true });
         loadingInto(m.body, "Serializing\u2026");
@@ -7859,7 +8313,9 @@ function render({ model, el }) {
     }
     function fpFieldIcon(f) { return f.type === "measure" ? "measure" : (f.calculated ? "calculated_column" : "column"); }
 
-    function openFieldParameterManager() {
+    function openFieldParameterManager(opts) {
+        const startDraft = !!(opts && opts.startNew);
+        if (startDraft && mode !== "write" && !saving) setMode("write");
         let active = null;
         let draftName = "";
         let fields = [];
@@ -8165,7 +8621,7 @@ function render({ model, el }) {
             m.body.appendChild(layout);
             refreshControls();
         }
-        draw();
+        if (startDraft && writable()) startNew(); else draw();
     }
 
     // ------------------------------------------------------------------
@@ -13171,6 +13627,12 @@ def _partition_node(table_name: str, partition, ctx: dict) -> dict:
             pass
     if source_type in ("M", "Calculated"):
         _set_expressions(node, Expression=partition.Source.Expression)
+    if source_type == "Entity":
+        # The shared expression behind a Direct Lake partition (its source).
+        try:
+            node["expression_source"] = str(partition.Source.ExpressionSource.Name)
+        except Exception:
+            pass
     _record_error(ctx["errors"], node, partition)
     return node
 
@@ -13794,6 +14256,8 @@ def _new_lineage_tag(obj) -> None:
 
 # Starting definition of a new named expression (matches the frontend).
 _NEW_EXPRESSION = 'let\n    Source = ""\nin\n    Source'
+# Starting query of a new (import) M partition: an empty table.
+_NEW_M_PARTITION = "let\n    Source = #table({}, {})\nin\n    Source"
 
 
 # Marks a field parameter's "Fields" column, as Power BI does.
@@ -13966,12 +14430,42 @@ def _create_object(tom, spec: dict):
         _new_lineage_tag(obj)
         _table().Measures.Add(obj)
     elif obj_type == "column":
-        obj = TOM.CalculatedColumn()
-        obj.Name = name
-        obj.Expression = ""
+        if spec.get("kind") == "data":
+            obj = TOM.DataColumn()
+            obj.Name = name
+            obj.SourceColumn = name
+        else:
+            obj = TOM.CalculatedColumn()
+            obj.Name = name
+            obj.Expression = ""
         obj.DataType = TOM.DataType.String
         _new_lineage_tag(obj)
         _table().Columns.Add(obj)
+    elif obj_type == "hierarchy":
+        table = _table()
+        # A hierarchy needs a level, so it starts with the table's first column.
+        seed = next((c for c in table.Columns if str(c.Type) != "RowNumber"), None)
+        if seed is None:
+            raise ValueError(f"The '{table_name}' table has no column for a level.")
+        obj = TOM.Hierarchy()
+        obj.Name = name
+        _new_lineage_tag(obj)
+        level = TOM.Level()
+        level.Name = str(seed.Name)
+        level.Ordinal = 0
+        level.Column = seed
+        _new_lineage_tag(level)
+        obj.Levels.Add(level)
+        table.Hierarchies.Add(obj)
+    elif obj_type == "partition":
+        obj = TOM.Partition()
+        obj.Name = name
+        obj.Mode = TOM.ModeType.Import
+        source = TOM.MPartitionSource()
+        source.Expression = _NEW_M_PARTITION
+        obj.Source = source
+        _new_lineage_tag(obj)
+        _table().Partitions.Add(obj)
     elif obj_type == "calculationItem":
         table = _table()
         if table.CalculationGroup is None:
@@ -14078,6 +14572,7 @@ def _duplicate_object(model, obj) -> None:
         "Role": lambda: model.Roles,
         "Perspective": lambda: model.Perspectives,
         "Expression": lambda: model.Expressions,
+        "Function": lambda: model.Functions,
     }
     if obj_type not in collections:
         raise ValueError(f"A {obj_type.lower()} cannot be duplicated.")
@@ -14227,6 +14722,261 @@ def _delete_object(model, obj) -> None:
     removers[obj_type]()
 
 
+def _m_text(value) -> str:
+    """Escapes a value for use inside an M string literal."""
+
+    return str(value or "").replace('"', '""')
+
+
+def _sql_database_import_expression(server: str, database: str, schema, entity):
+    return (
+        "let\n"
+        f'    Source = Sql.Database("{_m_text(server)}","{_m_text(database)}"),\n'
+        f'    Data = Source{{[Schema="{_m_text(schema)}",Item="{_m_text(entity)}"]}}[Data]\n'
+        "in\n"
+        "    Data"
+    )
+
+
+_SQL_DATABASE_SOURCE = re.compile(r'Sql\.Database\(\s*"([^"]*)"\s*,\s*"([^"]*)"')
+
+
+def _import_partition_expression(
+    source: dict, shared_expression: str, schema: str, entity: str
+) -> str:
+    """The import-mode M query reading a Direct Lake table's source table.
+
+    Sources read through a SQL endpoint reuse its server and database;
+    OneLake sources use the Lakehouse / Warehouse connector for their item
+    type, and other item types fall back to their SQL endpoint.
+    """
+
+    schema = (schema or "").strip() or "dbo"
+    sql = _SQL_DATABASE_SOURCE.search(shared_expression or "")
+    if sql:
+        return _sql_database_import_expression(
+            sql.group(1), sql.group(2), schema, entity
+        )
+    workspace_id = str(source.get("workspaceId") or "")
+    item_id = str(source.get("itemId") or "")
+    if not workspace_id or not item_id:
+        raise ValueError("The Direct Lake source of this table could not be resolved.")
+    item_type = str(source.get("itemType") or "Lakehouse")
+    if item_type == "Lakehouse":
+        return (
+            "let\n"
+            "    Source = Lakehouse.Contents(null),\n"
+            f'    Workspace = Source{{[workspaceId="{_m_text(workspace_id)}"]}}[Data],\n'
+            f'    Artifact = Workspace{{[lakehouseId="{_m_text(item_id)}"]}}[Data],\n'
+            f'    result = Artifact{{[Name="{_m_text(entity)}", ItemKind="Table", '
+            f'Schema="{_m_text(schema)}"]}}[Data]\n'
+            "in\n"
+            "    result"
+        )
+    if item_type == "Warehouse":
+        return (
+            "let\n"
+            "    Source = Fabric.Warehouse(),\n"
+            f'    Workspace = Source{{[workspaceId="{_m_text(workspace_id)}"]}}[Data],\n'
+            f'    Warehouse = Workspace{{[warehouseId="{_m_text(item_id)}"]}}[Data],\n'
+            f'    Table = Warehouse{{[Schema="{_m_text(schema)}", Item="{_m_text(entity)}"]}}[Data]\n'
+            "in\n"
+            "    Table"
+        )
+    from sempy_labs.directlake._generate_shared_expression import (
+        generate_shared_expression,
+    )
+
+    endpoint = generate_shared_expression(
+        item=item_id, item_type=item_type, workspace=workspace_id, use_sql_endpoint=True
+    )
+    sql = _SQL_DATABASE_SOURCE.search(endpoint or "")
+    if not sql:
+        raise ValueError(f"The SQL endpoint of the {item_type} could not be resolved.")
+    return _sql_database_import_expression(sql.group(1), sql.group(2), schema, entity)
+
+
+def _entity_partition(table):
+    partition = next(
+        (p for p in table.Partitions if str(p.SourceType) == "Entity"), None
+    )
+    if partition is None:
+        raise ValueError(f"The '{table.Name}' table is not a Direct Lake table.")
+    return partition
+
+
+def _convert_to_import(model, table, sources: List[dict]) -> None:
+    """Replaces a Direct Lake table's entity partition by an import M partition."""
+
+    import Microsoft.AnalysisServices.Tabular as TOM
+
+    entity = _entity_partition(table)
+    expression_name = ""
+    try:
+        expression_name = str(entity.Source.ExpressionSource.Name)
+    except Exception:
+        pass
+    shared = ""
+    if expression_name and model.Expressions.ContainsName(expression_name):
+        shared = str(model.Expressions[expression_name].Expression or "")
+    source = next(
+        (s for s in sources if s.get("expressionName") == expression_name), {}
+    )
+    expression = _import_partition_expression(
+        source,
+        shared,
+        str(getattr(entity.Source, "SchemaName", "") or ""),
+        str(entity.Source.EntityName or ""),
+    )
+    partition = TOM.Partition()
+    partition.Name = _unique_name("Import", table.Partitions.ContainsName)
+    partition.Mode = TOM.ModeType.Import
+    m_source = TOM.MPartitionSource()
+    m_source.Expression = expression
+    partition.Source = m_source
+    _new_lineage_tag(partition)
+    table.Partitions.Add(partition)
+    table.Partitions.Remove(entity)
+    # The entity partition usually carries the table's name; it is free now.
+    partition.Name = str(table.Name)
+
+
+def _sync_columns(model, table, add: list, removals: list) -> None:
+    """Adds source columns to a Direct Lake table and removes stale ones."""
+
+    import Microsoft.AnalysisServices.Tabular as TOM
+    from sempy_labs.semantic_model._helper import convert_column_data_type
+
+    for spec in add:
+        source_column = str((spec or {}).get("name") or "").strip()
+        if not source_column:
+            continue
+        data_type = convert_column_data_type(str(spec.get("dataType") or "string"))
+        # Direct Lake does not support binary columns.
+        if data_type == "Binary":
+            continue
+        column = TOM.DataColumn()
+        column.Name = _unique_name(
+            source_column,
+            lambda n: table.Columns.ContainsName(n) or table.Measures.ContainsName(n),
+        )
+        column.SourceColumn = source_column
+        _set_property(column, "DataType", data_type)
+        _new_lineage_tag(column)
+        table.Columns.Add(column)
+    for column in removals:
+        _delete_object(model, column)
+
+
+def _direct_lake_source_state(
+    dataset_id: str, workspace_id: str, expression: str
+) -> dict:
+    """The current source of a Direct Lake shared expression (for editing it)."""
+
+    from sempy_labs.tom import connect_semantic_model
+    from sempy_labs.semantic_model._direct_lake_manager import _SOURCE_TYPES
+
+    with connect_semantic_model(
+        dataset=dataset_id, workspace=workspace_id, readonly=True
+    ) as tom:
+        sources = tom.get_direct_lake_sources()
+    source = next((s for s in sources if s.get("expressionName") == expression), None)
+    return {
+        "source": source,
+        "source_types": list(_SOURCE_TYPES),
+    }
+
+
+def _direct_lake_source_expression(data: dict) -> str:
+    """The shared expression text for a Direct Lake source chosen in the editor."""
+
+    from sempy_labs.directlake._generate_shared_expression import (
+        generate_shared_expression,
+    )
+
+    source_type = str(data.get("source_type") or "")
+    item_id = str(data.get("item_id") or "")
+    workspace_id = str(data.get("source_workspace_id") or "")
+    if not source_type or not item_id or not workspace_id:
+        raise ValueError("Choose a source type, workspace and item.")
+    return generate_shared_expression(
+        item=item_id,
+        item_type=source_type,
+        workspace=workspace_id,
+        use_sql_endpoint=bool(data.get("use_sql_endpoint")),
+    )
+
+
+def _direct_lake_sync_state(
+    dataset_id: str, workspace_id: str, table_name: str
+) -> dict:
+    """A Direct Lake table's columns next to the columns of its source table."""
+
+    from sempy_labs.tom import connect_semantic_model
+    from sempy_labs.semantic_model._direct_lake_manager import _list_source_columns
+    from sempy_labs.semantic_model._helper import convert_column_data_type
+
+    with connect_semantic_model(
+        dataset=dataset_id, workspace=workspace_id, readonly=True
+    ) as tom:
+        if not tom.model.Tables.ContainsName(table_name):
+            raise ValueError(f"The '{table_name}' table was not found.")
+        table = tom.model.Tables[table_name]
+        entity = _entity_partition(table)
+        expression_name = str(entity.Source.ExpressionSource.Name)
+        entity_name = str(entity.Source.EntityName or "")
+        schema = str(getattr(entity.Source, "SchemaName", "") or "")
+        columns = [
+            {
+                "name": str(c.Name),
+                "sourceColumn": str(getattr(c, "SourceColumn", "") or ""),
+                "dataType": str(c.DataType),
+                "columnType": str(c.Type),
+            }
+            for c in table.Columns
+            if str(c.Type) != "RowNumber"
+        ]
+        sources = tom.get_direct_lake_sources()
+    source = next(
+        (s for s in sources if s.get("expressionName") == expression_name), None
+    )
+    if source is None or not source.get("itemId"):
+        raise ValueError(
+            f"The source of the '{expression_name}' expression could not be resolved."
+        )
+    listed = _list_source_columns(
+        source.get("workspaceId"),
+        source.get("itemType"),
+        source.get("itemId"),
+        schema,
+        entity_name,
+        bool(source.get("usesSqlEndpoint")),
+    )
+    if listed.get("error"):
+        raise ValueError(f"The source columns could not be listed: {listed['error']}")
+    return {
+        "table": table_name,
+        "entity": entity_name,
+        "schema": schema,
+        "source": {
+            "itemName": source.get("itemName") or "",
+            "itemType": source.get("itemType") or "",
+            "workspaceName": source.get("workspaceName") or "",
+        },
+        "columns": columns,
+        "source_columns": [
+            {
+                "name": str(c.get("name")),
+                "dataType": str(c.get("dataType") or ""),
+                "modelType": convert_column_data_type(
+                    str(c.get("dataType") or "string")
+                ),
+            }
+            for c in listed.get("items") or []
+        ],
+    }
+
+
 def _apply_changes(tom, creates: list, edits: list, ops: list) -> int:
     """Applies staged changes in one transaction; returns the change count.
 
@@ -14241,6 +14991,16 @@ def _apply_changes(tom, creates: list, edits: list, ops: list) -> int:
             _create_object(tom, spec)
         resolved_edits = [(_resolve_object(model, e["target"]), e) for e in edits]
         resolved_ops = [(_resolve_object(model, o["target"]), o) for o in ops]
+        # Columns a sync removes are resolved by their saved names as well.
+        sync_removals = {
+            id(op): [
+                obj.Columns[n]
+                for n in op.get("remove") or []
+                if obj.Columns.ContainsName(n)
+            ]
+            for obj, op in resolved_ops
+            if op.get("op") == "sync_columns"
+        }
         # Renames go last so name-based values (sort-by column, RLS tables,
         # perspectives) still resolve against the saved names.
         resolved_edits.sort(key=lambda pair: pair[1]["property"] == "Name")
@@ -14255,6 +15015,18 @@ def _apply_changes(tom, creates: list, edits: list, ops: list) -> int:
         for obj, op in resolved_ops:
             if op.get("op") == "duplicate":
                 _duplicate_object(model, obj)
+        for obj, op in resolved_ops:
+            if op.get("op") == "sync_columns":
+                _sync_columns(
+                    model, obj, list(op.get("add") or []), sync_removals[id(op)]
+                )
+        converts = [
+            obj for obj, op in resolved_ops if op.get("op") == "convert_to_import"
+        ]
+        if converts:
+            sources = tom.get_direct_lake_sources()
+            for obj in converts:
+                _convert_to_import(model, obj, sources)
         for obj, op in resolved_ops:
             if op.get("op") == "delete":
                 _delete_object(model, obj)
@@ -17365,6 +18137,10 @@ _BACKGROUND_ACTIONS = (
     "view_tables",
     "view_columns",
     "keep_alive",
+    "dl_source",
+    "dl_source_items",
+    "dl_source_expression",
+    "dl_sync_columns",
 )
 _daxlib_cache: Dict[object, Tuple[float, object]] = {}
 
@@ -17663,11 +18439,18 @@ def semantic_explorer(
     highlighted), annotations, extended properties, translations and
     perspective membership, and lets you view its TMDL definition and its
     dependencies. Model errors (objects in an error state) are listed in one
-    place.
+    place. Fields are grouped by their display folders, columns show their
+    data type, partitions their storage mode and roles their member count.
 
     In read-write mode, objects can be renamed, hidden, re-described and
     otherwise edited, expressions can be edited and formatted with DAX
-    Formatter, and objects can be added, duplicated and deleted. Renaming a
+    Formatter, and objects can be added (right-click > Add: measures, data and
+    calculated columns, hierarchies, M partitions, calculation items,
+    calculation groups and field parameters), duplicated and deleted. In
+    Direct Lake models, the source of a shared expression can be changed
+    (Edit Direct Lake source), a Direct Lake table's columns can be synced
+    with its source table, and a Direct Lake table can be converted to import
+    mode. Renaming a
     table, column or measure automatically updates the DAX expressions which
     reference it. Changes are staged locally (with undo / redo and a change
     history) and are only written to the semantic model on Save.
@@ -18365,6 +19148,30 @@ def semantic_explorer(
                     ctx["dataset_id"], ctx["workspace_id"], data
                 )
                 _reply(data, True, created)
+            elif action == "dl_source":
+                state = _direct_lake_source_state(
+                    ctx["dataset_id"],
+                    ctx["workspace_id"],
+                    str(data.get("expression") or ""),
+                )
+                _reply(data, True, state)
+            elif action == "dl_source_items":
+                from sempy_labs.semantic_model._direct_lake_manager import (
+                    _list_source_items,
+                )
+
+                items = _list_source_items(
+                    str(data.get("workspace_id") or ""),
+                    str(data.get("source_type") or ""),
+                )
+                _reply(data, True, {"items": items})
+            elif action == "dl_source_expression":
+                _reply(data, True, {"expression": _direct_lake_source_expression(data)})
+            elif action == "dl_sync_columns":
+                state = _direct_lake_sync_state(
+                    ctx["dataset_id"], ctx["workspace_id"], str(data.get("table") or "")
+                )
+                _reply(data, True, state)
             elif action == "save":
                 with connect_semantic_model(
                     dataset=ctx["dataset_id"],

@@ -4196,6 +4196,129 @@ def _unique_expression_name(tom, base):
     return f"{base}{i}"
 
 
+def _pick_columns(df, preferred_id, preferred_name):
+    """Resolve id/name columns on a DataFrame, falling back safely."""
+    cols = list(df.columns)
+    if not cols:
+        return None, None
+    id_col = next((c for c in preferred_id if c in cols), cols[0])
+    name_col = next((c for c in preferred_name if c in cols), cols[-1])
+    return id_col, name_col
+
+
+def _list_source_items(workspace_id, source_type):
+    """Lists the items of a Direct Lake source type in a workspace."""
+    import sempy.fabric as fabric
+
+    # Map the Direct Lake source types to fabric.list_items types.
+    type_map = {
+        "Lakehouse": "Lakehouse",
+        "Warehouse": "Warehouse",
+        "SQLDatabase": "SQLDatabase",
+        "MirroredAzureDatabricksCatalog": "MirroredAzureDatabricksCatalog",
+        "MirroredDatabase": "MirroredDatabase",
+    }
+    item_type = type_map.get(source_type, source_type)
+    try:
+        dfI = fabric.list_items(workspace=workspace_id, item_type=item_type)
+    except Exception:
+        return []
+    id_col, name_col = _pick_columns(dfI, ["Id"], ["Display Name", "Name"])
+    if id_col is None or name_col is None:
+        return []
+    rows = [{"id": str(r[id_col]), "name": str(r[name_col])} for _, r in dfI.iterrows()]
+    rows.sort(key=lambda x: x["name"].lower())
+    return rows
+
+
+def _list_source_columns(
+    workspace_id, source_type, source_id, schema, table, use_sql_endpoint=False
+):
+    """Return ``{"items": [{"name", "dataType", "isPrimaryKey"}, ...]}``
+    for one source table.
+
+    For Lakehouse sources this uses
+    :func:`sempy_labs._helper_functions.list_columns_from_path` against the
+    delta-table abfss path; for other source types it queries
+    ``INFORMATION_SCHEMA.COLUMNS`` via :class:`sempy_labs._sql.ConnectBase`.
+    The primary-key column (if any) is detected via
+    :func:`sempy_labs._sql.get_primary_key`.
+    """
+    from sempy_labs._helper_functions import (
+        list_columns_from_path,
+        create_abfss_path,
+    )
+    from sempy_labs._sql import ConnectBase, get_primary_key
+
+    # Best-effort primary-key lookup. Fails silently — e.g. when the
+    # source type isn't supported by ConnectBase or the user lacks
+    # SQL endpoint access — so column listing still works.
+    pk_col = None
+    try:
+        pk_col = get_primary_key(
+            table=table,
+            schema=schema or "dbo",
+            item=source_id,
+            type=source_type,
+            workspace=workspace_id,
+        )
+    except Exception:
+        pk_col = None
+
+    try:
+        if source_type == "Lakehouse":
+            path = create_abfss_path(
+                lakehouse_id=source_id,
+                lakehouse_workspace_id=workspace_id,
+                delta_table_name=table,
+                schema=schema or None,
+            )
+            dfC = list_columns_from_path(path=path)
+            items = []
+            if dfC is not None and not dfC.empty:
+                for _, r in dfC.iterrows():
+                    col = str(r.get("Column Name") or "")
+                    dtype = str(r.get("Data Type") or "")
+                    if not col:
+                        continue
+                    items.append(
+                        {
+                            "name": col,
+                            "dataType": dtype,
+                            "isPrimaryKey": bool(pk_col) and col == pk_col,
+                        }
+                    )
+        else:
+            with ConnectBase(
+                item=source_id, type=source_type, workspace=workspace_id
+            ) as conn:
+                sql = (
+                    "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS "
+                    f"WHERE TABLE_NAME = '{table}'"
+                )
+                if schema:
+                    sql += f" AND TABLE_SCHEMA = '{schema}'"
+                sql += " ORDER BY ORDINAL_POSITION"
+                df = conn.query(sql)
+            items = []
+            if df is not None and not df.empty:
+                for _, r in df.iterrows():
+                    col = str(r.get("COLUMN_NAME") or "")
+                    dtype = str(r.get("DATA_TYPE") or "")
+                    if not col:
+                        continue
+                    items.append(
+                        {
+                            "name": col,
+                            "dataType": dtype,
+                            "isPrimaryKey": bool(pk_col) and col == pk_col,
+                        }
+                    )
+        return {"items": items}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @log
 def direct_lake_manager(
     dataset: Optional[str | UUID] = None,
@@ -4235,7 +4358,6 @@ def direct_lake_manager(
             "Install it with: pip install anywidget"
         ) from e
 
-    import sempy.fabric as fabric
     from IPython.display import display
     from sempy_labs._helper_functions import (
         resolve_workspace_name_and_id,
@@ -4259,43 +4381,13 @@ def direct_lake_manager(
     initial_ws_name, initial_ws_id = resolve_workspace_name_and_id(workspace)
     initial_ws_id = str(initial_ws_id)
 
-    def _pick_columns(df, preferred_id, preferred_name):
-        """Resolve id/name columns on a DataFrame, falling back safely."""
-        cols = list(df.columns)
-        if not cols:
-            return None, None
-        id_col = next((c for c in preferred_id if c in cols), cols[0])
-        name_col = next((c for c in preferred_name if c in cols), cols[-1])
-        return id_col, name_col
-
     def _list_workspaces_payload():
         return _list_picker_workspaces(initial_ws_id, initial_ws_name)
 
     def _list_datasets_payload(workspace_id):
         return _list_picker_datasets(workspace_id)
 
-    def _list_source_items_payload(workspace_id, source_type):
-        # Map the Direct Lake source types to fabric.list_items types.
-        type_map = {
-            "Lakehouse": "Lakehouse",
-            "Warehouse": "Warehouse",
-            "SQLDatabase": "SQLDatabase",
-            "MirroredAzureDatabricksCatalog": "MirroredAzureDatabricksCatalog",
-            "MirroredDatabase": "MirroredDatabase",
-        }
-        item_type = type_map.get(source_type, source_type)
-        try:
-            dfI = fabric.list_items(workspace=workspace_id, item_type=item_type)
-        except Exception:
-            return []
-        id_col, name_col = _pick_columns(dfI, ["Id"], ["Display Name", "Name"])
-        if id_col is None or name_col is None:
-            return []
-        rows = [
-            {"id": str(r[id_col]), "name": str(r[name_col])} for _, r in dfI.iterrows()
-        ]
-        rows.sort(key=lambda x: x["name"].lower())
-        return rows
+    _list_source_items_payload = _list_source_items
 
     def _list_source_tables_payload(
         workspace_id, source_type, source_id, use_sql_endpoint=False
@@ -4344,92 +4436,7 @@ def direct_lake_manager(
         except Exception as e:
             return {"error": str(e)}
 
-    def _list_source_columns_payload(
-        workspace_id, source_type, source_id, schema, table, use_sql_endpoint=False
-    ):
-        """Return ``{"items": [{"name", "dataType", "isPrimaryKey"}, ...]}``
-        for one source table.
-
-        For Lakehouse sources this uses
-        :func:`sempy_labs._helper_functions.list_columns_from_path` against the
-        delta-table abfss path; for other source types it queries
-        ``INFORMATION_SCHEMA.COLUMNS`` via :class:`sempy_labs._sql.ConnectBase`.
-        The primary-key column (if any) is detected via
-        :func:`sempy_labs._sql.get_primary_key`.
-        """
-        from sempy_labs._helper_functions import (
-            list_columns_from_path,
-            create_abfss_path,
-        )
-        from sempy_labs._sql import ConnectBase, get_primary_key
-
-        # Best-effort primary-key lookup. Fails silently — e.g. when the
-        # source type isn't supported by ConnectBase or the user lacks
-        # SQL endpoint access — so column listing still works.
-        pk_col = None
-        try:
-            pk_col = get_primary_key(
-                table=table,
-                schema=schema or "dbo",
-                item=source_id,
-                type=source_type,
-                workspace=workspace_id,
-            )
-        except Exception:
-            pk_col = None
-
-        try:
-            if source_type == "Lakehouse":
-                path = create_abfss_path(
-                    lakehouse_id=source_id,
-                    lakehouse_workspace_id=workspace_id,
-                    delta_table_name=table,
-                    schema=schema or None,
-                )
-                dfC = list_columns_from_path(path=path)
-                items = []
-                if dfC is not None and not dfC.empty:
-                    for _, r in dfC.iterrows():
-                        col = str(r.get("Column Name") or "")
-                        dtype = str(r.get("Data Type") or "")
-                        if not col:
-                            continue
-                        items.append(
-                            {
-                                "name": col,
-                                "dataType": dtype,
-                                "isPrimaryKey": bool(pk_col) and col == pk_col,
-                            }
-                        )
-            else:
-                with ConnectBase(
-                    item=source_id, type=source_type, workspace=workspace_id
-                ) as conn:
-                    sql = (
-                        "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS "
-                        f"WHERE TABLE_NAME = '{table}'"
-                    )
-                    if schema:
-                        sql += f" AND TABLE_SCHEMA = '{schema}'"
-                    sql += " ORDER BY ORDINAL_POSITION"
-                    df = conn.query(sql)
-                items = []
-                if df is not None and not df.empty:
-                    for _, r in df.iterrows():
-                        col = str(r.get("COLUMN_NAME") or "")
-                        dtype = str(r.get("DATA_TYPE") or "")
-                        if not col:
-                            continue
-                        items.append(
-                            {
-                                "name": col,
-                                "dataType": dtype,
-                                "isPrimaryKey": bool(pk_col) and col == pk_col,
-                            }
-                        )
-            return {"items": items}
-        except Exception as e:
-            return {"error": str(e)}
+    _list_source_columns_payload = _list_source_columns
 
     workspaces_payload = _list_workspaces_payload()
     datasets_payload = _list_datasets_payload(initial_ws_id)
