@@ -475,7 +475,9 @@ pre.slls-sx-dialect {
 .slls-sx-rm-pane.collapsed { width: 46px !important; align-items: center; padding: 8px 0; }
 .slls-sx-rm-pane.collapsed .slls-sx-rm-host { display: none; }
 .slls-sx-rm-strip { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.slls-sx-rm-label { display: inline-flex; align-items: center; gap: 6px; }
+.slls-sx-rm-label { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.slls-sx-rm-pane .slls-sx-pane-tools { flex: 1 1 auto; min-width: 0; justify-content: flex-end; gap: 4px; }
+.slls-sx-rm-pane .slls-rm-toolbar { margin-right: 4px; }
 .slls-sx-rm-label svg { width: 13px; height: 13px; }
 .slls-sx-rm-host { flex: 1 1 0; min-height: 0; overflow: auto; }
 .slls-sx-flip svg { transform: scaleX(-1); }
@@ -501,7 +503,7 @@ pre.slls-sx-dialect {
     background: var(--ui-accent-soft); color: var(--ui-accent); flex-shrink: 0;
 }
 .slls-sx-objicon svg { width: 17px; height: 17px; }
-.slls-sx-objtitle { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.slls-sx-objtitle { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; line-height: 1.25; }
 .slls-sx-objname { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slls-sx-objtype { font-size: 12px; color: var(--ui-text-secondary); }
 .slls-sx-pill {
@@ -512,8 +514,10 @@ pre.slls-sx-dialect {
 .slls-sx-pill.warn { background: var(--sx-warn-soft); border-color: transparent; color: var(--sx-warn); }
 .slls-sx-pill.new { background: var(--sx-success-soft); border-color: transparent; color: var(--sx-success); }
 .slls-sx-pill.danger { background: var(--ui-danger-bg); border-color: transparent; color: var(--ui-danger-text); }
-.slls-sx-stats { display: flex; gap: 14px; margin-left: auto; padding-left: 10px; }
-.slls-sx-stat { display: flex; align-items: baseline; gap: 4px; }
+.slls-sx-stats { display: flex; gap: 14px; margin-left: auto; padding-left: 10px; flex-shrink: 0; }
+.slls-sx-stat { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+/* Too narrow (e.g. a sidebar is open): the object counts give way to the name. */
+.slls-sx-detail-head.no-stats .slls-sx-stats { display: none; }
 .slls-sx-stat b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .slls-sx-stat span { font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ui-text-tertiary); }
 .slls-sx-detail-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 14px; border-bottom: 1px solid var(--ui-border); }
@@ -5650,6 +5654,7 @@ function render({ model, el }) {
         } else if (node.type === "dataset") stat(vCols(node).length, "columns");
         head.appendChild(stats);
         detailPane.appendChild(head);
+        fitDetailHead(head, titles, nameEl, stats);
 
         const actions = h("div", "slls-sx-detail-actions");
         if (node.type === "column") actions.appendChild(button("slls-sx-btn small", "Dataset", "table", () => vReveal(node.datasetKey), "Go to the dataset"));
@@ -6594,14 +6599,17 @@ function render({ model, el }) {
     let rmHost = null;
     const rmDrag = h("div", "slls-sx-drag slls-sx-rm-drag");
     const rmPane = h("div", "slls-sx-rm-pane");
+    // The refresh manager renders its object list controls (expand all, last
+    // loaded, reload) here, in the sidebar's header.
+    const rmToolbar = h("div", "");
     // The refresh manager runs on the explorer's "rm_"-prefixed traits and
     // follows its theme; "embedded" drops its own header.
     function refreshManagerModel() {
         const trait = (k) => (k === "dark_mode" ? k : "rm_" + k);
         const event = (ev) => { const i = ev.indexOf(":"); return i < 0 ? ev : ev.slice(0, i + 1) + trait(ev.slice(i + 1)); };
         return {
-            get: (k) => (k === "embedded" ? true : model.get(trait(k))),
-            set: (k, v) => { if (k !== "embedded") model.set(trait(k), v); },
+            get: (k) => (k === "embedded" ? true : k === "toolbar" ? rmToolbar : model.get(trait(k))),
+            set: (k, v) => { if (k !== "embedded" && k !== "toolbar") model.set(trait(k), v); },
             on: (ev, f) => model.on(event(ev), f),
             off: (ev, f) => model.off(event(ev), f),
             save_changes: () => model.save_changes(),
@@ -6641,7 +6649,8 @@ function render({ model, el }) {
             const label = h("span", "slls-sx-pane-label slls-sx-rm-label");
             label.append(iconEl("refresh", ""), document.createTextNode("Refresh manager"));
             const tools = h("div", "slls-sx-pane-tools");
-            tools.append(button("slls-sx-iconbtn slls-sx-flip", "", "panel_collapse", () => { rmCollapsed = true; renderRefreshPane(); }, "Collapse refresh manager"),
+            tools.append(rmToolbar,
+                button("slls-sx-iconbtn slls-sx-flip", "", "panel_collapse", () => { rmCollapsed = true; renderRefreshPane(); }, "Collapse refresh manager"),
                 button("slls-sx-iconbtn", "", "close", close, "Close refresh manager"));
             head.append(label, tools);
             rmPane.insertBefore(head, rmPane.firstChild);
@@ -7347,6 +7356,7 @@ function render({ model, el }) {
         }
         head.appendChild(stats);
         detailPane.appendChild(head);
+        fitDetailHead(head, titles, nameEl, stats);
 
         const actions = h("div", "slls-sx-detail-actions");
         if (!node.isNew) {
@@ -7399,6 +7409,24 @@ function render({ model, el }) {
     }
     let detailBody = null;
     let detailBodyKey = "";
+    // The detail header hides its object counts when they would squeeze the
+    // object's name or overflow; re-checked whenever the pane is resized.
+    let detailHeadFit = null;
+    const detailHeadObserver = typeof ResizeObserver === "function"
+        ? new ResizeObserver(() => { if (detailHeadFit) detailHeadFit(); }) : null;
+    function fitDetailHead(head, titles, nameEl, stats) {
+        const counts = [...stats.children].map((x) => x.textContent.replace(/^([\d,.\s]+)/, "$1 ").trim()).join(" \u00b7 ");
+        const fit = () => {
+            if (!head.isConnected || !stats.childElementCount) return;
+            head.classList.remove("no-stats");
+            const squeezed = titles.clientWidth < Math.min(nameEl.scrollWidth, 160) || head.scrollWidth > head.clientWidth + 1;
+            head.classList.toggle("no-stats", squeezed);
+            titles.title = squeezed ? counts : "";
+        };
+        detailHeadFit = fit;
+        if (detailHeadObserver) { detailHeadObserver.disconnect(); detailHeadObserver.observe(head); }
+        fit();
+    }
     function renderDetailBody(node, write) {
         clear(detailBody);
         const b = detailBody;
