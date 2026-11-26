@@ -262,6 +262,10 @@ _WIDGET_CSS = """
 .slls-sx-vsuggest .list { display: flex; flex-direction: column; gap: 1px; margin: 3px 0 2px; font-family: var(--sx-mono); font-size: 11px; }
 .slls-sx-vsuggest .list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slls-sx-vsuggest .acts { display: flex; flex-wrap: wrap; gap: 4px; }
+.slls-sx-vsuggest .into, .slls-sx-rd-into { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--ui-text-secondary); }
+.slls-sx-vsuggest .into { margin: 2px 0 4px; }
+.slls-sx-vsuggest .into > span, .slls-sx-rd-into > span { white-space: nowrap; flex-shrink: 0; }
+.slls-sx-vsuggest .into .slls-sx-filepick, .slls-sx-rd-into .slls-sx-filepick { flex: 1 1 auto; min-width: 0; max-width: 260px; }
 .slls-sx-linkall { font-weight: 600; border-bottom: 1px solid var(--ui-border); border-radius: 0; cursor: pointer; }
 .slls-sx-linklist { max-height: 300px; overflow: auto; }
 .slls-sx-linklist .slls-sx-subitem, .slls-sx-linkall { cursor: pointer; }
@@ -669,6 +673,11 @@ pre.slls-sx-dialect {
 .slls-sx-dep-row .slls-sx-ricon svg { width: 14px; height: 14px; }
 .slls-sx-dep-row .meta { color: var(--ui-text-tertiary); font-size: 11.5px; }
 .slls-sx-change { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--ui-border); }
+.slls-sx-histbtn { position: relative; }
+.slls-sx-histbtn .count {
+    position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+    background: var(--sx-warn); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; pointer-events: none;
+}
 .slls-sx-change:last-child { border-bottom: none; }
 .slls-sx-change-body { flex: 1; min-width: 0; }
 .slls-sx-change-title { font-size: 12.5px; font-weight: 500; }
@@ -3825,6 +3834,81 @@ function render({ model, el }) {
         rebuildViewIndex();
         if (!vIndex.has(vSelected)) vSelected = "view";
     }
+    // Change history of the view: the pending changes, described per object
+    // (each revertible in edit mode), and the saves of this session.
+    let vHistoryRedraw = null;
+    const vSavedHistory = new Map();
+    const vHistoryId = () => (viewData && viewData.view
+        ? [viewData.view.workspace_id, viewData.view.lakehouse_id, viewData.view.name].join("\u0001") : "");
+    const VIEW_FIELD_LABEL = { name: "Name", source: "Source", description: "Description", from: "From", to: "To",
+        from_column: "From column", to_column: "To column", dax: "DAX" };
+    function viewPendingItems() {
+        const out = [];
+        if (!vWork || !vBase) return out;
+        const short = (v) => { const t = String(v || "").replace(/\s+/g, " ").trim(); return !t ? "(empty)" : t.length > 80 ? t.slice(0, 77) + "\u2026" : t; };
+        const where = (file) => (vMultiFile() && file ? file : "");
+        if ((vWork.description || "") !== (vBase.description || "")) {
+            out.push({ title: "Edited the view\u2019s description", detail: `\u201c${short(vBase.description)}\u201d \u2192 \u201c${short(vWork.description)}\u201d`,
+                open: () => vSelect("view"), revert: () => vEdit("view", "description", vBase.description || "") });
+        }
+        for (const type of ["dataset", "relationship", "metric"]) {
+            const kind = VIEW_LISTS[type], label = VIEW_TYPE_LABEL[type].toLowerCase();
+            for (const o of vWork[kind]) {
+                const open = () => vReveal(o.key);
+                if (o.isNew) {
+                    const what = type === "dataset" ? `Source: ${o.source || "(none)"}`
+                        : type === "relationship" ? `'${o.from || "?"}'[${o.from_column || "?"}] \u2192 '${o.to || "?"}'[${o.to_column || "?"}]`
+                        : o.dax ? short(o.dax) : "No DAX yet";
+                    out.push({ title: `Added ${label} \u201c${o.name || "(unnamed)"}\u201d`, detail: [what, where(o.file)].filter(Boolean).join(" \u00b7 "),
+                        open, revert: () => { const w = vFind(o.key); if (w) vToggleDelete(w); } });
+                    continue;
+                }
+                const b = vBaseOf(o);
+                if (!b) continue;
+                if (o.deleted) {
+                    out.push({ title: `Deleted ${label} \u201c${b.name || "(unnamed)"}\u201d`, detail: where(b.file),
+                        open, revert: () => { vBeginStep(""); const w = vFind(o.key); if (w) w.deleted = false; vAfterChange(false); } });
+                    continue;
+                }
+                const lines = [];
+                for (const f of VIEW_FIELDS[kind]) {
+                    if ((o[f] || "") === (b[f] || "")) continue;
+                    lines.push(f === "dax" ? "DAX changed" : f === "description" ? `Description: \u201c${short(b[f])}\u201d \u2192 \u201c${short(o[f])}\u201d`
+                        : `${VIEW_FIELD_LABEL[f] || f}: ${b[f] || "(empty)"} \u2192 ${o[f] || "(empty)"}`);
+                }
+                if (vMoved(o)) lines.push(`Moved from ${b.file} to ${o.file}`);
+                if (!lines.length) continue;
+                out.push({ title: `Edited ${label} \u201c${b.name || "(unnamed)"}\u201d`, detail: lines.join("\n"), open, revert: () => revertViewObject(o.key) });
+            }
+        }
+        return out;
+    }
+    // Restores a saved object's fields and file (a rename back also updates
+    // the references to it).
+    function revertViewObject(key) {
+        const w = vFind(key), b = w && vBaseOf(w);
+        if (!b) return;
+        vBeginStep("");
+        for (const f of VIEW_FIELDS[VIEW_LISTS[w.type]]) {
+            if ((w[f] || "") === (b[f] || "")) continue;
+            if (f === "name") applyViewField(w, f, b[f]);
+            else w[f] = b[f];
+        }
+        w.file = b.file;
+        vAfterChange(false);
+    }
+    function openViewHistory() {
+        const editable = () => vMode === "write" && !vSaving;
+        const { m, draw } = changeHistoryModal({
+            items: viewPendingItems,
+            canRevert: (it) => editable() && !!it.revert,
+            revert: (it) => it.revert(),
+            discardAll: () => { if (!editable()) return; discardViewChanges(); renderAll(); },
+            saved: () => vSavedHistory.get(vHistoryId()) || [],
+        });
+        vHistoryRedraw = draw;
+        m.onClose = () => { if (vHistoryRedraw === draw) vHistoryRedraw = null; };
+    }
     function setViewMode(next) {
         if (vSaving) return;
         if (next === "read" && viewPendingCount()) {
@@ -3865,11 +3949,17 @@ function render({ model, el }) {
         }
         const sel = vIndex.get(vSelected);
         vPendingSelect = sel && sel.type !== "view" ? { type: sel.type, name: sel.name } : null;
+        const titles = viewPendingItems().map((it) => it.title);
+        const historyId = vHistoryId();
         vSaving = true;
         renderAll();
         request("save_view", { changes: viewChanges(), etags: viewEtags(), publish: !!publish }, (res) => {
             vSaving = false;
             if (!res.ok) vPendingSelect = null;
+            else {
+                if (res.data && res.data.published) titles.push("Published the semantic view");
+                if (titles.length) vSavedHistory.set(historyId, [{ savedAt: new Date(), titles }, ...(vSavedHistory.get(historyId) || [])]);
+            }
             renderAll();
         });
     }
@@ -4077,11 +4167,34 @@ function render({ model, el }) {
     }
     const relSlug = (s) => String(s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "dataset";
     const relSuggestText = (s) => `'${s.from}'[${s.from_column}] \u2192 '${s.to}'[${s.to_column}]`;
-    // Stages the suggested relationships (one undo step).
-    function vAddSuggestedRelationships(list) {
+    // The YAML file suggested relationships go to (in a view with several):
+    // the one the user picked, else the file holding most of the new
+    // datasets they connect, else the usual file for new relationships.
+    let vSuggestFile = "";
+    function vSuggestTargetFile(list) {
+        const files = vWritableFiles();
+        if (vSuggestFile && files.includes(vSuggestFile)) return vSuggestFile;
+        const counts = new Map();
+        for (const s of list || []) {
+            for (const k of [s.fromKey, s.toKey]) {
+                const d = vFind(k);
+                if (d && d.isNew && files.includes(d.file)) counts.set(d.file, (counts.get(d.file) || 0) + 1);
+            }
+        }
+        const best = [...counts].sort((a, b) => b[1] - a[1])[0];
+        return best ? best[0] : vNewObjectFile("relationships");
+    }
+    // Picker of that file (null with a single writable YAML file).
+    function suggestFilePicker(list, onPick) {
+        if (!vMultiFile() || vWritableFiles().length < 2) return null;
+        return yamlFilePicker(vSuggestTargetFile(list), vWritableFiles(), (v) => { vSuggestFile = v; if (onPick) onPick(v); },
+            "YAML file for the new relationships");
+    }
+    // Stages the suggested relationships (one undo step) in `file`.
+    function vAddSuggestedRelationships(list, file) {
         if (!list.length || vMode !== "write" || vSaving || !vCanAdd() || !vWork) return;
+        file = file || vSuggestTargetFile(list);
         vBeginStep("");
-        const file = vNewObjectFile("relationships");
         for (const s of list) {
             const id = `new-relationship-${++vNewSeq}`;
             vWork.relationships.push({ id, key: id, type: "relationship", isNew: true, deleted: false, file,
@@ -4107,6 +4220,13 @@ function render({ model, el }) {
         m.box.classList.add("slls-sx-addds");
         m.body.appendChild(h("div", "", "Relationships suggested for the new datasets, from columns which refer to another dataset\u2019s key. "
             + "Each goes from the many side to the one side."));
+        let file = vSuggestTargetFile(list);
+        const filePick = suggestFilePicker(list, (v) => { file = v; });
+        if (filePick) {
+            const f = field("Add to", filePick);
+            f.style.marginTop = "10px";
+            m.body.appendChild(f);
+        }
         const setToggle = (sw, on) => { sw.classList.toggle("on", on); sw.setAttribute("aria-checked", String(on)); };
         const keepFocus = (el) => el.addEventListener("mousedown", (ev) => { if (!ev.target.closest(".slls-sx-switch")) ev.preventDefault(); });
         const head = h("div", "slls-sx-subitem slls-sx-linkall");
@@ -4144,7 +4264,7 @@ function render({ model, el }) {
             const chosen = list.filter((s) => picked.has(s.id));
             if (!chosen.length) return;
             m.close();
-            vAddSuggestedRelationships(chosen);
+            vAddSuggestedRelationships(chosen, file);
         });
         dismiss.style.marginRight = "auto";
         foot.append(dismiss, button("slls-sx-btn", "Cancel", "", () => m.close()), ok);
@@ -4166,12 +4286,18 @@ function render({ model, el }) {
     function openAddViewDatasets() {
         if (vMode !== "write" || vSaving || !vCanAdd()) return;
         ensureViewTables();
-        const file = vNewObjectFile("datasets");
+        let file = vNewObjectFile("datasets");
         const lakehouse = viewData.view.lakehouse_name;
         const m = modal("Add datasets from tables", "table", { wide: true });
         m.box.classList.add("slls-sx-addds");
-        m.body.appendChild(h("div", "", `Adds a dataset for each selected table or shortcut in the \u201c${lakehouse}\u201d lakehouse`
-            + `${vMultiFile() ? ` to ${file}` : ""}. Tables already used by a dataset of the view are marked \u201cIn view\u201d.`));
+        m.body.appendChild(h("div", "", `Adds a dataset for each selected table or shortcut in the \u201c${lakehouse}\u201d lakehouse. `
+            + "Tables already used by a dataset of the view are marked \u201cIn view\u201d."));
+        // In a view with several YAML files, the file the datasets go to.
+        if (vMultiFile() && vWritableFiles().length > 1) {
+            const f = field("Add to", yamlFilePicker(file, vWritableFiles(), (v) => { file = v; }, "YAML file for the new datasets"));
+            f.style.marginTop = "10px";
+            m.body.appendChild(f);
+        }
         const picked = new Set();
         let query = "";
         const tables = () => (vTables || []).map((t) => {
@@ -4638,7 +4764,13 @@ function render({ model, el }) {
             split.append(s, more);
             group.append(u, r, split);
         }
+        const pending = viewPendingCount();
+        const hist = button("slls-sx-btn icon slls-sx-histbtn", "", "history", openViewHistory,
+            pending ? `Change history \u2014 ${plural(pending, "pending change")}` : "Change history");
+        if (pending) hist.appendChild(h("span", "count", pending > 99 ? "99+" : String(pending)));
+        group.appendChild(hist);
         header.appendChild(group);
+        if (vHistoryRedraw) vHistoryRedraw();
         if (write) {
             const targets = vFormatTargets();
             const fmt = button("slls-sx-btn icon slls-sx-daxfmt" + (vFormatting ? " loading" : ""), "", "daxformatter", vFormatAll,
@@ -4845,6 +4977,12 @@ function render({ model, el }) {
         }
         if (rec.length > 4) lines.appendChild(h("span", "", `+ ${rec.length - 4} more`));
         text.appendChild(lines);
+        const filePick = suggestFilePicker(list, () => renderViewTree());
+        if (filePick) {
+            const into = h("div", "into");
+            into.append(h("span", "", "Add to"), filePick);
+            text.appendChild(into);
+        }
         const acts = h("div", "acts");
         const add = button("slls-sx-btn small primary", `Add ${plural(rec.length, "relationship")}`, "plus", () => vAddSuggestedRelationships(rec),
             `Add ${rec.map(relSuggestText).join(", ")}`);
@@ -11405,7 +11543,14 @@ function render({ model, el }) {
                     const add = button("slls-sx-btn small primary", `Add ${plural(rec.length, "suggested relationship")}`, "lightbulb",
                         () => vAddSuggestedRelationships(rec), `Add ${rec.map(relSuggestText).join(", ")}`);
                     add.disabled = !vCanAdd();
-                    bar.append(add, button("slls-sx-btn small", "Choose\u2026", "relationship", openSuggestedRelationships, "Choose which suggested relationships to add"),
+                    bar.appendChild(add);
+                    const filePick = suggestFilePicker(g.suggest, () => draw());
+                    if (filePick) {
+                        const into = h("span", "slls-sx-rd-into");
+                        into.append(h("span", "", "to"), filePick);
+                        bar.appendChild(into);
+                    }
+                    bar.append(button("slls-sx-btn small", "Choose\u2026", "relationship", openSuggestedRelationships, "Choose which suggested relationships to add"),
                         button("slls-sx-btn small", "Dismiss", "close", () => vDismissSuggestions(g.suggest), "Don\u2019t suggest these relationships again in this session"));
                 }
                 const hint = vMultiFile() ? "Datasets and relationships are coloured by the YAML file which defines them" : "";
@@ -12198,39 +12343,57 @@ function render({ model, el }) {
             if (m.overlay.isConnected) paint();
         });
     }
-    function openHistory() {
+    // Change history dialog shared by the model and view editors: the pending
+    // changes (each revertible, plus "Discard all") and what was saved in
+    // this session. `o.items()` -> [{ title, detail, open? }], `o.saved()` ->
+    // [{ savedAt, titles }]; `o.canRevert(item)`, `o.revert(item)` and
+    // `o.discardAll()` are optional. Returns the dialog's redraw.
+    function changeHistoryModal(o) {
         const m = modal("Change history", "history");
-        const draw = () => {
+        m.body.dataset.scroll = "history";
+        const draw = () => keepScroll(m.box, () => {
             clear(m.body);
             clear(m.actions);
-            const items = pendingItems();
+            const items = o.items();
             m.body.appendChild(h("div", "slls-sx-section-title", `Pending changes (${items.length})`));
             if (!items.length) m.body.appendChild(h("div", "slls-sx-kv-empty", "No pending changes."));
             for (const it of items) {
                 const row = h("div", "slls-sx-change");
                 const bodyEl = h("div", "slls-sx-change-body");
-                bodyEl.appendChild(h("div", "slls-sx-change-title", it.title));
+                const title = h(it.open ? "a" : "div", "slls-sx-change-title" + (it.open ? " slls-sx-link" : ""), it.title);
+                if (it.open) { title.title = "Go to it"; title.addEventListener("click", () => { m.close(); it.open(); }); }
+                bodyEl.appendChild(title);
                 if (it.detail) bodyEl.appendChild(h("div", "slls-sx-change-detail", it.detail));
                 row.appendChild(bodyEl);
-                if (!it.cascade) row.appendChild(button("slls-sx-btn small", "Revert", "undo", () => { revertChange(it); draw(); }));
+                if (o.revert && (!o.canRevert || o.canRevert(it))) row.appendChild(button("slls-sx-btn small", "Revert", "undo", () => { o.revert(it); draw(); }));
                 m.body.appendChild(row);
             }
-            if (items.length) {
-                const d = button("slls-sx-btn small danger", "Discard all", "trash", () => { discardAll(); draw(); });
-                m.actions.appendChild(d);
+            if (items.length && o.discardAll) {
+                m.actions.appendChild(button("slls-sx-btn small danger", "Discard all", "trash", () => { o.discardAll(); draw(); }));
             }
+            const saved = o.saved();
             m.body.appendChild(h("div", "slls-sx-section-title", "Saved in this session"));
-            if (!history.length) m.body.appendChild(h("div", "slls-sx-kv-empty", "Nothing saved yet."));
-            for (const batch of history) {
+            if (!saved.length) m.body.appendChild(h("div", "slls-sx-kv-empty", "Nothing saved yet."));
+            for (const batch of saved) {
                 const row = h("div", "slls-sx-change");
                 const bodyEl = h("div", "slls-sx-change-body");
-                bodyEl.appendChild(h("div", "slls-sx-change-title", `${batch.savedAt.toLocaleString()} \u2014 ${plural(batch.changes.length, "change")}`));
-                bodyEl.appendChild(h("div", "slls-sx-change-detail", batch.changes.map((c) => "\u2022 " + c.title).join("\n")));
+                bodyEl.appendChild(h("div", "slls-sx-change-title", `${batch.savedAt.toLocaleString()} \u2014 ${plural(batch.titles.length, "change")}`));
+                bodyEl.appendChild(h("div", "slls-sx-change-detail", batch.titles.map((t) => "\u2022 " + t).join("\n")));
                 row.appendChild(bodyEl);
                 m.body.appendChild(row);
             }
-        };
+        });
         draw();
+        return { m, draw };
+    }
+    function openHistory() {
+        changeHistoryModal({
+            items: pendingItems,
+            canRevert: (it) => !it.cascade,
+            revert: revertChange,
+            discardAll,
+            saved: () => history.map((b) => ({ savedAt: b.savedAt, titles: b.changes.map((c) => c.title) })),
+        });
     }
     function openErrors() {
         const errors = data.errors || [];
