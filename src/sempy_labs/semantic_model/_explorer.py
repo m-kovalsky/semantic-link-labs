@@ -255,6 +255,13 @@ _WIDGET_CSS = """
 .slls-sx-vdupes svg { width: 13px; height: 13px; }
 .slls-sx-vdupes > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .slls-sx-vdupes .slls-sx-btn.small { margin-top: 4px; }
+.slls-sx-vdupes.slls-sx-vsuggest {
+    border-color: color-mix(in srgb, var(--ui-accent) 35%, transparent); background: var(--ui-accent-soft);
+}
+.slls-sx-vsuggest > .slls-sx-ricon { color: var(--ui-accent); }
+.slls-sx-vsuggest .list { display: flex; flex-direction: column; gap: 1px; margin: 3px 0 2px; font-family: var(--sx-mono); font-size: 11px; }
+.slls-sx-vsuggest .list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slls-sx-vsuggest .acts { display: flex; flex-wrap: wrap; gap: 4px; }
 .slls-sx-linkall { font-weight: 600; border-bottom: 1px solid var(--ui-border); border-radius: 0; cursor: pointer; }
 .slls-sx-linklist { max-height: 300px; overflow: auto; }
 .slls-sx-linklist .slls-sx-subitem, .slls-sx-linkall { cursor: pointer; }
@@ -302,6 +309,11 @@ _WIDGET_CSS = """
 .slls-sx-tablepick-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slls-sx-tablepick [data-kind="shortcut"] svg { color: var(--ui-accent); }
 .slls-sx-tablepick-note { padding: 6px 8px; font-size: 12px; color: var(--ui-text-tertiary); font-style: italic; }
+.slls-sx-tablepick .slls-sx-pill { margin-left: auto; flex-shrink: 0; }
+.slls-sx-addds .slls-sx-search { margin: 10px 0 6px; }
+.slls-sx-addds .slls-sx-subitem .slls-sx-pill { margin-left: 0; flex-shrink: 0; }
+.slls-sx-addds .slls-sx-subitem .meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; }
+.slls-sx-addds .slls-sx-tablepick-note { padding: 6px 8px; }
 .slls-sx-unpub { display: inline-flex; color: var(--sx-warn); }
 .slls-sx-unpub svg { width: 12px; height: 12px; }
 .slls-sx-unpub-text { color: var(--sx-warn); font-weight: 500; }
@@ -1105,6 +1117,9 @@ pre.slls-sx-dialect {
 .slls-sx-rd-edge.mm .ln, .slls-sx-rd-edge.bidi .ln, .slls-sx-rd-edge.lim .ln, .slls-sx-rd-edge.sf .ln, .slls-sx-rd-edge.hov .ln { stroke-opacity: 1; }
 .slls-sx-rd-edge.hov { --edge: var(--ui-accent); }
 .slls-sx-rd-edge.new .ln { stroke: var(--sx-warn); }
+.slls-sx-rd-edge.suggest { --edge: var(--sx-success); }
+.slls-sx-rd-edge.suggest .ln { stroke-dasharray: 6 4; stroke-opacity: 0.9; }
+.slls-sx-rd-edge.suggest.hov { --edge: var(--sx-success); }
 .slls-sx-rd-panel {
     position: absolute; display: flex; flex-direction: column; overflow: hidden; cursor: default;
     border: 1.5px solid var(--ui-border-strong); border-radius: 10px; background: var(--ui-bg-solid); box-shadow: var(--ui-shadow-sm);
@@ -1711,6 +1726,8 @@ function render({ model, el }) {
     let vTables = null;
     let vTablesLoading = false;
     let vTablePicker = null;
+    // Repaints the open "Add datasets from tables" dialog (when the tables load).
+    let vAddDatasetsRefresh = null;
     // The last "Check" (issues of the view with the pending changes applied);
     // cleared when the view is read again.
     let vCheck = null;
@@ -3323,7 +3340,9 @@ function render({ model, el }) {
         rebuildViewIndex();
         if (!vIndex.has(vSelected)) vSelected = "view";
         renderHeader();
+        vTypingChange = !!typing;
         renderViewTree();
+        vTypingChange = false;
         if (typing) refreshViewDetailHead();
         else renderViewDetail();
         redrawTools();
@@ -3856,7 +3875,387 @@ function render({ model, el }) {
             vTables = res.ok ? (res.data.items || []) : [];
             vTablesLoading = false;
             if (vTablePicker) vTablePicker.paint();
+            if (vAddDatasetsRefresh) vAddDatasetsRefresh();
         });
+    }
+    // The view's datasets by source table (vSourceKey), skipping `exceptKey`
+    // (the dataset whose source is being edited).
+    function vTableUsers(exceptKey) {
+        const users = new Map();
+        for (const d of vLive("datasets")) {
+            const k = d.key === exceptKey ? "" : vSourceKey(d.source);
+            if (!k) continue;
+            if (!users.has(k)) users.set(k, []);
+            users.get(k).push(d.name || "(unnamed)");
+        }
+        return users;
+    }
+    function inViewPill(names) {
+        const pill = h("span", "slls-sx-pill", "In view");
+        pill.title = `Already in the view as ${names.map((n) => `\u201c${n}\u201d`).join(", ")}`;
+        return pill;
+    }
+    // A business-friendly dataset name for a lakehouse table: the table name
+    // without its schema and technical prefixes (fact_, dim_, ...), split into
+    // title-cased words, e.g. dbo.dim_customer -> Customer and
+    // FactInternetSales -> Internet Sales.
+    const NAME_PREFIXES = new Set(["fact", "fct", "dim", "tbl", "vw", "stg", "f", "d", "t", "v"]);
+    const NAME_ACRONYMS = new Set(["id", "sku", "kpi", "url", "ytd", "mtd", "qtd", "usd", "eur", "gbp", "uom", "vat", "gl", "iso", "utc", "ip", "crm", "erp"]);
+    const NAME_MINOR = new Set(["a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "per", "the", "to", "vs"]);
+    function friendlyDatasetName(source) {
+        const table = String(source || "").replace(/[\[\]"`]/g, "").trim().split(".").pop();
+        const shouty = table === table.toUpperCase();
+        const words = table.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z](?!s(?:[^a-z]|$))[a-z])/g, "$1 $2")
+            .split(/[^A-Za-z0-9]+/).filter(Boolean);
+        while (words.length > 1 && NAME_PREFIXES.has(words[0].toLowerCase())) words.shift();
+        const name = words.map((w, i) => {
+            const lw = w.toLowerCase();
+            if (NAME_ACRONYMS.has(lw)) return lw.toUpperCase();
+            if (/s$/.test(lw) && NAME_ACRONYMS.has(lw.slice(0, -1))) return lw.slice(0, -1).toUpperCase() + "s";
+            if (i && NAME_MINOR.has(lw)) return lw;
+            // Acronyms in mixed-case names (FactKPIValues, KPIs) stay as they are.
+            if (!shouty && /^[A-Z][A-Z0-9]+s?$/.test(w)) return w;
+            return lw.charAt(0).toUpperCase() + lw.slice(1);
+        }).join(" ");
+        return name || table;
+    }
+    // Lower-cased names a new dataset can't take (datasets and metrics).
+    function vTakenDatasetNames() {
+        return new Set([...vAll("datasets"), ...vLive("metrics")].map((o) => String(o.name || "").trim().toLowerCase()));
+    }
+    function vClaimName(base, taken) {
+        let n = base, i = 2;
+        while (taken.has(n.toLowerCase())) n = `${base} ${i++}`;
+        taken.add(n.toLowerCase());
+        return n;
+    }
+    // Relationship suggestions for new datasets: a column of one dataset
+    // which names another dataset and matches its key (same column, e.g.
+    // sales.customer_id -> customers.customer_id, or its bare id / key, e.g.
+    // sales.customer_id -> customers.id), with compatible data types. Pairs
+    // which are already related aren't suggested; when a column could refer
+    // to several datasets only the best match is recommended.
+    const vRelDismissed = new Set();
+    const relLc = (v) => String(v || "").trim().toLowerCase();
+    const REL_KEY_WORDS = new Set(["id", "key", "sk", "code", "number", "no", "nr", "num"]);
+    const relWords = (text) => String(text || "").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+        .split(/[^A-Za-z0-9]+/).filter(Boolean).map((w) => w.toLowerCase());
+    const relSingular = (w) => (/ies$/.test(w) && w.length > 4 ? w.slice(0, -3) + "y"
+        : /(ss|us|is)$/.test(w) || w.length <= 3 ? w : w.replace(/(sh|ch|x)es$/, "$1").replace(/s$/, ""));
+    const relStem = (words) => (words.length ? [...words.slice(0, -1), relSingular(words[words.length - 1])].join("") : "");
+    // The entity a key column refers to ("customer" for customer_id or
+    // CustomerKey, "" for a bare id / key), or null when it isn't a key.
+    function relKeyStem(column) {
+        const ws = relWords(column);
+        if (ws.length && REL_KEY_WORDS.has(ws[ws.length - 1])) return relStem(ws.slice(0, -1));
+        const m = ws.length === 1 ? /^(.{3,}?)(id|key)$/.exec(ws[0]) : null;
+        return m ? relSingular(m[1]) : null;
+    }
+    // What a dataset is about: its name and its table's, without prefixes.
+    function relDatasetStems(d) {
+        const out = new Set();
+        for (const text of [d.name, String(d.source || "").replace(/[\[\]"`]/g, "").split(".").pop()]) {
+            const ws = relWords(text);
+            while (ws.length > 1 && NAME_PREFIXES.has(ws[0])) ws.shift();
+            if (ws.length) out.add(relStem(ws));
+        }
+        return out;
+    }
+    function relTypeGroup(t) {
+        const s = String(t || "").toLowerCase();
+        if (!s) return "";
+        if (/int|long|short|byte/.test(s)) return "int";
+        if (/char|string|text/.test(s)) return "text";
+        if (/dec|numeric|double|float|real|money|currency/.test(s)) return "num";
+        if (/date|time/.test(s)) return "date";
+        if (/bool|bit/.test(s)) return "bool";
+        return s;
+    }
+    const relTypesMatch = (a, b) => { const x = relTypeGroup(a), y = relTypeGroup(b); return !x || !y || x === y; };
+    // A dataset's stems and key columns, indexed for matching.
+    function relInfo(d) {
+        const cols = vCols(d);
+        const keys = [], byName = new Map(), bare = [];
+        for (const c of cols) {
+            const stem = relKeyStem(c.name);
+            if (stem) keys.push({ c, stem });
+            else if (stem === "") bare.push(c);
+            if (!byName.has(relLc(c.name))) byName.set(relLc(c.name), c);
+        }
+        return { d, stems: relDatasetStems(d), keys, byName, bare };
+    }
+    // The best column match for `many` -> `one` ({from_column, to_column,
+    // score, reason}). Skipped: columns which are `many`'s own key
+    // (customers.customer_id) and columns already on the many side of a
+    // relationship (`used`).
+    function relMatch(many, one, used) {
+        let best = null;
+        for (const { c: a, stem } of many.keys) {
+            if (!one.stems.has(stem) || many.stems.has(stem) || used.has(`${relLc(many.d.name)}\u0001${relLc(a.name)}`)) continue;
+            const same = one.byName.get(relLc(a.name));
+            const b = same && relTypesMatch(a.data_type, same.data_type) ? same : one.bare.find((x) => relTypesMatch(a.data_type, x.data_type));
+            if (!b) continue;
+            const score = b === same ? 3 : 2;
+            if (best && best.score >= score) continue;
+            best = { from_column: a.name, to_column: b.name, score,
+                reason: b === same ? `Both have the key column \u201c${a.name}\u201d, which refers to \u201c${one.d.name}\u201d`
+                    : `\u201c${a.name}\u201d refers to \u201c${one.d.name}\u201d, whose key is \u201c${b.name}\u201d` };
+        }
+        return best;
+    }
+    // Recomputed only when what the suggestions depend on changes.
+    let vRelMemo = { sig: null, list: [] };
+    function vRelSuggestions() {
+        if (!vWork) return [];
+        const sig = JSON.stringify([vRelDismissed.size, vLive("datasets").map((d) => [d.key, d.name, d.source, d.isNew, vCols(d).length]),
+            vLive("relationships").map((r) => [r.from, r.to, r.from_column])]);
+        if (sig !== vRelMemo.sig) vRelMemo = { sig, list: computeRelSuggestions() };
+        return vRelMemo.list;
+    }
+    function computeRelSuggestions() {
+        const datasets = vLive("datasets").filter((d) => String(d.name || "").trim() && vCols(d).length).map(relInfo);
+        const related = new Set(), used = new Set();
+        for (const r of vLive("relationships")) {
+            related.add(`${relLc(r.from)}\u0001${relLc(r.to)}`);
+            related.add(`${relLc(r.to)}\u0001${relLc(r.from)}`);
+            used.add(`${relLc(r.from)}\u0001${relLc(r.from_column)}`);
+        }
+        const out = [];
+        for (let i = 0; i < datasets.length; i++) {
+            for (let j = i + 1; j < datasets.length; j++) {
+                const a = datasets[i], b = datasets[j];
+                if ((!a.d.isNew && !b.d.isNew) || ciEq(a.d.name, b.d.name) || related.has(`${relLc(a.d.name)}\u0001${relLc(b.d.name)}`)) continue;
+                const ab = relMatch(a, b, used), ba = relMatch(b, a, used);
+                const [many, one, m] = !ba || (ab && ab.score >= ba.score) ? [a.d, b.d, ab] : [b.d, a.d, ba];
+                if (!m) continue;
+                const id = [many.key, m.from_column, one.key, m.to_column].map(relLc).join("\u0001");
+                if (vRelDismissed.has(id)) continue;
+                out.push(Object.assign({ id, fromKey: many.key, toKey: one.key, from: many.name, to: one.name, recommended: false }, m));
+            }
+        }
+        out.sort((x, y) => cmpText(x.from, y.from) || cmpText(x.from_column, y.from_column) || y.score - x.score || cmpText(x.to, y.to));
+        // A column which could refer to several datasets: the best one.
+        const seen = new Set();
+        for (const s of out) {
+            const k = `${s.fromKey}\u0001${relLc(s.from_column)}`;
+            if (!seen.has(k)) { seen.add(k); s.recommended = true; }
+        }
+        return out;
+    }
+    const relSlug = (s) => String(s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "dataset";
+    const relSuggestText = (s) => `'${s.from}'[${s.from_column}] \u2192 '${s.to}'[${s.to_column}]`;
+    // Stages the suggested relationships (one undo step).
+    function vAddSuggestedRelationships(list) {
+        if (!list.length || vMode !== "write" || vSaving || !vCanAdd() || !vWork) return;
+        vBeginStep("");
+        const file = vNewObjectFile("relationships");
+        for (const s of list) {
+            const id = `new-relationship-${++vNewSeq}`;
+            vWork.relationships.push({ id, key: id, type: "relationship", isNew: true, deleted: false, file,
+                name: uniqueViewName("relationships", `${relSlug(s.from)}_to_${relSlug(s.to)}`),
+                from: s.from, to: s.to, from_column: s.from_column, to_column: s.to_column });
+        }
+        vExpanded.add("view");
+        vExpanded.add("v:relationships");
+        vAfterChange(false);
+    }
+    function vDismissSuggestions(list) {
+        for (const s of list) vRelDismissed.add(s.id);
+        renderViewTree();
+        redrawTools();
+    }
+    // Lets the user choose which suggested relationships to add (the
+    // recommended ones start selected).
+    function openSuggestedRelationships() {
+        const list = vRelSuggestions();
+        if (!list.length || vMode !== "write" || vSaving) return;
+        const picked = new Set(list.filter((s) => s.recommended).map((s) => s.id));
+        const m = modal("Suggested relationships", "lightbulb", { wide: true });
+        m.box.classList.add("slls-sx-addds");
+        m.body.appendChild(h("div", "", "Relationships suggested for the new datasets, from columns which refer to another dataset\u2019s key. "
+            + "Each goes from the many side to the one side."));
+        const setToggle = (sw, on) => { sw.classList.toggle("on", on); sw.setAttribute("aria-checked", String(on)); };
+        const keepFocus = (el) => el.addEventListener("mousedown", (ev) => { if (!ev.target.closest(".slls-sx-switch")) ev.preventDefault(); });
+        const head = h("div", "slls-sx-subitem slls-sx-linkall");
+        const flipAll = () => { const on = !list.every((s) => picked.has(s.id)); list.forEach((s) => (on ? picked.add(s.id) : picked.delete(s.id))); refresh(); };
+        const all = switchEl(false, "Select all the suggested relationships", flipAll, "");
+        head.append(all, h("span", "", "All suggestions"), h("span", "meta", ""));
+        head.addEventListener("click", (ev) => { if (!ev.target.closest(".slls-sx-switch")) flipAll(); });
+        keepFocus(head);
+        const listEl = h("div", "slls-sx-sublist slls-sx-linklist");
+        const rows = list.map((s) => {
+            const it = h("div", "slls-sx-subitem");
+            const flip = () => { if (picked.has(s.id)) picked.delete(s.id); else picked.add(s.id); refresh(); };
+            const sw = switchEl(false, `Add ${relSuggestText(s)}`, flip, "");
+            it.append(sw, iconEl("relationship", ""), h("span", "slls-sx-mono", relSuggestText(s)));
+            if (!s.recommended) {
+                const alt = h("span", "slls-sx-pill", "Alternative");
+                alt.title = `\u201c${s.from_column}\u201d could also refer to another dataset; only one of them is recommended`;
+                it.appendChild(alt);
+            }
+            const meta = h("span", "meta", s.reason);
+            meta.title = s.reason;
+            it.appendChild(meta);
+            it.addEventListener("click", (ev) => { if (!ev.target.closest(".slls-sx-switch")) flip(); });
+            keepFocus(it);
+            listEl.appendChild(it);
+            return { it, sw, s };
+        });
+        m.body.append(head, listEl);
+        m.body.appendChild(h("div", "slls-sx-picker-note", "The relationships are staged as pending changes \u2014 commit them with Save. "
+            + "Dismissed suggestions aren\u2019t shown again in this session."));
+        const foot = h("div", "slls-sx-modal-foot");
+        const dismiss = button("slls-sx-btn", "Dismiss all", "close", () => { m.close(); vDismissSuggestions(list); },
+            "Don\u2019t suggest these relationships again in this session");
+        const ok = button("slls-sx-btn primary", "", "plus", () => {
+            const chosen = list.filter((s) => picked.has(s.id));
+            if (!chosen.length) return;
+            m.close();
+            vAddSuggestedRelationships(chosen);
+        });
+        dismiss.style.marginRight = "auto";
+        foot.append(dismiss, button("slls-sx-btn", "Cancel", "", () => m.close()), ok);
+        m.box.appendChild(foot);
+        function refresh() {
+            for (const r of rows) { const on = picked.has(r.s.id); r.it.classList.toggle("on", on); setToggle(r.sw, on); }
+            setToggle(all, list.every((s) => picked.has(s.id)));
+            head.querySelector(".meta").textContent = `${picked.size} of ${list.length} selected`;
+            ok.innerHTML = ICON.plus || "";
+            ok.appendChild(document.createTextNode(picked.size ? `Add ${plural(picked.size, "relationship")}` : "Select relationships"));
+            ok.disabled = !picked.size;
+        }
+        refresh();
+        setTimeout(() => ok.focus(), 0);
+    }
+    // Adds a dataset for each of several lakehouse tables at once, sourced
+    // from the table and given a business-friendly name (one undo step).
+    // Tables already used by a dataset of the view are marked.
+    function openAddViewDatasets() {
+        if (vMode !== "write" || vSaving || !vCanAdd()) return;
+        ensureViewTables();
+        const file = vNewObjectFile("datasets");
+        const lakehouse = viewData.view.lakehouse_name;
+        const m = modal("Add datasets from tables", "table", { wide: true });
+        m.box.classList.add("slls-sx-addds");
+        m.body.appendChild(h("div", "", `Adds a dataset for each selected table or shortcut in the \u201c${lakehouse}\u201d lakehouse`
+            + `${vMultiFile() ? ` to ${file}` : ""}. Tables already used by a dataset of the view are marked \u201cIn view\u201d.`));
+        const picked = new Set();
+        let query = "";
+        const tables = () => (vTables || []).map((t) => {
+            const name = tableItemName(t);
+            return { name, shortcut: !!(t && t.shortcut), key: vSourceKey(name) };
+        }).filter((t) => t.key);
+        const shown = () => tables().filter((t) => !query || t.name.toLowerCase().includes(query));
+        // The names the selected tables get, in list order.
+        const plan = () => {
+            const taken = vTakenDatasetNames();
+            const out = new Map();
+            for (const t of tables()) if (picked.has(t.key)) out.set(t.key, vClaimName(friendlyDatasetName(t.name), taken));
+            return out;
+        };
+        // "All tables" selects the shown tables which aren't in the view yet
+        // (or clears the selection when they all are selected).
+        const flipAll = () => {
+            const users = vTableUsers();
+            const rows = shown().filter((t) => !users.has(t.key));
+            const on = !rows.length || !rows.every((t) => picked.has(t.key));
+            if (on) rows.forEach((t) => picked.add(t.key));
+            else shown().forEach((t) => picked.delete(t.key));
+            paint();
+        };
+        const head = h("div", "slls-sx-subitem slls-sx-linkall");
+        const all = switchEl(false, "Select all the shown tables which aren\u2019t in the view", flipAll, "");
+        head.append(all, h("span", "", "All tables not in the view"), h("span", "meta", ""));
+        head.addEventListener("click", (ev) => { if (!ev.target.closest(".slls-sx-switch")) flipAll(); });
+        const list = h("div", "slls-sx-sublist slls-sx-linklist");
+        m.body.append(searchBox("Filter tables\u2026", "", (v) => { query = v.trim().toLowerCase(); paint(); }), head, list);
+        m.body.appendChild(h("div", "slls-sx-picker-note", "Each dataset\u2019s source is set to its table and its columns are read from the lakehouse; relationships to the new "
+            + "datasets are then suggested. The names can be changed afterwards; nothing is saved until you click Save."));
+        const foot = h("div", "slls-sx-modal-foot");
+        const ok = button("slls-sx-btn primary", "", "plus", () => add());
+        foot.append(button("slls-sx-btn", "Cancel", "", () => m.close()), ok);
+        m.box.appendChild(foot);
+        const setToggle = (sw, on) => { sw.classList.toggle("on", on); sw.setAttribute("aria-checked", String(on)); };
+        // The rows are built when the shown tables change (filter, tables
+        // loaded) and otherwise updated in place: rebuilding them on a toggle
+        // removes the clicked element, and the notebook then scrolls back to
+        // the widget's top when the focus leaves it.
+        const rowEls = new Map();
+        let built = null;
+        // A click on a row (outside its toggle) doesn't move the focus: it
+        // would go to the notebook cell, which the notebook scrolls into view.
+        const keepFocus = (el) => el.addEventListener("mousedown", (ev) => { if (!ev.target.closest(".slls-sx-switch")) ev.preventDefault(); });
+        keepFocus(head);
+        function buildRows(rows, users) {
+            const top = list.scrollTop;
+            clear(list);
+            rowEls.clear();
+            if (vTablesLoading) list.appendChild(h("div", "slls-sx-tablepick-note", "Loading the lakehouse tables\u2026"));
+            else if (!rows.length) list.appendChild(h("div", "slls-sx-tablepick-note", tables().length ? "No matching tables" : "No tables found in the lakehouse"));
+            for (const t of rows) {
+                const it = h("div", "slls-sx-subitem");
+                const flip = () => { if (picked.has(t.key)) picked.delete(t.key); else picked.add(t.key); paint(); };
+                const sw = switchEl(false, `Add a dataset for ${t.name}`, flip, "");
+                it.append(sw, iconEl(t.shortcut ? "link" : "table", ""), h("span", "slls-sx-mono", t.name));
+                const pill = users.has(t.key) ? inViewPill(users.get(t.key)) : null;
+                if (pill) it.appendChild(pill);
+                const meta = h("span", "meta", "");
+                it.appendChild(meta);
+                it.title = `${t.name} (${t.shortcut ? "shortcut" : "table"})`;
+                it.addEventListener("click", (ev) => { if (!ev.target.closest(".slls-sx-switch")) flip(); });
+                keepFocus(it);
+                list.appendChild(it);
+                rowEls.set(t.key, { it, sw, pill, meta });
+            }
+            list.scrollTop = top;
+        }
+        function paint() {
+            const users = vTableUsers();
+            const names = plan();
+            const rows = shown();
+            const shape = `${vTablesLoading}\n${tables().length}\n${rows.map((t) => t.key).join("\n")}`;
+            if (shape !== built) { buildRows(rows, users); built = shape; }
+            for (const t of rows) {
+                const el = rowEls.get(t.key);
+                if (!el) continue;
+                const on = picked.has(t.key);
+                el.it.classList.toggle("on", on);
+                setToggle(el.sw, on);
+                // Selecting a table already in the view adds it a second time.
+                if (el.pill) el.pill.classList.toggle("warn", on);
+                el.meta.textContent = on ? `\u2192 ${names.get(t.key)}` : "";
+                el.meta.title = on ? `The dataset\u2019s name: ${names.get(t.key)}` : "";
+            }
+            const free = rows.filter((t) => !users.has(t.key));
+            setToggle(all, !!free.length && free.every((t) => picked.has(t.key)));
+            all.disabled = !free.length;
+            head.querySelector(".meta").textContent = `${names.size} selected`;
+            ok.innerHTML = ICON.plus || "";
+            ok.appendChild(document.createTextNode(names.size ? `Add ${plural(names.size, "dataset")}` : "Select tables"));
+            ok.disabled = !names.size;
+        }
+        function add() {
+            const names = plan();
+            if (!names.size || vMode !== "write" || vSaving || !vWork) return;
+            vBeginStep("");
+            let first = "";
+            for (const t of tables()) {
+                if (!names.has(t.key)) continue;
+                const id = `new-dataset-${++vNewSeq}`;
+                vWork.datasets.push({ id, key: id, type: "dataset", isNew: true, deleted: false, file, name: names.get(t.key), source: t.name, description: "" });
+                if (!first) first = id;
+                ensureViewColumns(t.name);
+            }
+            vExpanded.add("view");
+            vExpanded.add("v:datasets");
+            vSelected = first;
+            m.close();
+            vAfterChange(false);
+        }
+        vAddDatasetsRefresh = paint;
+        m.onClose = () => { if (vAddDatasetsRefresh === paint) vAddDatasetsRefresh = null; };
+        paint();
+        setTimeout(() => { const q = m.body.querySelector("input"); if (q) q.focus(); }, 0);
     }
     // Lakehouse table picker for a dataset source: an in-widget dropdown
     // aligned with the input (a native datalist is placed and sized by the
@@ -3965,7 +4364,7 @@ function render({ model, el }) {
         paintButton();
         return btn;
     }
-    function attachTablePicker(wrap, input) {
+    function attachTablePicker(wrap, input, selfKey) {
         let menu = null;
         let active = -1;
         let items = [];
@@ -4012,6 +4411,7 @@ function render({ model, el }) {
                 vTablePicker = api;
             }
             clear(menu);
+            const users = vTableUsers(selfKey);
             if (vTablesLoading) menu.appendChild(h("div", "slls-sx-tablepick-note", "Loading the lakehouse tables\u2026"));
             else if (!items.length) menu.appendChild(h("div", "slls-sx-tablepick-note", (vTables || []).length ? "No matching tables" : "No tables found in the lakehouse"));
             items.forEach((t, i) => {
@@ -4026,6 +4426,8 @@ function render({ model, el }) {
                 const ic = iconEl(shortcut ? "link" : "table", "");
                 ic.dataset.kind = shortcut ? "shortcut" : "table";
                 it.append(ic, h("span", "slls-sx-tablepick-name", name));
+                const usedBy = users.get(vSourceKey(name));
+                if (usedBy) it.appendChild(inViewPill(usedBy));
                 it.addEventListener("click", () => pick(name));
                 menu.appendChild(it);
             });
@@ -4072,6 +4474,8 @@ function render({ model, el }) {
             rebuildViewIndex();
             renderViewTree();
             renderViewDetail();
+            // The new columns may bring relationship suggestions.
+            redrawTools();
         });
     }
 
@@ -4297,19 +4701,20 @@ function render({ model, el }) {
             relationship: ["Add relationship", "relationship", () => vAdd("relationship"), noAdd],
             metric: ["Add metric", "measure", () => vAdd("metric"), noAdd],
         };
+        const addDatasets = ["Add datasets from tables\u2026", "table", openAddViewDatasets, noAdd];
         if (r.folder) {
             const type = { "v:datasets": "dataset", "v:relationships": "relationship", "v:metrics": "metric" }[r.id];
-            return type ? [add[type]] : [];
+            return type === "dataset" ? [add.dataset, addDatasets] : type ? [add[type]] : [];
         }
         if (!node) return [];
         if (node.type === "view") {
-            const items = [add.dataset, add.relationship, add.metric, null,
+            const items = [add.dataset, addDatasets, add.relationship, add.metric, null,
                 ["Add YAML file", "file", openAddViewFile, off || !!model.get("busy") || !!viewData.view.shortcut]];
             if (vRemovableFiles().length) items.push(["Remove YAML file\u2026", "unlink", () => openRemoveViewFile(vFileFilter), off || !!model.get("busy")]);
             return items;
         }
         if (!add[node.type]) return [];
-        const items = [add[node.type]];
+        const items = node.type === "dataset" ? [add.dataset, addDatasets] : [add[node.type]];
         if (vEditable(node)) {
             items.push(null, [node.deleted ? "Restore" : "Delete", node.deleted ? "undo" : "trash", () => vToggleDelete(node), off, !node.deleted]);
         }
@@ -4328,6 +4733,51 @@ function render({ model, el }) {
         vTreeEl.scrollTop = top;
         paintViewDuplicates();
         paintViewMissing();
+        paintViewSuggestions();
+    }
+    // Banner recommending relationships for the new datasets, added with one
+    // click (or chosen in a dialog).
+    // While typing (e.g. a dataset's name) the banner is repainted after a
+    // pause rather than on every keystroke.
+    let vSuggestTimer = null;
+    let vTypingChange = false;
+    function paintViewSuggestions() {
+        clearTimeout(vSuggestTimer);
+        if (vTypingChange) { vSuggestTimer = setTimeout(paintViewSuggestionsNow, 250); return; }
+        paintViewSuggestionsNow();
+    }
+    function paintViewSuggestionsNow() {
+        const box = treePane && treePane.querySelector(".slls-sx-vsuggest");
+        if (!box || !box.isConnected) return;
+        clear(box);
+        const list = vMode === "write" && !vSaving ? vRelSuggestions() : [];
+        box.style.display = list.length ? "" : "none";
+        if (!list.length) return;
+        const rec = list.filter((s) => s.recommended);
+        box.appendChild(iconEl("lightbulb", ""));
+        const text = h("span", "");
+        const title = h("b", "", `${plural(rec.length, "suggested relationship")} for the new datasets`);
+        text.appendChild(title);
+        const lines = h("div", "list");
+        for (const s of rec.slice(0, 4)) {
+            const line = h("span", "", relSuggestText(s));
+            line.title = s.reason;
+            lines.appendChild(line);
+        }
+        if (rec.length > 4) lines.appendChild(h("span", "", `+ ${rec.length - 4} more`));
+        text.appendChild(lines);
+        const acts = h("div", "acts");
+        const add = button("slls-sx-btn small primary", `Add ${plural(rec.length, "relationship")}`, "plus", () => vAddSuggestedRelationships(rec),
+            `Add ${rec.map(relSuggestText).join(", ")}`);
+        const choose = button("slls-sx-btn small", "Choose\u2026", "relationship", openSuggestedRelationships,
+            list.length > rec.length ? `Choose which relationships to add (${plural(list.length - rec.length, "alternative")} too)`
+                : "Choose which relationships to add");
+        const diagram = button("slls-sx-btn small", "Diagram", "network", () => openViewRelationshipDiagram(), "Show the suggestions in the relationship diagram");
+        const dismiss = button("slls-sx-btn small", "Dismiss", "close", () => vDismissSuggestions(list), "Don\u2019t suggest these relationships again in this session");
+        add.disabled = !!model.get("busy");
+        acts.append(add, choose, diagram, dismiss);
+        text.appendChild(acts);
+        box.appendChild(text);
     }
     // Banner above the tree naming the duplicated names; each name reveals
     // its next object.
@@ -4477,7 +4927,7 @@ function render({ model, el }) {
         setTimeout(() => ok.focus(), 0);
     }
     function paintViewDuplicates() {
-        const box = treePane.querySelector(".slls-sx-vdupes:not(.slls-sx-vmissing)");
+        const box = treePane.querySelector(".slls-sx-vdupes:not(.slls-sx-vmissing):not(.slls-sx-vsuggest)");
         if (!box) return;
         clear(box);
         const groups = [];
@@ -4580,6 +5030,7 @@ function render({ model, el }) {
         treePane.appendChild(filters);
         treePane.appendChild(h("div", "slls-sx-vdupes"));
         treePane.appendChild(h("div", "slls-sx-vdupes slls-sx-vmissing"));
+        treePane.appendChild(h("div", "slls-sx-vdupes slls-sx-vsuggest"));
         vTreeEl = h("div", "slls-sx-tree slls-sx-vtree");
         vTreeEl.setAttribute("role", "tree");
         treePane.appendChild(vTreeEl);
@@ -4912,6 +5363,12 @@ function render({ model, el }) {
                     const ab = button("slls-sx-btn small", label, "plus", () => vAdd(type), vCanAdd() ? `Add a ${type}` : readOnlyAll);
                     ab.disabled = !vCanAdd();
                     actions.appendChild(ab);
+                    if (type === "dataset") {
+                        const many = button("slls-sx-btn small", "Datasets from tables", "plus", openAddViewDatasets,
+                            vCanAdd() ? "Add several datasets at once from the lakehouse\u2019s tables and shortcuts" : readOnlyAll);
+                        many.disabled = !vCanAdd();
+                        actions.appendChild(many);
+                    }
                 }
                 const yf = button("slls-sx-btn small", "YAML file", "plus", openAddViewFile,
                     viewData.view.shortcut ? "This view is a shortcut, which is read-only"
@@ -5044,7 +5501,7 @@ function render({ model, el }) {
                 },
             });
             wrap.appendChild(input);
-            attachTablePicker(wrap, input);
+            attachTablePicker(wrap, input, node.key);
             source = wrap;
         }
         vCard(b, "General", (body) => body.appendChild(vProps([
@@ -10350,6 +10807,14 @@ function render({ model, el }) {
                 if (r.from_table !== r.to_table) { neighbors[r.from_table].add(r.to_table); neighbors[r.to_table].add(r.from_table); }
             }
             for (const k of Object.keys(relCols)) relCols[k] = [...relCols[k]].filter(Boolean).sort(cmpText);
+            // Suggested relationships for new datasets (edit mode): dashed
+            // lines which add the relationship when clicked.
+            const suggest = write() ? vRelSuggestions().filter((s) => byKey.has(s.fromKey) && byKey.has(s.toKey)) : [];
+            for (const s of suggest) {
+                for (const [k, col] of [[s.fromKey, s.from_column], [s.toKey, s.to_column]]) {
+                    if (!relCols[k].includes(col)) relCols[k] = [...relCols[k], col].sort(cmpText);
+                }
+            }
             const names = datasets.map((d) => d.key);
             let visible = names;
             if (focused.size) {
@@ -10358,7 +10823,7 @@ function render({ model, el }) {
                 visible = names.filter((k) => vis.has(k));
             }
             const files = vMultiFile() ? viewYamlFiles() : [];
-            return { datasets, byKey, rels, dangling, relCols, neighbors, keyRole, names, visible,
+            return { datasets, byKey, rels, dangling, relCols, neighbors, keyRole, names, visible, suggest,
                 legend: files.map((f) => ({ label: f, color: fileColor(f) })) };
         }
         const panelH = (k) => {
@@ -10391,6 +10856,17 @@ function render({ model, el }) {
                     p2: rdEdgePoint(b.x, b.y, b.w, bH, a.x + a.w / 2, a.y + aH / 2) };
             });
         }
+        function suggestConnectors() {
+            const vis = new Set(g.visible);
+            return g.suggest.map((s, i) => [s, i]).filter(([s]) => vis.has(s.fromKey) && vis.has(s.toKey) && panels[s.fromKey] && panels[s.toKey]).map(([s, i]) => {
+                const a = panels[s.fromKey], b = panels[s.toKey];
+                const aH = panelH(s.fromKey), bH = panelH(s.toKey);
+                return { s, key: "sug:" + i,
+                    p1: rdEdgePoint(a.x, a.y, a.w, aH, b.x + b.w / 2, b.y + bH / 2),
+                    p2: rdEdgePoint(b.x, b.y, b.w, bH, a.x + a.w / 2, a.y + aH / 2) };
+            });
+        }
+        const suggestionOf = (key) => (key && /^sug:\d+$/.test(key) ? g.suggest[Number(key.slice(4))] || null : null);
         function paintEdges() {
             if (!els) return;
             const size = canvasSize();
@@ -10419,6 +10895,16 @@ function render({ model, el }) {
                     + mk(c.p1.x + ux * off, c.p1.y + uy * off, "*") + mk(c.p2.x - ux * off, c.p2.y - uy * off, "1")
                     + `<line class="hit" data-key="${esc(c.key)}" x1="${c.p1.x}" y1="${c.p1.y}" x2="${c.p2.x}" y2="${c.p2.y}"/></g>`;
             }
+            for (const c of suggestConnectors()) {
+                const dx = c.p2.x - c.p1.x, dy = c.p2.y - c.p1.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+                const hov = c.key === hoveredKey;
+                const aOff = Math.min(Math.min(22, len / 2 - 2) + 16, len / 2);
+                const head = reverse ? [c.p1.x + ux * aOff, c.p1.y + uy * aOff, -ux, -uy] : [c.p2.x - ux * aOff, c.p2.y - uy * aOff, ux, uy];
+                out += `<g class="slls-sx-rd-edge suggest${hov ? " hov" : ""}" aria-label="${esc("Suggested: " + relSuggestText(c.s))}">`
+                    + `<line class="ln" x1="${c.p1.x}" y1="${c.p1.y}" x2="${c.p2.x}" y2="${c.p2.y}" stroke-width="${hov ? 3 : 1.5}"/>`
+                    + `<polygon class="arrow" points="${rdArrow(head[0], head[1], head[2], head[3], hov ? 8 : 7)}"/>`
+                    + `<line class="hit" data-key="${esc(c.key)}" x1="${c.p1.x}" y1="${c.p1.y}" x2="${c.p2.x}" y2="${c.p2.y}"/></g>`;
+            }
             els.svg.innerHTML = out;
             paintEdgeTip();
         }
@@ -10426,6 +10912,27 @@ function render({ model, el }) {
         function paintEdgeTip() {
             if (els.edgeTip) { els.edgeTip.remove(); els.edgeTip = null; }
             for (const p of els.panelEls.values()) for (const row of p.cols.values()) row.classList.remove("hl");
+            const sc = suggestionOf(hoveredKey) ? suggestConnectors().find((x) => x.key === hoveredKey) : null;
+            if (sc) {
+                for (const [k, col] of [[sc.s.fromKey, sc.s.from_column], [sc.s.toKey, sc.s.to_column]]) {
+                    const p = els.panelEls.get(k);
+                    const row = p && p.cols.get(col);
+                    if (row) row.classList.add("hl");
+                }
+                const tip = h("div", "slls-sx-rd-tip");
+                const head = h("div", "slls-sx-rd-tip-head");
+                head.append(iconEl("lightbulb", ""), h("span", "name", "Suggested relationship"));
+                if (!sc.s.recommended) head.appendChild(h("span", "slls-sx-pill", "Alternative"));
+                tip.appendChild(head);
+                tip.appendChild(h("div", "slls-sx-rd-tip-path", relSuggestText(sc.s)));
+                tip.appendChild(rdTipGrid([["Why", sc.s.reason], ["Cardinality", "Many \u2192 One"]]));
+                tip.appendChild(h("div", "slls-sx-rd-tip-path", "Click to add it \u00b7 right-click to dismiss"));
+                tip.style.left = ((sc.p1.x + sc.p2.x) / 2) * zoom + 14 + "px";
+                tip.style.top = ((sc.p1.y + sc.p2.y) / 2) * zoom + 14 + "px";
+                els.sizer.appendChild(tip);
+                els.edgeTip = tip;
+                return;
+            }
             const c = hoveredKey ? connectors().find((x) => x.key === hoveredKey) : null;
             if (!c) return;
             for (const [k, col] of [[c.r.from_table, c.r.from_column], [c.r.to_table, c.r.to_column]]) {
@@ -10726,12 +11233,23 @@ function render({ model, el }) {
             });
             svg.addEventListener("contextmenu", (ev) => {
                 const k = ev.target.getAttribute && ev.target.getAttribute("data-key");
+                const s = suggestionOf(k);
+                if (s) {
+                    ev.preventDefault();
+                    showMenu(ev.clientX, ev.clientY, [["Add relationship", "plus", () => { hoveredKey = null; vAddSuggestedRelationships([s]); }, !write() || !vCanAdd()],
+                        ["Dismiss suggestion", "close", () => { hoveredKey = null; vDismissSuggestions([s]); }]]);
+                    return;
+                }
                 const r = k && g.rels.find((x) => x.key === k);
                 if (!r) return;
                 ev.preventDefault();
                 const items = [["Go to relationship", "relationship", () => goTo(r.key)]];
                 if (write() && vEditable(r.node)) items.push(null, ["Delete relationship", "trash", () => vToggleDelete(r.node), false, true]);
                 showMenu(ev.clientX, ev.clientY, items);
+            });
+            svg.addEventListener("click", (ev) => {
+                const s = suggestionOf(ev.target.getAttribute && ev.target.getAttribute("data-key"));
+                if (s && write() && vCanAdd()) { hoveredKey = null; vAddSuggestedRelationships([s]); }
             });
             scroller.addEventListener("pointerdown", (ev) => {
                 if (ev.target.closest(".slls-sx-rd-panel") || (ev.target.getAttribute && ev.target.getAttribute("data-key"))) return;
@@ -10800,9 +11318,18 @@ function render({ model, el }) {
                         + g.dangling.map((r) => `${r.name} (${r.from} \u2192 ${r.to})`).join(", ");
                     bar.appendChild(warn);
                 }
+                if (g.suggest.length) {
+                    const rec = g.suggest.filter((s) => s.recommended);
+                    const add = button("slls-sx-btn small primary", `Add ${plural(rec.length, "suggested relationship")}`, "lightbulb",
+                        () => vAddSuggestedRelationships(rec), `Add ${rec.map(relSuggestText).join(", ")}`);
+                    add.disabled = !vCanAdd();
+                    bar.append(add, button("slls-sx-btn small", "Choose\u2026", "relationship", openSuggestedRelationships, "Choose which suggested relationships to add"),
+                        button("slls-sx-btn small", "Dismiss", "close", () => vDismissSuggestions(g.suggest), "Don\u2019t suggest these relationships again in this session"));
+                }
                 const hint = vMultiFile() ? "Datasets and relationships are coloured by the YAML file which defines them" : "";
                 const editHint = write() ? "Drag a column onto another dataset to create a relationship \u00b7 right-click a line or a dataset for more" : "";
-                const text = [hint, editHint].filter(Boolean).join(" \u00b7 ");
+                const suggestHint = g.suggest.length ? "Dashed lines are suggested relationships \u2014 click one to add it" : "";
+                const text = [suggestHint, hint, editHint].filter(Boolean).join(" \u00b7 ");
                 if (text) bar.appendChild(h("span", "slls-sx-tool-count", text));
                 m.body.appendChild(bar);
                 const main = h("div", "slls-sx-rd-main");
